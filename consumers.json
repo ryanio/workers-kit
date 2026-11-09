@@ -1,0 +1,11 @@
+[
+  {"repo": "calvin", "dir": "scripts/doc-refs"},
+  {"repo": "coral", "dir": "scripts/doc-refs"},
+  {"repo": "flock", "dir": "scripts/doc-refs"},
+  {"repo": "glyphbots", "dir": "scripts/doc-refs"},
+  {"repo": "musegod", "dir": "scripts/doc-refs"},
+  {"repo": "sitewise", "dir": "scripts/doc-refs"},
+  {"repo": "terrakin", "dir": "scripts/doc-refs"},
+  {"repo": "wompworld", "dir": "scripts/doc-refs"},
+  {"repo": "x", "dir": "scripts/doc-refs"}
+]
