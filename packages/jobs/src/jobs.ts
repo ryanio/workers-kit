@@ -44,9 +44,10 @@ export type JobsOptions<Env> = {
     /** How late a slot may be before it counts as missed. Default `defaultGraceMs`. */
     graceMs?: (cron: string) => number;
     /**
-     * What to do for a cron job with no row at all: `"start"` (default) starts
-     * its last due slot, which also catches a new trigger that never fired;
-     * `"wait"` leaves it until the trigger has run once.
+     * What to do for a cron job with no row at all: `"wait"` (default) leaves
+     * it until its trigger has run once, so a first deploy starts nothing on
+     * its own; `"start"` starts its last due slot, which also catches a new
+     * trigger that never fired.
      */
     firstRun?: "start" | "wait";
   };
@@ -130,11 +131,14 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(options: JobsOpt
   }
 
   function keyFor(job: JobDef<Env>, data: unknown, nowMs: number): string {
+    // A key function that throws is a bad payload. Falling back to a fixed
+    // key would make every later delivery a duplicate of the first, so the
+    // error goes to the sender instead.
     let key: string | null;
     try {
       key = job.key ? job.key(data, { nowMs }) : null;
-    } catch {
-      key = "unknown";
+    } catch (err) {
+      throw new Error(`job ${job.id}: its key function threw: ${errorText(err)}`);
     }
     return key ?? `${nowMs.toString(36)}${Math.random().toString(36).slice(2, 8)}`;
   }
@@ -145,7 +149,11 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(options: JobsOpt
    * id, the first such error is thrown after the rest have been tried, so a
    * route keeps its own failure handling.
    */
-  async function sendEvent(env: Env, events: EventOf<Ev> | readonly EventOf<Ev>[], nowMs = Date.now()) {
+  async function sendEvent<K extends keyof Ev & string>(
+    env: Env,
+    events: { name: K; data: Ev[K]; ts?: number } | readonly EventOf<Ev>[],
+    nowMs = Date.now(),
+  ) {
     const list = (Array.isArray(events) ? events : [events]) as readonly { name: string; data: unknown; ts?: number }[];
     const results: { fn: string; id: string; result: CreateResult }[] = [];
     let failure: unknown;
@@ -306,7 +314,7 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(options: JobsOpt
     const started = [];
     for (const { fn, slotMs } of due) {
       const last = latest.get(fn);
-      if (last === undefined && options.backstop?.firstRun === "wait") continue;
+      if (last === undefined && (options.backstop?.firstRun ?? "wait") === "wait") continue;
       if ((last ?? "") >= slotKey(slotMs, format)) continue;
       const r = await startCronSlot(env, fn, slotMs);
       log.warn("jobs.backstop_started", { fn, slot: slotKey(slotMs, format), result: r.result });

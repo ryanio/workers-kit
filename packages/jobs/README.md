@@ -142,13 +142,15 @@ it("the jobs and wrangler.toml agree", () => {
 
 ### Instance ids and dedup
 
-Every instance id is `<job>-<key>`, cleaned to the characters Workflows accepts and cut to 100. A cron's key is its slot, `YYYYMMDDHHmm` in UTC. An event job's key comes from its `key` function. When `create()` is refused because the id exists, `sendEvent` and `scheduled` count a duplicate and do nothing else. So a cron fired twice in one slot runs once, and an event sent twice for the same key runs once.
+Every instance id is `<job>-<key>`, cleaned to the characters Workflows accepts (anything else becomes `_`). An id longer than 100 keeps its first 87 characters and ends in a hash of the whole id, so two long keys never share an id. A cron's key is its slot, `YYYYMMDDHHmm` in UTC. An event job's key comes from its `key` function. When `create()` is refused because the id exists, `sendEvent` and `scheduled` count a duplicate and do nothing else. So a cron fired twice in one slot runs once, and an event sent twice for the same key runs once.
 
 The `key` function is required for every event job, because the right key depends on the work:
 
 - A welcome email keys on the user id: one per user, ever.
 - A retry after a failed release should not key on the escrow id alone. That blocks every later retry of the same escrow for as long as Workflows keeps the first instance (the retention window, 7 days on success and 30 on error by default). Key on something that changes per failure, such as a failure id or an attempt number.
 - Return `null` to run every delivery.
+
+A `key` function that throws makes `sendEvent` throw for that event. It never falls back to a fixed key, which would turn every later delivery into a duplicate of the first.
 
 Set `slotKey: "day"` to key crons by `YYYYMMDD` instead. That only suits setups where every cron fires at most once a day, and `createJobs` refuses it otherwise.
 
@@ -174,7 +176,7 @@ The cron map is built from each job's `cron`, so the keys are exactly the string
 
 ### The backstop
 
-`catchUpCrons(env)` runs off request traffic, which shares nothing with the cron system. At most once per isolate per 15 minutes, it reads the latest slot each cron job has a ledger row for. It then starts the last due slot of any job that is behind. A slot is due 10 minutes after it starts for crons that fire more than once an hour, and 30 minutes after for the rest. A race with a late trigger is harmless, because the slot is in the id. A cron job with no row at all is started too, which catches a new trigger that never fired. Set `backstop: { firstRun: "wait" }` to leave those alone.
+`catchUpCrons(env)` runs off request traffic, which shares nothing with the cron system. At most once per isolate per 15 minutes, it reads the latest slot each cron job has a ledger row for. It then starts the last due slot of any job that is behind. A slot is due 10 minutes after it starts for crons that fire more than once an hour, and 30 minutes after for the rest. A race with a late trigger is harmless, because the slot is in the id. A cron job with no row at all is left alone until its trigger has run once, so a first deploy, or a move from another scheduler, starts nothing on its own. Set `backstop: { firstRun: "start" }` to start those too, which also catches a new trigger that never fired.
 
 After any deploy that changes `[triggers]`, confirm the next slot wrote a ledger row. A registered trigger is not proof that it fires.
 

@@ -7,9 +7,28 @@
 const UNSAFE = /[^a-zA-Z0-9_-]/g;
 const MAX_ID = 100;
 
-/** `<job>-<key>`, in the characters Workflows accepts, at most 100 long. */
+/**
+ * `<job>-<key>`, in the characters Workflows accepts, at most 100 long. Other
+ * characters become `_`. An id past 100 keeps its first 87 characters and
+ * ends in `-` and a 12-character hash of the whole id, so two long keys that
+ * share a prefix still get different ids. Ids of 100 or fewer are unchanged.
+ */
 export function instanceId(job: string, key: string): string {
-  return `${job}-${key}`.replace(UNSAFE, "_").slice(0, MAX_ID);
+  const id = `${job}-${key}`.replace(UNSAFE, "_");
+  if (id.length <= MAX_ID) return id;
+  return `${id.slice(0, MAX_ID - 13)}-${hash12(`${job}-${key}`)}`;
+}
+
+/** 48 bits of FNV-1a over the UTF-16 code units, as 12 hex characters. Stable across runtimes. */
+function hash12(text: string): string {
+  let a = 0x811c9dc5;
+  let b = 0x01000193;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    a = Math.imul(a ^ c, 0x01000193) >>> 0;
+    b = Math.imul(b ^ c ^ (a >>> 7), 0x01000193) >>> 0;
+  }
+  return (a >>> 0).toString(16).padStart(8, "0") + ((b >>> 0) & 0xffff).toString(16).padStart(4, "0");
 }
 
 export type SlotKeyFormat = "minute" | "day";

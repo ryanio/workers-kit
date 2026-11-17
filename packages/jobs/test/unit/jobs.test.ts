@@ -131,6 +131,13 @@ describe("sendEvent", () => {
     expect(t.events.created).toEqual([]);
   });
 
+  it("refuses an event whose key function throws, instead of keying it on a fixed fallback", async () => {
+    const t = setup();
+    const bad = { name: "user/created", data: null } as unknown as { name: "user/created"; data: { userId: string } };
+    await expect(t.jobs.sendEvent(t.env, bad)).rejects.toThrow("job send-welcome: its key function threw");
+    expect(t.events.created).toEqual([]);
+  });
+
   it("throws a create failure after trying every subscriber", async () => {
     const t = setup();
     t.events.binding.create = async () => {
@@ -286,7 +293,7 @@ describe("backstop", () => {
   const NOW = Date.UTC(2026, 10, 3, 14, 0); // Tuesday
 
   it("starts every overdue slot with no row, sub-daily and daily, and leaves the ones that ran", async () => {
-    const t = setup();
+    const t = setup({ firstRun: "start" });
     await t.jobs.run(
       t.env,
       { instanceId: "x", payload: { fn: "digest-daily", data: {}, slotMs: Date.UTC(2026, 10, 3, 13) } },
@@ -296,13 +303,13 @@ describe("backstop", () => {
     expect(started.map((r) => r.id).sort()).toEqual(["digest-weekly-202611021300", "sweep-202611031345"]);
   });
 
-  it("can wait for a cron's first run instead", async () => {
-    const t = setup({ firstRun: "wait" });
+  it("by default leaves a cron with no run at all, so a first deploy starts nothing", async () => {
+    const t = setup();
     expect(await t.jobs.backstop(t.env, NOW)).toEqual([]);
   });
 
   it("checks at most once per isolate per 15 minutes", async () => {
-    const t = setup();
+    const t = setup({ firstRun: "start" });
     await t.jobs.catchUpCrons(t.env, NOW);
     const after = t.crons.created.length;
     await t.jobs.catchUpCrons(t.env, NOW + 60_000);

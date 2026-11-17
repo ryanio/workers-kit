@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { jobFactory } from "../../src/define.js";
 import { jobEnv, withJobEnv } from "../../src/env.js";
+import { instanceId } from "../../src/ids.js";
 import { postgresLedger } from "../../src/postgres.js";
 import { checkJobsConfig, cronsFromWrangler } from "../../src/testing.js";
 
@@ -87,5 +88,23 @@ describe("postgresLedger", () => {
 
   it("refuses an identifier that is not plain", () => {
     expect(() => postgresLedger(async () => [], { table: "job_runs; drop table x" })).toThrow(/identifier/);
+  });
+});
+
+describe("instanceId", () => {
+  it("leaves an id of 100 characters or fewer as it was", () => {
+    expect(instanceId("send-welcome", "usr_a")).toBe("send-welcome-usr_a");
+    expect(instanceId("job", "a.b@c")).toBe("job-a_b_c");
+  });
+
+  it("gives two long keys with the same first 100 characters different ids, each 100 long", () => {
+    const base = "x".repeat(120);
+    const a = instanceId("sentry-critical-issue", `${base}-1`);
+    const b = instanceId("sentry-critical-issue", `${base}-2`);
+    expect(a).not.toBe(b);
+    expect(a).toHaveLength(100);
+    expect(b).toHaveLength(100);
+    expect(a).toMatch(/^[a-zA-Z0-9_-]+$/);
+    expect(instanceId("sentry-critical-issue", `${base}-1`)).toBe(a);
   });
 });

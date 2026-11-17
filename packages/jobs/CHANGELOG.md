@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 (2026-11-17)
+
+- The backstop's `firstRun` defaults to `"wait"`: a cron job with no ledger row is left alone until its trigger has run once, so a first deploy starts nothing on its own. Pass `backstop: { firstRun: "start" }` for the 0.1 behavior.
+- A `key` function that throws makes `sendEvent` throw for that event. In 0.1 it fell back to the key `unknown`, which made every later delivery for that job a duplicate.
+- An instance id longer than 100 characters keeps its first 87 and ends in a hash of the whole id, so two long keys with a shared prefix get different ids. Ids of 100 or fewer are unchanged.
+- `sendEvent` takes one event with a generic name, so a wrapper such as `emit<K>(name: K, data: Events[K])` needs no cast.
+- `firesPerDay` is exported.
+
 ## 0.1.0 (2026-11-17)
 
 First version.

@@ -1,4 +1,4 @@
-export { CronError, defaultGraceMs, lastDueSlotMs, parseCron, slotAtOrBefore } from "./cron.js";
+export { CronError, defaultGraceMs, firesPerDay, lastDueSlotMs, parseCron, slotAtOrBefore } from "./cron.js";
 export { type D1LedgerOptions, type D1Like, d1Ledger } from "./d1.js";
 export {
   type CronJobOptions,

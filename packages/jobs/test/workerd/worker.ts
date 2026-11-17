@@ -27,6 +27,7 @@ export const jobs = createJobs<Env, Events>({
   jobs: [welcome, daily, sweep],
   workflows: { default: (env) => env.JOB_WORKFLOW },
   ledger: (env) => d1Ledger(env.DB),
+  backstop: { firstRun: "start" },
   log: { info() {}, warn() {}, error: (m, f) => console.error(m, f) },
 });
 
