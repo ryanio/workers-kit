@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/vitest-plugin/types" />
 /**
  * The package inside workerd, with a real D1 database and real Workflows: an
- * event's instance runs its steps and writes its ledger row, a repeat event is
+ * event's instance runs its steps, each inside `around`, and writes its ledger row, a repeat event is
  * a duplicate, a cron fired twice in one slot is one instance, and the backstop
  * reads D1 to start a slot that never ran. The ledger table check reads real
  * D1's PRAGMAs.
@@ -51,6 +51,7 @@ describe("in workerd", () => {
 
     await instance.waitForStatus("complete");
     expect(await instance.getOutput()).toEqual({
+      scope: { name: "send-welcome-usr_a/scope", ctx: true },
       ok: true,
       userId: "usr_a",
       count: 1,

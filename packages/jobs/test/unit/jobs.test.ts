@@ -9,10 +9,14 @@
  *   an engine abort records nothing.
  * - A payload the job's schema refuses is recorded as skipped and never
  *   reaches the handler; one it accepts reaches it as the schema's output.
+ * - `around` wraps the run, its ledger writes and each step callback.
+ * - A list of keys falls back to the next id when one is taken, and a run
+ *   held with `notBefore` sleeps until then first.
  * - The ledger gets one row per instance, and the backstop starts a cron slot
  *   that has no row, and never one that ran.
  * - A config Cloudflare would misread fails at load time.
  */
+import { AsyncLocalStorage } from "node:async_hooks";
 import { beforeEach, describe, expect, it } from "vitest";
 import { d1Ledger } from "../../src/d1.js";
 import { jobFactory } from "../../src/define.js";
@@ -34,6 +38,7 @@ const quiet: Logger = { info() {}, warn() {}, error() {} };
 
 let sent: string[];
 let failures: string[];
+let digestTs: (number | undefined)[];
 
 const welcome = defineJob(
   {
@@ -93,7 +98,10 @@ const report = defineJob(
 
 const digest = defineJob(
   { id: "digest-daily", retries: 1, cron: "0 13 * * *" },
-  async () => ({ skipped: "quiet" }),
+  async ({ event }) => {
+    digestTs.push(event.ts);
+    return { skipped: "quiet" };
+  },
 );
 const weekly = defineJob(
   { id: "digest-weekly", retries: 1, cron: "0 13 * * MON" },
@@ -146,6 +154,7 @@ const payload = (c: { id: string; params: JobParams }) => ({
 beforeEach(() => {
   sent = [];
   failures = [];
+  digestTs = [];
 });
 
 describe("sendEvent", () => {
@@ -401,7 +410,7 @@ describe("a run", () => {
     expect(t.rows()).toMatchObject([{ status: "started" }]);
   });
 
-  it("records a skipped run as skipped", async () => {
+  it("records a skipped run as skipped, and a cron's handler gets its slot as ts", async () => {
     const t = setup();
     await t.jobs.run(
       t.env,
@@ -417,6 +426,117 @@ describe("a run", () => {
     );
     expect(t.rows()).toMatchObject([
       { entity_key: "202611031300", status: "skipped" },
+    ]);
+    expect(digestTs).toEqual([Date.UTC(2026, 10, 3, 13)]);
+  });
+
+  it("runs the run, its ledger writes and each step callback inside around, with the ctx run was given", async () => {
+    const store = new AsyncLocalStorage<string>();
+    const scoped = defineJob(
+      { id: "scoped", retries: 0, event: "user/created", key: (d) => d.userId },
+      async ({ step }) => {
+        const a = await step.run("a", () => store.getStore());
+        const b = await step.run("b", () => store.getStore());
+        return { a, b, body: store.getStore() };
+      },
+    );
+    const { db } = sqliteD1(JOB_RUNS_DDL);
+    const base = d1Ledger(db);
+    const ledgerSaw: (string | undefined)[] = [];
+    const ctxs: unknown[] = [];
+    const ctx = { waitUntil() {} };
+    const jobs = createJobs<Env, Events>({
+      jobs: [scoped],
+      workflows: { default: () => fakeWorkflow().binding },
+      ledger: () => ({
+        ...base,
+        async start(r) {
+          ledgerSaw.push(store.getStore());
+          return base.start(r);
+        },
+        async finish(r) {
+          ledgerSaw.push(store.getStore());
+          return base.finish(r);
+        },
+      }),
+      around: (scope, fn) => {
+        ctxs.push(scope.ctx);
+        return store.run(`${scope.runId}/${scope.step ?? "run"}`, fn);
+      },
+      log: quiet,
+    });
+
+    const out = await jobs.run(
+      { name: "prod" },
+      {
+        instanceId: "scoped-u",
+        payload: { fn: "scoped", data: { userId: "u" } },
+      },
+      inlineStep().step,
+      ctx,
+    );
+
+    expect(out).toEqual({
+      a: "scoped-u/a",
+      b: "scoped-u/b",
+      body: "scoped-u/run",
+    });
+    expect(ledgerSaw).toEqual(["scoped-u/run", "scoped-u/run"]);
+    expect(ctxs).toEqual([ctx, ctx, ctx]);
+  });
+
+  it("falls back to the next key when one is taken, and a held run sleeps until its notBefore", async () => {
+    const HOUR = 3_600_000;
+    const refresh = defineJob(
+      {
+        id: "refresh",
+        retries: 0,
+        event: "user/created",
+        key: (d, { nowMs }) => {
+          const hour = Math.floor(nowMs / HOUR) * HOUR;
+          return [
+            `${d.userId}-${hour}`,
+            { key: `${d.userId}-${hour + HOUR}`, notBefore: hour + HOUR },
+          ];
+        },
+      },
+      async () => ({ ok: true }),
+    );
+    const wf = fakeWorkflow();
+    const jobs = createJobs<Env, Events>({
+      jobs: [refresh],
+      workflows: { default: () => wf.binding },
+      log: quiet,
+    });
+    const now = Date.UTC(2026, 10, 3, 13, 20);
+    const hour = Date.UTC(2026, 10, 3, 13);
+    const send = () =>
+      jobs.sendEvent(
+        { name: "x" },
+        { name: "user/created", data: { userId: "u" } },
+        now,
+      );
+
+    const results = [await send(), await send(), await send()].flat();
+    expect(results.map((r) => [r.id, r.result])).toEqual([
+      [`refresh-u-${hour}`, "created"],
+      [`refresh-u-${hour + HOUR}`, "created"],
+      [`refresh-u-${hour + HOUR}`, "duplicate"],
+    ]);
+    expect(wf.created.map((c) => c.params.notBefore)).toEqual([
+      undefined,
+      hour + HOUR,
+    ]);
+
+    const runs = wf.created.map((c) => {
+      const s = inlineStep();
+      return jobs
+        .run({ name: "x" }, payload(c), s.step)
+        .then(() => s.calls.map((call) => [call.kind, call.name, call.at]));
+    });
+    expect(await Promise.all(runs)).toEqual([
+      [],
+      [["sleepUntil", "not-before", hour + HOUR]],
     ]);
   });
 

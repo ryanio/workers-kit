@@ -60,6 +60,8 @@ export type JobParams = {
   key?: string;
   /** The event that started it. */
   event?: string;
+  /** Start no earlier than this, in ms: the run sleeps in a step named `not-before` first. */
+  notBefore?: number;
 };
 
 export type StepOptions = { retries?: number; timeout?: Duration };
@@ -97,8 +99,30 @@ export type JobContext<D, Env, Ev extends EventMap> = {
   event: { name: string; data: D; ts?: number };
   step: JobStep<Ev>;
   env: Env;
-  /** The Workflow instance id. */
+  /** The Workflow instance id, or the run id of an inline run. */
   runId: string;
+  /** Inline runs: the attempt, from 1. Unset on a Workflow, where retries are per step. */
+  attempt?: number;
+};
+
+/** The part of a Worker's `ExecutionContext` the package passes through to `around`. */
+export type ExecutionContextLike = {
+  waitUntil(promise: Promise<unknown>): void;
+};
+
+/**
+ * What `around` is told about the code it wraps: a whole run (`step` is
+ * `null`) or one step callback (`step` is its name, `on-failure` included).
+ */
+export type RunScope<Env> = {
+  env: Env;
+  job: string;
+  runId: string;
+  step: string | null;
+  /** Inline runs: the attempt, from 1. */
+  attempt?: number;
+  /** The `ctx` given to `run`, `scheduled` or `runInline`. */
+  ctx?: ExecutionContextLike;
 };
 
 /**
@@ -143,6 +167,12 @@ export type FailureContext<D, Env> = {
   env: Env;
   runId: string;
 };
+
+/**
+ * One instance key an event job's `key` may return in a list: tried in order,
+ * the first id not taken wins. `notBefore` (ms) holds that run until then.
+ */
+export type KeyCandidate = string | { key: string; notBefore?: number };
 
 export type RunStatus = "completed" | "failed" | "skipped";
 

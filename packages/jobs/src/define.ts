@@ -1,9 +1,11 @@
 import { parseCron } from "./cron.js";
+import { durationMs } from "./duration.js";
 import type {
   Duration,
   EventMap,
   FailureContext,
   JobContext,
+  KeyCandidate,
   StandardSchemaV1,
 } from "./types.js";
 
@@ -23,6 +25,12 @@ type Common<D, Env> = {
   timeout?: Duration;
   /** Runs once, in its own step named `on-failure`, after a step has used up its retries. */
   onFailure?: (ctx: FailureContext<D, Env>) => Promise<void>;
+  /**
+   * Run in the invocation that starts it instead of on a Workflow: a cron in
+   * `scheduled()`, an event job wherever the app calls `runInline`. `retries`
+   * then counts attempts of the whole run, and steps cannot sleep.
+   */
+  inline?: boolean;
 };
 
 export type EventJobOptions<
@@ -41,8 +49,16 @@ export type EventJobOptions<
    * legitimate run for the retention window: a retry of a failed release
    * keyed by the escrow id alone never runs a second time. Add what changes
    * between the runs you want (an attempt number, a failure id, a day).
+   *
+   * Return a list to fall back: each key is tried in order and the first id
+   * not taken runs, so `[thisHour, { key: nextHour, notBefore }]` runs once
+   * now and holds one more run to the next hour. When every id is taken the
+   * delivery is a duplicate.
    */
-  key: (data: Ev[E], ctx: { nowMs: number }) => string | null;
+  key: (
+    data: Ev[E],
+    ctx: { nowMs: number },
+  ) => string | null | readonly KeyCandidate[];
   /**
    * A Standard Schema (Zod, Valibot, ArkType) the run checks the payload
    * against before the handler. A payload that fails is recorded as skipped,
@@ -55,6 +71,13 @@ export type EventJobOptions<
 export type CronJobOptions<Env> = Common<Record<string, never>, Env> & {
   /** Exactly as `[triggers] crons` spells it in the wrangler config, weekdays as names. */
   cron: string;
+  /**
+   * Skip a slot while an earlier slot's run is unfinished. The skipped slot
+   * gets a `skipped` ledger row. A run unfinished for longer than
+   * `staleAfter` (one that died without finishing) no longer blocks. Needs a
+   * ledger with `running`.
+   */
+  singleton?: { staleAfter: Duration };
 };
 
 /** A job as the runner stores it. */
@@ -65,7 +88,16 @@ export type JobDef<Env = unknown> = {
   cron: string | null;
   workflow: string | undefined;
   timeout: Duration | undefined;
-  key: ((data: unknown, ctx: { nowMs: number }) => string | null) | undefined;
+  key:
+    | ((
+        data: unknown,
+        ctx: { nowMs: number },
+      ) => string | null | readonly KeyCandidate[])
+    | undefined;
+  /** Runs in the invocation that starts it, not on a Workflow. */
+  inline: boolean;
+  /** Crons that skip a slot while an earlier one runs. */
+  singleton?: { staleAfterMs: number } | undefined;
   /** The payload check, for event jobs that set `schema`. */
   schema?: StandardSchemaV1 | undefined;
   // biome-ignore lint/suspicious/noExplicitAny: the runner calls handlers with data typed per job.
@@ -121,6 +153,15 @@ export function jobFactory<Ev extends EventMap, Env = unknown>(): DefineJob<
     }
     const isCron = "cron" in options;
     if (isCron) parseCron(options.cron);
+    let singleton: { staleAfterMs: number } | undefined;
+    if (isCron && options.singleton) {
+      const staleAfterMs = durationMs(options.singleton.staleAfter);
+      if (!(staleAfterMs > 0))
+        throw new Error(
+          `job ${options.id}: singleton.staleAfter must be more than 0`,
+        );
+      singleton = { staleAfterMs };
+    }
     if (
       !isCron &&
       options.schema &&
@@ -138,6 +179,8 @@ export function jobFactory<Ev extends EventMap, Env = unknown>(): DefineJob<
       workflow: options.workflow,
       timeout: options.timeout,
       key: isCron ? undefined : (options.key as JobDef["key"]),
+      inline: options.inline === true,
+      ...(singleton ? { singleton } : {}),
       ...(!isCron && options.schema
         ? { schema: options.schema as StandardSchemaV1 }
         : {}),

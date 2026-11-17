@@ -58,7 +58,7 @@ export function d1Ledger(db: D1Like, options: D1LedgerOptions = {}): RunLedger {
         ...constants.map(([n]) => n),
       ];
       const sql = `INSERT INTO ${table} (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")}) ON CONFLICT DO NOTHING`;
-      await db
+      const result = await db
         .prepare(sql)
         .bind(
           prefix + run.id,
@@ -69,6 +69,9 @@ export function d1Ledger(db: D1Like, options: D1LedgerOptions = {}): RunLedger {
           ...constants.map(([, v]) => v),
         )
         .run();
+      const changes = (result as { meta?: { changes?: number } } | null)?.meta
+        ?.changes;
+      return changes === undefined ? undefined : changes > 0;
     },
 
     async finish(run) {
@@ -92,5 +95,32 @@ export function d1Ledger(db: D1Like, options: D1LedgerOptions = {}): RunLedger {
         .all<{ fn: string; latest: string | null }>();
       return new Map(results.map((r) => [r.fn, r.latest ?? ""]));
     },
+
+    async running(fn, { staleAfterMs, exceptKey }) {
+      const since =
+        options.time === "iso"
+          ? new Date(Date.now() - staleAfterMs).toISOString()
+          : Date.now() - staleAfterMs;
+      const where = [
+        `${c.fn} = ?`,
+        `${c.status} = ?`,
+        `${c.key} <> ?`,
+        `${c.startedAt} >= ?`,
+        ...constants.map(([n]) => `${n} = ?`),
+      ].join(" AND ");
+      const sql = `SELECT ${c.id} AS id, ${c.key} AS key FROM ${table} WHERE ${where} ORDER BY ${c.startedAt} DESC LIMIT 1`;
+      const { results } = await db
+        .prepare(sql)
+        .bind(fn, "started", exceptKey, since, ...constants.map(([, v]) => v))
+        .all<{ id: string; key: string }>();
+      const row = results[0];
+      return row
+        ? { id: unprefixed(String(row.id)), key: String(row.key) }
+        : null;
+    },
   };
+
+  function unprefixed(id: string): string {
+    return prefix && id.startsWith(prefix) ? id.slice(prefix.length) : id;
+  }
 }

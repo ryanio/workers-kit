@@ -57,16 +57,22 @@ export function postgresLedger(
         ...constants.map(([, v]) => v),
       ];
       const params = values.map((_, i) => `$${i + 1}`);
-      await query(
-        `INSERT INTO ${table} (${cols.join(", ")}, ${c.startedAt}) VALUES (${params.join(", ")}, now()) ON CONFLICT (${c.id}) DO NOTHING`,
+      const result = await query(
+        `INSERT INTO ${table} (${cols.join(", ")}, ${c.startedAt}) VALUES (${params.join(", ")}, now()) ON CONFLICT (${c.id}) DO NOTHING RETURNING ${c.id}`,
         values,
       );
+      return rowsOf(result).length > 0;
     },
 
     async finish(run) {
       await query(
         `UPDATE ${table} SET ${c.status} = $1, ${c.decision} = $2${decisionCast}, ${c.error} = $3, ${c.finishedAt} = now() WHERE ${c.id} = $4`,
-        [run.status, run.decision, run.error, prefix + run.id],
+        [
+          run.status,
+          decisionCast ? asJson(run.decision) : run.decision,
+          run.error,
+          prefix + run.id,
+        ],
       );
     },
 
@@ -80,13 +86,60 @@ export function postgresLedger(
         `SELECT ${c.fn} AS fn, MAX(${c.key}) AS latest FROM ${table} WHERE ${where} GROUP BY ${c.fn}`,
         [[...fns], ...constants.map(([, v]) => v)],
       );
-      const rows = Array.isArray(result) ? result : result.rows;
       return new Map(
-        rows.map((r) => [
+        rowsOf(result).map((r) => [
           String(r.fn),
           r.latest == null ? "" : String(r.latest),
         ]),
       );
     },
+
+    async running(fn, { staleAfterMs, exceptKey }) {
+      const where = [
+        `${c.fn} = $1`,
+        `${c.status} = $2`,
+        `${c.key} <> $3`,
+        `${c.startedAt} >= now() - make_interval(secs => $4)`,
+        ...constants.map(([n], i) => `${n} = $${i + 5}`),
+      ].join(" AND ");
+      const result = await query(
+        `SELECT ${c.id} AS id, ${c.key} AS key FROM ${table} WHERE ${where} ORDER BY ${c.startedAt} DESC LIMIT 1`,
+        [
+          fn,
+          "started",
+          exceptKey,
+          staleAfterMs / 1000,
+          ...constants.map(([, v]) => v),
+        ],
+      );
+      const row = rowsOf(result)[0];
+      if (!row) return null;
+      const id = String(row.id);
+      return {
+        id: prefix && id.startsWith(prefix) ? id.slice(prefix.length) : id,
+        key: String(row.key),
+      };
+    },
   };
+}
+
+function rowsOf(
+  result: { rows: Record<string, unknown>[] } | Record<string, unknown>[],
+): Record<string, unknown>[] {
+  return Array.isArray(result) ? result : result.rows;
+}
+
+/**
+ * The decision as valid JSON, for a json column. The runner truncates a long
+ * decision, which leaves it unparseable, so that one is stored as
+ * `{"truncated": "<text>"}` instead of failing the cast and the write.
+ */
+function asJson(decision: string | null): string | null {
+  if (decision === null) return null;
+  try {
+    JSON.parse(decision);
+    return decision;
+  } catch {
+    return JSON.stringify({ truncated: decision });
+  }
 }

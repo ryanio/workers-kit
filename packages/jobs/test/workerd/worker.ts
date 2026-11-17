@@ -3,6 +3,7 @@ import {
   type WorkflowEvent,
   type WorkflowStep,
 } from "cloudflare:workers";
+import { AsyncLocalStorage } from "node:async_hooks";
 import {
   createJobs,
   d1Ledger,
@@ -19,6 +20,10 @@ export type Env = {
 type Events = { "user/created": { userId: string } };
 
 const defineJob = jobFactory<Events, Env>();
+
+// What `around` set for the code it wraps: the scope's name, and whether the
+// Workflow's ctx reached it.
+const scopes = new AsyncLocalStorage<{ name: string; ctx: boolean }>();
 
 const welcome = defineJob(
   {
@@ -39,7 +44,9 @@ const welcome = defineJob(
       batch.reduce((a, b) => a + b, 0),
     );
     await step.sleep("nap", 1);
+    const scope = await step.run("scope", () => scopes.getStore());
     return {
+      scope,
       ok: true,
       userId: event.data.userId,
       count,
@@ -64,6 +71,14 @@ export const jobs = createJobs<Env, Events>({
   workflows: { default: (env) => env.JOB_WORKFLOW },
   ledger: (env) => d1Ledger(env.DB),
   backstop: { firstRun: "start" },
+  around: (scope, fn) =>
+    scopes.run(
+      {
+        name: `${scope.runId}/${scope.step ?? "run"}`,
+        ctx: scope.ctx !== undefined,
+      },
+      fn,
+    ),
   log: { info() {}, warn() {}, error: (m, f) => console.error(m, f) },
 });
 
@@ -72,7 +87,7 @@ export class JobWorkflow extends WorkflowEntrypoint<Env, JobParams> {
     event: Readonly<WorkflowEvent<JobParams>>,
     step: WorkflowStep,
   ) {
-    return jobs.run(this.env, event, step);
+    return jobs.run(this.env, event, step, this.ctx);
   }
 }
 

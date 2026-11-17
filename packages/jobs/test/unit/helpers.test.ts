@@ -1,12 +1,11 @@
 /**
  * The config check a test suite runs against its wrangler file, the env
- * context, and the Postgres ledger's SQL.
+ * context, and instance ids.
  */
 import { describe, expect, it } from "vitest";
 import { jobFactory } from "../../src/define.js";
 import { jobEnv, withJobEnv } from "../../src/env.js";
 import { instanceId } from "../../src/ids.js";
-import { postgresLedger } from "../../src/postgres.js";
 import { checkJobsConfig, cronsFromWrangler } from "../../src/testing.js";
 
 const defineJob = jobFactory<{ "a/b": { id: string } }>();
@@ -67,60 +66,6 @@ describe("jobEnv", () => {
     await Promise.all([read("a", 20), read("b", 5)]);
     expect(seen).toEqual(["b=b", "a=a"]);
     expect(() => jobEnv()).toThrow(/outside a job run/);
-  });
-});
-
-describe("postgresLedger", () => {
-  it("writes parameterized SQL with the table's own names and constants", async () => {
-    const queries: [string, unknown[]][] = [];
-    const ledger = postgresLedger(
-      async (text, values) => {
-        queries.push([text, values]);
-        return { rows: [{ fn: "daily", latest: "202611031300" }] };
-      },
-      {
-        table: '"JobRun"',
-        columns: {
-          key: '"entityKey"',
-          startedAt: '"startedAt"',
-          finishedAt: '"finishedAt"',
-        },
-        idPrefix: "cloudflare:",
-        constants: { runner: "cloudflare" },
-        decisionType: "jsonb",
-      },
-    );
-    await ledger.start({ id: "daily-1", fn: "daily", key: "1" });
-    await ledger.finish({
-      id: "daily-1",
-      fn: "daily",
-      key: "1",
-      status: "completed",
-      decision: "{}",
-      error: null,
-    });
-    const latest = await ledger.latestKeys?.(["daily"]);
-    expect(queries).toEqual([
-      [
-        'INSERT INTO "JobRun" (id, fn, "entityKey", status, runner, "startedAt") VALUES ($1, $2, $3, $4, $5, now()) ON CONFLICT (id) DO NOTHING',
-        ["cloudflare:daily-1", "daily", "1", "started", "cloudflare"],
-      ],
-      [
-        'UPDATE "JobRun" SET status = $1, decision = $2::jsonb, error = $3, "finishedAt" = now() WHERE id = $4',
-        ["completed", "{}", null, "cloudflare:daily-1"],
-      ],
-      [
-        'SELECT fn AS fn, MAX("entityKey") AS latest FROM "JobRun" WHERE fn = ANY($1) AND runner = $2 GROUP BY fn',
-        [["daily"], "cloudflare"],
-      ],
-    ]);
-    expect(latest).toEqual(new Map([["daily", "202611031300"]]));
-  });
-
-  it("refuses an identifier that is not plain", () => {
-    expect(() =>
-      postgresLedger(async () => [], { table: "job_runs; drop table x" }),
-    ).toThrow(/identifier/);
   });
 });
 

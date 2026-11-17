@@ -1,6 +1,6 @@
 {
   "name": "workers-jobs",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Background jobs for Cloudflare Workers on Cron Triggers and Workflows: typed jobs, deduplicated instance ids, a backstop for dead triggers, and a run ledger for D1 or Postgres.",
   "license": "MIT",
   "author": "Ryan Ghods",
@@ -51,12 +51,14 @@
     "test": "vitest run --project unit",
     "test:workerd": "vitest run --project workerd",
     "check": "npm run lint && npm run typecheck && npm run build && vitest run",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.8",
     "@cloudflare/vitest-plugin": "^1.8.3",
     "@cloudflare/workers-types": "^5.20261117.1",
+    "@electric-sql/pglite": "^0.5.14",
     "@types/node": "^24.13.3",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"

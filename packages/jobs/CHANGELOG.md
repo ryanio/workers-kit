@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 (2026-11-17)
+
+- Inline jobs: `inline: true` runs a job in the invocation that starts it, with no Workflow. `scheduled()` runs inline crons concurrently and awaits them. `runInline(env, call, ctx?)` runs any job here, for an app that delivers events itself (a queue consumer); with `attempt` it runs one attempt and returns `retryInMs` when attempts are left. An inline run's `retries` counts attempts of the whole run, each attempt replays the steps the last one finished, the first attempt claims the ledger row so a repeat is a `duplicate`, and the last failed attempt runs `onFailure`. Inline steps cannot sleep. `sendEvent` refuses an inline subscriber, and the backstop leaves inline crons alone.
+- An error's `retryAfter` (seconds) sets the wait before an inline run's next attempt.
+- Singleton crons: `singleton: { staleAfter }` skips a slot while an earlier slot's run is unfinished, inline or on a Workflow. The skipped slot gets a `skipped` row. `createJobs` refuses a singleton without a ledger.
+- `around(scope, fn)` in `createJobs` wraps every run and every step callback, `on-failure` included. A run's ledger writes and `onFinish` happen inside the run's scope. `run`, `scheduled` and `runInline` take an optional `ctx`, which `around` gets.
+- An event job's `key` may return a list of fallbacks: the first id not taken runs. An entry with `notBefore` holds its run, which sleeps in a `not-before` step first. `JobParams` has an optional `notBefore`.
+- `RunLedger.start` may resolve `false` when the row already existed; both SQL ledgers do. New optional `running` (both SQL ledgers have it) and `retrying` (for a ledger that keeps a row per attempt). `RunStart` has an optional `attempt`. `onFinish` gets `runId`.
+- `postgresLedger` with `decisionType: "jsonb"` stores a truncated decision as `{"truncated": "<text>"}`. Before, a decision past 2,000 characters failed its jsonb cast and the finish was lost.
+- `checkPostgresLedgerTable(query, options)` in `workers-jobs/testing`: `checkLedgerTable` for Postgres.
+- A cron handler's `event.ts` is its slot time.
+
 ## 0.3.1 (2026-11-17)
 
 - `inlineStep`'s `do` takes Workflows' two-argument form, `do(name, callback)`, as well as `do(name, config, callback)`, so code that calls Workflows' step API directly can run on it. With no config, a step retries as the engine does by default. The step is typed `InlineStep`, which is exported.

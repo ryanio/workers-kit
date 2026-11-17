@@ -16,7 +16,8 @@ import type {
 //   a first run and on a replay: `undefined` becomes `null`, a Date a string.
 // - Every callback runs inside `withJobEnv`, so `jobEnv()` works in code the
 //   engine calls back into. The test fake `jobStep` passes no env and keeps
-//   the one its caller set.
+//   the one its caller set. `wrap` goes around each callback as well, for the
+//   runner's `around` hook.
 // - `sendEvent` dispatches inside one `step.do`, so it happens once.
 // - Each `step.do`, `sleep` and `sleepUntil` counts toward Workflows' cap of
 //   1,024 steps per instance; past `maxSteps` the adapter throws a clear error
@@ -34,6 +35,8 @@ export type StepAdapterOptions<Env> = {
   dispatch: (
     events: readonly { name: string; data: unknown; ts?: number }[],
   ) => Promise<void>;
+  /** Wraps each step callback, by step name: the runner's `around`. */
+  wrap?: <T>(name: string, fn: () => Promise<T>) => Promise<T>;
 };
 
 export class StepLimitError extends Error {
@@ -59,6 +62,8 @@ export function makeStep<Ev extends EventMap, Env>(
     count += 1;
     if (count > o.maxSteps) throw new StepLimitError(o.maxSteps, name);
   };
+  const wrap = <T>(name: string, fn: () => Promise<T>): Promise<T> =>
+    o.wrap ? o.wrap(name, fn) : fn();
   const config = (retries = o.retries, timeout = o.timeout): StepConfig => ({
     retries: { limit: retries, delay: o.delay, backoff: o.backoff },
     timeout,
@@ -66,15 +71,14 @@ export function makeStep<Ev extends EventMap, Env>(
 
   const run: JobStep<Ev>["run"] = (name, fn, options) => {
     counted(name);
-    return o.step.do(
-      name,
-      config(options?.retries, options?.timeout),
-      async () =>
+    return o.step.do(name, config(options?.retries, options?.timeout), () =>
+      wrap(name, async () =>
         toJson(
           await (o.env === undefined
             ? fn()
             : withJobEnv(o.env, async () => fn())),
         ),
+      ),
     );
   };
 
@@ -94,10 +98,12 @@ export function makeStep<Ev extends EventMap, Env>(
       ) as readonly EventOf<Ev>[];
       if (list.length === 0) return;
       counted(name);
-      await o.step.do(name, config(), async () => {
-        await o.dispatch(list);
-        return null;
-      });
+      await o.step.do(name, config(), () =>
+        wrap(name, async () => {
+          await o.dispatch(list);
+          return null;
+        }),
+      );
     },
     async forEachBatch(name, items, size, fn) {
       if (!Number.isInteger(size) || size < 1)

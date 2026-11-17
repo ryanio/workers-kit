@@ -1,16 +1,20 @@
 import type { RunStatus } from "./types.js";
 
-// The run ledger: one row per Workflow instance, written when the run starts
-// and updated when it ends. The backstop reads it to find a cron slot that
-// never ran. The runner swallows and logs every ledger error, because
-// recording a run must never fail the run it records.
+// The run ledger: one row per run, written when the run starts and updated
+// when it ends. The backstop reads it to find a cron slot that never ran, a
+// singleton cron reads it to find a run still going, and an inline run claims
+// its row to tell a repeated trigger from a first one. The runner swallows
+// and logs every ledger error, because recording a run must never fail the
+// run it records.
 
 export type RunStart = {
-  /** The Workflow instance id. */
+  /** The Workflow instance id, or the run id of an inline run. */
   id: string;
   fn: string;
   /** The instance key: the cron slot or the event's key. */
   key: string;
+  /** Inline runs: the attempt, from 1. A ledger with one row per run can ignore it. */
+  attempt?: number;
 };
 
 export type RunFinish = RunStart & {
@@ -21,12 +25,37 @@ export type RunFinish = RunStart & {
   error: string | null;
 };
 
+/** An inline attempt that failed with attempts left. */
+export type RunRetry = RunStart & {
+  attempt: number;
+  /** The error message, truncated. */
+  error: string;
+  /** How long until the next attempt. */
+  delayMs: number;
+};
+
 export interface RunLedger {
-  /** Insert-or-ignore: the run body calls this again on every replay. */
-  start(run: RunStart): Promise<void>;
+  /**
+   * Insert-or-ignore: a Workflow's run body calls this again on every replay,
+   * and an inline run once per attempt. Resolve `false` when the row was
+   * already there: an inline run's first attempt then counts as a repeat and
+   * does not run. `true` or nothing means go ahead.
+   */
+  // biome-ignore lint/suspicious/noConfusingVoidType: a ledger written for 0.3 resolves void, and must still type-check.
+  start(run: RunStart): Promise<void | boolean>;
   finish(run: RunFinish): Promise<void>;
+  /** Called for each inline attempt that fails with attempts left, for a ledger that keeps a row per attempt. */
+  retrying?(run: RunRetry): Promise<void>;
   /** The largest key each job has a row for. Needed only by the backstop. */
   latestKeys?(fns: readonly string[]): Promise<Map<string, string>>;
+  /**
+   * The newest run of `fn` that started less than `staleAfterMs` ago, has not
+   * finished, and is not for `exceptKey`. Needed only by singleton crons.
+   */
+  running?(
+    fn: string,
+    options: { staleAfterMs: number; exceptKey: string },
+  ): Promise<{ id: string; key: string } | null>;
 }
 
 /**
