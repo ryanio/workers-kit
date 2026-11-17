@@ -37,4 +37,8 @@ npm pack             # builds dist/ and writes the tarball
 
 ## Releases
 
-The package is not on npm yet. `package.json` has `"private": true` so that `npm publish` refuses. Publishing and making the repo public both wait for Ryan's yes. Until then, apps take it as a tarball from `npm pack`, vendored in the app's repo.
+Releases publish from GitHub Actions through npm trusted publishing (`.github/workflows/release.yml`, GitHub environment `npm`). There is no npm token anywhere.
+
+1. Bump `version` in `package.json` and add a dated section to `CHANGELOG.md`.
+2. Run `npm run check`, commit and push to main.
+3. Tag and push: `git tag v<version> && git push origin v<version>`. The workflow checks the tag against `package.json`, runs the gate and publishes with provenance.
