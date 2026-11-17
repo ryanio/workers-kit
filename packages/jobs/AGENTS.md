@@ -24,6 +24,7 @@
   A change that would alter any of these is a major version, with a migration note in the CHANGELOG.
 - Every new behavior gets a test that fails without it. Follow the `test-audit` skill where it is installed.
 - Prose in docs and comments: plain words, no em or en dashes, no hype words.
+- A change to behavior, an option or an export updates the README in the same commit, and a new behavior gets a CHANGELOG line under the next version. Every code sample in the README has its imports and calls the API as it is.
 
 ## Commands
 
@@ -44,7 +45,7 @@ A release is a version bump on main. `.github/workflows/release.yml` runs on eve
 1. Bump `version` in `package.json` and add a dated `## <version> (YYYY-MM-DD)` section to `CHANGELOG.md`.
 2. Run `npm run check`, commit both and push to main.
 
-Never tag by hand or run `npm publish` locally.
+Never tag by hand or run `npm publish` locally. The npm page shows the README of the published version, so a README-only fix reaches it at the next release; a commit that changes only docs carries `[skip ci]` in its title.
 
 ## Shared with workers-start
 

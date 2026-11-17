@@ -14,7 +14,7 @@ Workflows gives you durable steps, sleeps and retries, and Cron Triggers give yo
 - `scheduled()` gets the cron string in your config's exact spelling. A lookup keyed any other way never matches, and the job silently never runs.
 - A deploy can leave a trigger registered but inert for hours.
 - A cron can fire twice in one slot, from two data centers about 30 seconds apart.
-- Workflows retries a step 5 times unless you say otherwise. For a step that sends an email, that is 5 emails.
+- Workflows retries a step 5 times unless you say otherwise. A step that sends an email and then fails can send it 5 times.
 - An instance is capped at 1,024 steps. One step per user in a loop works in testing and fails at scale.
 - Step results are stored as JSON, so a `Date` comes back as a string on replay.
 - When the engine hibernates or moves to a new version, it rejects the pending step with "Aborting engine". That is not a failure, and treating it as one runs failure hooks on healthy instances.
@@ -50,7 +50,10 @@ const sendWelcome = defineJob(
       loadUser(env, event.data.userId),
     );
     await step.sleep("wait-1d", "1 day");
-    await step.run("send-email", () => sendEmail(env, user.email));
+    // The idempotency key stops a retried step from mailing twice.
+    await step.run("send-email", () =>
+      sendEmail(env, user.email, `welcome/${event.data.userId}`),
+    );
     return { ok: true };
   },
 );
@@ -460,7 +463,6 @@ These run under Node and inside workerd (`@cloudflare/vitest-plugin`).
 - `fakeWorkflow()`: a binding that refuses repeated ids the way Cloudflare does.
 - `JOB_RUNS_DDL`: the ledger table with its default names, one statement per line, so D1's `exec` takes it as it is.
 - `checkLedgerTable(db, options)`: resolves to every way a table differs from what `d1Ledger(db, options)` needs, as messages, or `[]`. Pass the options the app gives `d1Ledger`. It reports a missing column, an id that is not unique, time columns of the wrong type for `time`, a NOT NULL column the ledger never writes, and a missing `(fn, key)` index. It reads `PRAGMA table_info`, so it works on D1 and on `sqliteD1`.
-
 - `checkPostgresLedgerTable(query, options)`: the same check for Postgres, for the options the app gives `postgresLedger`. It reads `information_schema` and `pg_index`, and also reports time columns that are not timestamps and a json `decision` without `decisionType: "jsonb"`. Identifiers fold to lower case unless quoted, as Postgres folds them.
 
 ```ts
@@ -472,6 +474,7 @@ it("the job_runs migration fits the ledger", async () => {
 ```
 
 ```ts
+import { withJobEnv } from "workers-jobs";
 import { jobStep } from "workers-jobs/testing";
 
 it("sends one alert per stale report", async () => {
@@ -500,6 +503,10 @@ import { sqliteD1 } from "workers-jobs/testing/sqlite";
 const { db, sqlite } = sqliteD1<D1Database>(JOB_RUNS_DDL);
 const ledger = d1Ledger(db);
 ```
+
+## Related
+
+[`workers-start`](https://github.com/ryanio/workers-start) has the helpers for TanStack Start apps on Workers: Markdown for agents on the same URL, per-page head tags, lazy bindings and a check that no local secret ships in the build.
 
 ## License
 
