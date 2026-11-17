@@ -34,11 +34,12 @@ jobs:
       - name: Is this version new?
         id: version
         run: |
+          name=$(node -p 'require("./package.json").name')
           version=$(node -p 'require("./package.json").version')
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          if npm view "workers-jobs@$version" version --prefer-online >/dev/null 2>&1; then
+          if npm view "$name@$version" version --prefer-online >/dev/null 2>&1; then
             echo "new=false" >> "$GITHUB_OUTPUT"
-            echo "workers-jobs@$version is already on npm"
+            echo "$name@$version is already on npm"
           else
             echo "new=true" >> "$GITHUB_OUTPUT"
           fi
