@@ -1,0 +1,11 @@
+{
+  "name": "workers-jobs-test",
+  "main": "./worker.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "jobs-test", "database_id": "00000000-0000-0000-0000-000000000000" }
+  ],
+  "workflows": [{ "name": "jobs-test", "binding": "JOB_WORKFLOW", "class_name": "JobWorkflow" }],
+  "triggers": { "crons": ["0 13 * * *", "*/15 * * * *"] }
+}

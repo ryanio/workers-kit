@@ -1,0 +1,61 @@
+{
+  "name": "workers-jobs",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Background jobs for Cloudflare Workers on Cron Triggers and Workflows: typed jobs, deduplicated instance ids, a backstop for dead triggers, and a run ledger for D1 or Postgres.",
+  "license": "MIT",
+  "author": "Ryan Ghods",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ryanio/workers-jobs.git"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "workflows",
+    "cron",
+    "jobs",
+    "background-jobs",
+    "d1"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check",
+    "format": "biome check --write",
+    "test": "vitest run --project unit",
+    "test:workerd": "vitest run --project workerd",
+    "check": "npm run lint && npm run typecheck && npm run build && vitest run",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.5",
+    "@cloudflare/vitest-plugin": "^1.5.1",
+    "@cloudflare/workers-types": "^5.20261117.1",
+    "@types/node": "^24.13.3",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  }
+}
