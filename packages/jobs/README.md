@@ -126,6 +126,8 @@ CREATE TABLE job_runs (
 CREATE INDEX job_runs_fn_entity_idx ON job_runs (fn, entity_key);
 ```
 
+The same table is exported as `JOB_RUNS_DDL` from `workers-jobs/testing`, and `checkLedgerTable(db, options)` checks an existing table against what the ledger needs (see [`workers-jobs/testing`](#workers-jobstesting)).
+
 Check the config in a test:
 
 ```ts
@@ -184,6 +186,25 @@ After any deploy that changes `[triggers]`, confirm the next slot wrote a ledger
 
 `jobEnv()` returns the Worker env inside a handler, a step callback or `onFailure`, from `AsyncLocalStorage`. Two runs in one isolate never see each other's env. Handlers also get `env` in their context.
 
+### Payload schemas
+
+An event job can set `schema` to any [Standard Schema](https://standardschema.dev) (Zod 3.24 or later, Valibot 1, ArkType 2). The run checks the payload before the handler. A payload that fails is recorded as skipped, with `{ skipped: "invalid payload", issues: ["path: message"] }` as its decision, and the instance completes without retrying, since a retry would see the same payload. A payload that passes reaches the handler as the schema's output, and the handler's `event.data` is typed from it:
+
+```ts
+import { z } from "zod";
+
+const UserCreated = z.object({ userId: z.string().min(1) });
+
+const sendWelcome = defineJob(
+  { id: "send-welcome", retries: 2, event: "user/created", key: (d) => d.userId, schema: UserCreated },
+  async ({ event, step }) => {
+    // event.data is z.output<typeof UserCreated>
+  },
+);
+```
+
+The package has no dependency on any schema library: it only calls `schema["~standard"].validate`. The check runs outside a step, on every replay, so it must not have side effects. The `key` function still gets the raw payload at send time.
+
 ### Step names
 
 Step names are the memo keys. A sleeping instance that wakes after a deploy replays its finished steps by name, so renaming a step makes it run again. The run body adds no steps of its own on the success path.
@@ -202,6 +223,7 @@ Returns `defineJob`, typed for your events and env.
 - `workflow`: a key of `workflows`.
 - `timeout`: per step.
 - `onFailure`.
+- `schema`: event jobs only. A Standard Schema the payload must pass (see [Payload schemas](#payload-schemas)).
 
 The handler gets `{ event: { name, data, ts }, step, env, runId }`.
 
@@ -252,10 +274,53 @@ A run's status comes from its return value. `{ skipped: true }` or `{ skipped: "
 
 ### `workers-jobs/testing`
 
+These run under Node and inside workerd (`@cloudflare/vitest-plugin`).
+
 - `checkJobsConfig({ jobs, wrangler })` and `assertJobsConfig`.
 - `cronsFromWrangler(text)`, for `wrangler.toml` or `.jsonc`.
-- `inlineStep({ memo, fail })`: a fake step that records calls and can replay.
+- `inlineStep({ memo, fail })`: a fake `WorkflowStepLike` for `jobs.run`. It records each call in `calls` (with the duration or time a sleep was given) and runs each step inline. A step whose callback throws, or that `fail(name, attempt)` fails, runs again up to its `retries.limit` with no delay, then throws, so a run reaches `onFailure` as it does on Workflows. `attempts` counts the attempts per step name. Pass the `memo` of an earlier run to replay it.
+- `jobStep({ env, retries, memo, fail, maxSteps })`: the `step` a handler gets, for calling a handler directly. It is the real adapter over `inlineStep`, so results go through the same JSON round trip as in production. `sendEvent` starts nothing and records each call in `sent` (`{ name, events }`) and the events in `events`. Without `env` it keeps the job env the test set with `withJobEnv`.
 - `fakeWorkflow()`: a binding that refuses repeated ids the way Cloudflare does.
+- `JOB_RUNS_DDL`: the ledger table with its default names, one statement per line, so D1's `exec` takes it as it is.
+- `checkLedgerTable(db, options)`: resolves to every way a table differs from what `d1Ledger(db, options)` needs, as messages, or `[]`. Pass the options the app gives `d1Ledger`. It reports a missing column, an id that is not unique, time columns of the wrong type for `time`, a NOT NULL column the ledger never writes, and a missing `(fn, key)` index. It reads `PRAGMA table_info`, so it works on D1 and on `sqliteD1`.
+
+```ts
+import { checkLedgerTable } from "workers-jobs/testing";
+
+it("the job_runs migration fits the ledger", async () => {
+  expect(await checkLedgerTable(env.DB, { time: "iso" })).toEqual([]);
+});
+```
+
+```ts
+import { jobStep } from "workers-jobs/testing";
+
+it("sends one alert per stale report", async () => {
+  const s = jobStep<Events>();
+  await withJobEnv(env, () => failStaleReportsHandler({ step: s.step }));
+  expect(s.events.map((e) => e.name)).toEqual(["reports/failed"]);
+});
+```
+
+### `workers-jobs/testing/sqlite`
+
+`sqliteD1(ddl?, { fail }?)` is D1's statement API (`prepare`, `bind`, `run`, `all`, `first`, `raw`, `batch`, `exec`) over Node's built-in `node:sqlite`, for tests that run under Node 22.13 or later. It has its own entry so tests inside workerd never load `node:sqlite`.
+
+- `ddl` is one SQL text or a list, such as every migration file in order.
+- It returns `{ db, sqlite, calls, batches }`. `sqlite` is the `DatabaseSync`, for reading rows back. `calls` records every statement run, with its bound values, and `batches` the statements of each batch.
+- `db` is typed with the module's own D1 shape. Pass your binding type to get it as that: `sqliteD1<D1Database>(ddl)`.
+- `fail(sql, args)` returns an error to make a statement fail when it runs, for testing a database outage.
+
+It follows D1 where a test can tell: `bind` returns a new statement, SQL compiles when it first runs, booleans bind as 1 and 0, `undefined` is refused, `first(column)` throws for a missing column, `batch` is one transaction that rolls back on any error, and results carry `meta.changes` and `meta.last_row_id`.
+
+```ts
+import { d1Ledger } from "workers-jobs";
+import { JOB_RUNS_DDL } from "workers-jobs/testing";
+import { sqliteD1 } from "workers-jobs/testing/sqlite";
+
+const { db, sqlite } = sqliteD1<D1Database>(JOB_RUNS_DDL);
+const ledger = d1Ledger(db);
+```
 
 ## License
 

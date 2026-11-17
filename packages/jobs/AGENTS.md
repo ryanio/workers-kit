@@ -8,12 +8,12 @@
 - `src/jobs.ts`: `createJobs`, with `sendEvent`, `scheduled`, the `run` body and the backstop.
 - `src/step.ts`: the step adapter. `src/cron.ts`: cron parsing and slot math. `src/ids.ts`: instance ids, slot keys, the duplicate and engine-abort checks.
 - `src/ledger.ts`, `src/d1.ts`, `src/postgres.ts`: the run ledger interface and its two SQL adapters.
-- `src/testing.ts`: the `workers-jobs/testing` entry.
+- `src/testing.ts`: the `workers-jobs/testing` entry, which runs under Node and workerd. `src/sqlite.ts`: the `workers-jobs/testing/sqlite` entry, Node only.
 - `test/unit/`: Node tests. `test/workerd/`: tests inside workerd with real D1 and Workflows (`@cloudflare/vitest-plugin`).
 
 ## Rules
 
-- No runtime dependencies. `node:async_hooks` is the only import outside `src/`, and nothing in `src/` imports `cloudflare:workers`, so the package runs under Node in tests.
+- No runtime dependencies. `node:async_hooks` is the only import outside `src/`, apart from `node:sqlite` in `src/sqlite.ts`, which nothing else in `src/` imports. Nothing in `src/` imports `cloudflare:workers`, so the package runs under Node in tests.
 - Apps already have instances asleep that replay by step name. Never change:
   - the shape of `JobParams` (only add optional fields);
   - the `<job>-<key>` id format;

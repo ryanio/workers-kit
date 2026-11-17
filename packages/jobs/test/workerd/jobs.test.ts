@@ -3,11 +3,12 @@
  * The package inside workerd, with a real D1 database and real Workflows: an
  * event's instance runs its steps and writes its ledger row, a repeat event is
  * a duplicate, a cron fired twice in one slot is one instance, and the backstop
- * reads D1 to start a slot that never ran.
+ * reads D1 to start a slot that never ran. The ledger table check reads real
+ * D1's PRAGMAs.
  */
 import { env, introspectWorkflowInstance } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { JOB_RUNS_DDL } from "../unit/sqlite-d1.js";
+import { checkLedgerTable, JOB_RUNS_DDL } from "../../src/testing.js";
 import { type Env, jobs } from "./worker.js";
 
 const e = env as unknown as Env;
@@ -15,7 +16,7 @@ const row = (id: string) =>
   e.DB.prepare("SELECT fn, entity_key, status, decision FROM job_runs WHERE id = ?").bind(id).first();
 
 beforeAll(async () => {
-  await e.DB.exec(JOB_RUNS_DDL.replace(/\n/g, " "));
+  await e.DB.exec(JOB_RUNS_DDL);
 });
 
 describe("in workerd", () => {
@@ -60,5 +61,13 @@ describe("in workerd", () => {
     await sweep.waitForStatus("complete");
     expect(await row("sweep-202611031345")).toMatchObject({ status: "skipped" });
     expect(await jobs.backstop(e, Date.UTC(2026, 10, 3, 14, 0))).toEqual([]);
+  });
+
+  it("finds the ledger table in D1 fits the ledger", async () => {
+    expect(await checkLedgerTable(e.DB)).toEqual([]);
+    expect(await checkLedgerTable(e.DB, { time: "iso" })).toEqual([
+      'job_runs.started_at is INTEGER, but time "iso" writes text',
+      'job_runs.finished_at is INTEGER, but time "iso" writes text',
+    ]);
   });
 });

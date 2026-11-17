@@ -11,6 +11,7 @@ import type {
   JobParams,
   Logger,
   RunStatus,
+  StandardSchemaV1,
   WorkflowBindingLike,
   WorkflowStepLike,
 } from "./types.js";
@@ -57,6 +58,12 @@ export type JobsOptions<Env> = {
 const DECISION_MAX = 2000;
 const ERROR_MAX = 500;
 const ON_FAILURE_RETRIES = 2;
+
+/** One schema issue as `path: message`, or the message alone at the root. */
+function issueText(issue: StandardSchemaV1.Issue): string {
+  const path = (issue.path ?? []).map((p) => String(typeof p === "object" ? p.key : p)).join(".");
+  return path ? `${path}: ${issue.message}` : issue.message;
+}
 
 const consoleLog: Logger = {
   info: (m, f) => console.info(m, f ?? {}),
@@ -254,10 +261,29 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(options: JobsOpt
       },
     });
 
+    let input = data;
+    if (job.schema) {
+      const checked = await job.schema["~standard"].validate(data);
+      if (checked.issues) {
+        const output = { skipped: "invalid payload", issues: checked.issues.map(issueText) };
+        log.warn("jobs.invalid_payload", { fn, instanceId: runId, issues: output.issues });
+        await record(env, "finish", (l) =>
+          l.finish({ id: runId, fn, key, status: "skipped", decision: toDecision(output, DECISION_MAX), error: null }),
+        );
+        await finished(env, fn, "skipped");
+        return output;
+      }
+      input = checked.value;
+    }
+
     try {
       const output = await withJobEnv(env, () =>
         job.handler({
-          event: { name: event.payload.event ?? (job.cron ? "cron" : ""), data, ...(ts === undefined ? {} : { ts }) },
+          event: {
+            name: event.payload.event ?? (job.cron ? "cron" : ""),
+            data: input,
+            ...(ts === undefined ? {} : { ts }),
+          },
           step: adapter,
           env,
           runId,
@@ -282,7 +308,7 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(options: JobsOpt
             timeout: stepDefaults.timeout,
           },
           async () => {
-            await withJobEnv(env, () => onFailure({ error, data, env, runId }));
+            await withJobEnv(env, () => onFailure({ error, data: input, env, runId }));
             return null;
           },
         );

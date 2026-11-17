@@ -32,6 +32,7 @@ export type {
   Logger,
   RetryConfig,
   RunStatus,
+  StandardSchemaV1,
   StepConfig,
   StepOptions,
   WorkflowBindingLike,

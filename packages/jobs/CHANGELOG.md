@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 (2026-11-17)
+
+- `defineJob` takes an optional `schema` for event jobs: any Standard Schema v1 (Zod, Valibot, ArkType), typed by interface, with no runtime dependency. The run checks the payload before the handler. A payload that fails is recorded as skipped with the issues as its decision, and the run neither throws nor retries. The handler and `onFailure` get the schema's output, and `event.data` is typed from it.
+- `inlineStep` honors each step's `retries.limit`: a callback that throws, or a `fail` that keeps failing, runs again up to the limit and then throws, so a test reaches `onFailure` as Workflows does. `fail` gets the attempt number as its second argument, `attempts` counts attempts per step, and `calls` records what a sleep was given. An engine abort is thrown at once.
+- `jobStep()` in `workers-jobs/testing`: the real step adapter over `inlineStep`, for calling a handler directly. It records `sendEvent` calls instead of starting jobs.
+- `JOB_RUNS_DDL` and `checkLedgerTable(db, options)` in `workers-jobs/testing`, for creating the ledger table in tests and checking a migration's table against the ledger.
+- New entry `workers-jobs/testing/sqlite` with `sqliteD1(ddl?, options?)`: D1's statement API over `node:sqlite`.
+- `StandardSchemaV1` is exported as a type.
+
 ## 0.2.0 (2026-11-17)
 
 - The backstop's `firstRun` defaults to `"wait"`: a cron job with no ledger row is left alone until its trigger has run once, so a first deploy starts nothing on its own. Pass `backstop: { firstRun: "start" }` for the 0.1 behavior.

@@ -8,7 +8,8 @@ import type { Duration, EventMap, EventOf, JobStep, StepConfig, WorkflowStepLike
 // - Results go through a JSON round trip, so a handler sees the same shapes on
 //   a first run and on a replay: `undefined` becomes `null`, a Date a string.
 // - Every callback runs inside `withJobEnv`, so `jobEnv()` works in code the
-//   engine calls back into.
+//   engine calls back into. The test fake `jobStep` passes no env and keeps
+//   the one its caller set.
 // - `sendEvent` dispatches inside one `step.do`, so it happens once.
 // - Each `step.do`, `sleep` and `sleepUntil` counts toward Workflows' cap of
 //   1,024 steps per instance; past `maxSteps` the adapter throws a clear error
@@ -16,7 +17,8 @@ import type { Duration, EventMap, EventOf, JobStep, StepConfig, WorkflowStepLike
 
 export type StepAdapterOptions<Env> = {
   step: WorkflowStepLike;
-  env: Env;
+  /** Set as the job env around each callback. `undefined` leaves the caller's job env in place. */
+  env: Env | undefined;
   retries: number;
   delay: Duration;
   backoff: "constant" | "linear" | "exponential";
@@ -54,7 +56,7 @@ export function makeStep<Ev extends EventMap, Env>(o: StepAdapterOptions<Env>): 
   const run: JobStep<Ev>["run"] = (name, fn, options) => {
     counted(name);
     return o.step.do(name, config(options?.retries, options?.timeout), async () =>
-      toJson(await withJobEnv(o.env, async () => fn())),
+      toJson(await (o.env === undefined ? fn() : withJobEnv(o.env, async () => fn()))),
     );
   };
 

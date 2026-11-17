@@ -90,6 +90,32 @@ export type JobContext<D, Env, Ev extends EventMap> = {
   runId: string;
 };
 
+/**
+ * The Standard Schema v1 interface (standardschema.dev), declared here so the
+ * package needs no runtime dependency. Zod 3.24+, Valibot 1 and ArkType 2
+ * schemas all satisfy it.
+ */
+export interface StandardSchemaV1<Input = unknown, Output = Input> {
+  readonly "~standard": {
+    readonly version: 1;
+    readonly vendor: string;
+    readonly validate: (value: unknown) => StandardSchemaV1.Result<Output> | Promise<StandardSchemaV1.Result<Output>>;
+    readonly types?: { readonly input: Input; readonly output: Output } | undefined;
+  };
+}
+
+export declare namespace StandardSchemaV1 {
+  type Result<Output> =
+    | { readonly value: Output; readonly issues?: undefined }
+    | { readonly issues: ReadonlyArray<Issue> };
+  type Issue = {
+    readonly message: string;
+    readonly path?: ReadonlyArray<PropertyKey | { readonly key: PropertyKey }> | undefined;
+  };
+  /** The type a schema's `validate` returns on success. */
+  type InferOutput<S extends StandardSchemaV1> = NonNullable<S["~standard"]["types"]>["output"];
+}
+
 export type FailureContext<D, Env> = { error: Error; data: D; env: Env; runId: string };
 
 export type RunStatus = "completed" | "failed" | "skipped";

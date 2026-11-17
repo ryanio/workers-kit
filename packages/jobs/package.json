@@ -1,6 +1,6 @@
 {
   "name": "workers-jobs",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Background jobs for Cloudflare Workers on Cron Triggers and Workflows: typed jobs, deduplicated instance ids, a backstop for dead triggers, and a run ledger for D1 or Postgres.",
   "license": "MIT",
   "author": "Ryan Ghods",
@@ -27,6 +27,10 @@
     "./testing": {
       "types": "./dist/testing.d.ts",
       "import": "./dist/testing.js"
+    },
+    "./testing/sqlite": {
+      "types": "./dist/sqlite.d.ts",
+      "import": "./dist/sqlite.js"
     }
   },
   "files": [
@@ -50,12 +54,12 @@
     "prepack": "npm run build"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.5",
-    "@cloudflare/vitest-plugin": "^1.5.1",
+    "@biomejs/biome": "^2.6.8",
+    "@cloudflare/vitest-plugin": "^1.8.3",
     "@cloudflare/workers-types": "^5.20261117.1",
     "@types/node": "^24.13.3",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.1.0"
   },
   "publishConfig": {
     "access": "public"

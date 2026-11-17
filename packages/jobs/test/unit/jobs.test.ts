@@ -7,6 +7,8 @@
  *   replay returns the checkpoints without running the work again.
  * - A step that fails for good runs onFailure once and records the failure;
  *   an engine abort records nothing.
+ * - A payload the job's schema refuses is recorded as skipped and never
+ *   reaches the handler; one it accepts reaches it as the schema's output.
  * - The ledger gets one row per instance, and the backstop starts a cron slot
  *   that has no row, and never one that ran.
  * - A config Cloudflare would misread fails at load time.
@@ -16,9 +18,9 @@ import { d1Ledger } from "../../src/d1.js";
 import { jobFactory } from "../../src/define.js";
 import { jobEnv } from "../../src/env.js";
 import { createJobs } from "../../src/jobs.js";
-import { fakeWorkflow, inlineStep } from "../../src/testing.js";
-import type { JobParams, Logger } from "../../src/types.js";
-import { JOB_RUNS_DDL, sqliteD1 } from "./sqlite-d1.js";
+import { sqliteD1 } from "../../src/sqlite.js";
+import { fakeWorkflow, inlineStep, JOB_RUNS_DDL } from "../../src/testing.js";
+import type { JobParams, Logger, StandardSchemaV1 } from "../../src/types.js";
 
 type Events = {
   "user/created": { userId: string };
@@ -74,7 +76,7 @@ const digest = defineJob({ id: "digest-daily", retries: 1, cron: "0 13 * * *" },
 const weekly = defineJob({ id: "digest-weekly", retries: 1, cron: "0 13 * * MON" }, async () => ({ ok: true }));
 const sweep = defineJob({ id: "sweep", retries: 1, cron: "*/15 * * * *" }, async () => ({ ok: true }));
 
-function setup(opts: { firstRun?: "start" | "wait" } = {}) {
+function setup(opts: { firstRun?: "start" | "wait"; graceMs?: (cron: string) => number } = {}) {
   const events = fakeWorkflow();
   const crons = fakeWorkflow();
   const reports = fakeWorkflow();
@@ -84,7 +86,10 @@ function setup(opts: { firstRun?: "start" | "wait" } = {}) {
     workflows: { events: () => events.binding, crons: () => crons.binding, report: () => reports.binding },
     ledger: () => d1Ledger(db),
     log: quiet,
-    ...(opts.firstRun ? { backstop: { firstRun: opts.firstRun } } : {}),
+    backstop: {
+      ...(opts.firstRun ? { firstRun: opts.firstRun } : {}),
+      ...(opts.graceMs ? { graceMs: opts.graceMs } : {}),
+    },
   });
   const env: Env = { name: "prod" };
   const rows = () =>
@@ -236,7 +241,23 @@ describe("a run", () => {
     ).rejects.toThrow("chain unavailable");
     expect(failures).toEqual(["esc_1:prod"]);
     expect(s.calls.map((c) => c.name)).toEqual(["release", "on-failure"]);
+    expect(Object.fromEntries(s.attempts)).toEqual({ release: 2, "on-failure": 1 });
     expect(t.rows()).toMatchObject([{ status: "failed", error: "chain unavailable" }]);
+  });
+
+  it("finishes when a step fails on its first attempt and passes on a retry", async () => {
+    const t = setup();
+    const s = inlineStep({
+      fail: (name, attempt) => (name === "send" && attempt === 1 ? new Error("smtp") : undefined),
+    });
+    await t.jobs.run(
+      t.env,
+      { instanceId: "send-welcome-usr_b", payload: { fn: "send-welcome", data: { userId: "usr_b" } } },
+      s.step,
+    );
+    expect(s.attempts.get("send")).toBe(2);
+    expect(sent).toEqual(["usr_b:prod"]);
+    expect(t.rows()).toMatchObject([{ status: "completed" }]);
   });
 
   it("treats an engine abort as no failure: no hook, the row stays started", async () => {
@@ -292,6 +313,18 @@ describe("a run", () => {
 describe("backstop", () => {
   const NOW = Date.UTC(2026, 10, 3, 14, 0); // Tuesday
 
+  it("counts a slot as due after the grace the setup gives", async () => {
+    const t = setup({ graceMs: () => 0 });
+    await t.jobs.run(
+      t.env,
+      { instanceId: "x", payload: { fn: "digest-daily", data: {}, slotMs: Date.UTC(2026, 10, 2, 13) } },
+      inlineStep().step,
+    );
+    // 13:05, inside the default 30 minutes for a daily cron.
+    const started = await t.jobs.backstop(t.env, Date.UTC(2026, 10, 3, 13, 5));
+    expect(started.map((r) => r.id)).toEqual(["digest-daily-202611031300"]);
+  });
+
   it("starts every overdue slot with no row, sub-daily and daily, and leaves the ones that ran", async () => {
     const t = setup({ firstRun: "start" });
     await t.jobs.run(
@@ -328,5 +361,99 @@ describe("config errors fail at load time", () => {
     expect(() => createJobs({ jobs: [digest, digest], workflows: wf })).toThrow(/two jobs/);
     expect(() => createJobs({ jobs: [report], workflows: wf })).toThrow(/"report"/);
     expect(() => createJobs({ jobs: [sweep], workflows: wf, slotKey: "day" })).toThrow(/more than once a day/);
+  });
+});
+
+describe("a job with a schema", () => {
+  // A Standard Schema by hand, so the test needs no validation library: it
+  // reads `{ count: "<digits>" }` and outputs `{ count: number }`.
+  const countSchema: StandardSchemaV1<unknown, { count: number }> = {
+    "~standard": {
+      version: 1,
+      vendor: "test",
+      validate: (value) => {
+        const raw = (value as { count?: unknown } | null)?.count;
+        return typeof raw === "string" && /^\d+$/.test(raw)
+          ? { value: { count: Number(raw) } }
+          : { issues: [{ message: "must be digits", path: [{ key: "count" }] }] };
+      },
+    },
+  };
+
+  type CountEvents = { "count/requested": { count: string } };
+  const seen: number[] = [];
+  const failed: number[] = [];
+  const counted = jobFactory<CountEvents, Env>()(
+    {
+      id: "count",
+      retries: 0,
+      event: "count/requested",
+      key: (d) => d.count,
+      schema: countSchema,
+      onFailure: async ({ data }) => {
+        failed.push(data.count);
+      },
+    },
+    async ({ event, step }) => {
+      seen.push(event.data.count);
+      await step.run("double", () => event.data.count * 2);
+      return { ok: true };
+    },
+  );
+
+  function countSetup() {
+    const { db, sqlite } = sqliteD1(JOB_RUNS_DDL);
+    const wf = fakeWorkflow();
+    const jobs = createJobs<Env, CountEvents>({
+      jobs: [counted],
+      workflows: { default: () => wf.binding },
+      ledger: () => d1Ledger(db),
+      log: quiet,
+    });
+    const rows = () => sqlite.prepare("SELECT status, decision, error FROM job_runs").all();
+    return { jobs, rows };
+  }
+
+  beforeEach(() => {
+    seen.length = 0;
+    failed.length = 0;
+  });
+
+  it("records a payload the schema refuses as skipped, without calling the handler or retrying", async () => {
+    const t = countSetup();
+    const s = inlineStep();
+    const out = await t.jobs.run(
+      { name: "prod" },
+      { instanceId: "count-x", payload: { fn: "count", data: { count: "x" } } },
+      s.step,
+    );
+    expect(out).toEqual({ skipped: "invalid payload", issues: ["count: must be digits"] });
+    expect(seen).toEqual([]);
+    expect(failed).toEqual([]);
+    expect(s.calls).toEqual([]);
+    expect(t.rows()).toEqual([
+      { status: "skipped", decision: '{"skipped":"invalid payload","issues":["count: must be digits"]}', error: null },
+    ]);
+  });
+
+  it("hands the handler the schema's output", async () => {
+    const t = countSetup();
+    await t.jobs.run(
+      { name: "prod" },
+      { instanceId: "count-12", payload: { fn: "count", data: { count: "12" } } },
+      inlineStep().step,
+    );
+    expect(seen).toEqual([12]);
+    expect(t.rows()).toMatchObject([{ status: "completed" }]);
+  });
+
+  it("refuses a schema that is not Standard Schema v1 at definition time", () => {
+    const bad = { "~standard": { version: 2 } } as unknown as StandardSchemaV1<unknown, { count: string }>;
+    expect(() =>
+      jobFactory<CountEvents, Env>()(
+        { id: "bad", retries: 0, event: "count/requested", key: (d) => d.count, schema: bad },
+        async () => null,
+      ),
+    ).toThrow(/Standard Schema v1/);
   });
 });
