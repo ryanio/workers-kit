@@ -33,6 +33,22 @@ Symbols, constants, npm scripts and flags are not checked. Matching them takes h
 - `ignore`: tokens that look like repo paths but are not, such as "there is no `x`" sentences, a file a guide tells you to create, or a path in another repo.
 - `externalSlash`: `/names` that are site routes or bot commands.
 - `slash`: `false` to turn the slash check off, `"all"` to run it in every doc.
+- `text`: rules on what given docs say, for a fact a doc must keep stating or a phrase it must never contain again:
+
+  ```json
+  {
+    "text": [
+      {
+        "docs": [".claude/skills/sentry/SKILL.md"],
+        "require": ["dataset=tracemetrics"],
+        "forbid": ["sentry\\.io/api/0/[^\\s\"']*metrics/(query|meta)/"],
+        "why": "Sentry retired the metrics endpoints"
+      }
+    ]
+  }
+  ```
+
+  `docs` are globs of tracked files, read whole with code blocks included. Each `require` string must appear in every matching doc, and no line may match a `forbid` regular expression. A rule whose globs match no file is itself reported, so a renamed doc never leaves a rule checking nothing.
 
 ## Changing it
 

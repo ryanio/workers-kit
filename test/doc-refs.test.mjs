@@ -115,3 +115,31 @@ test('a copy edited in place is caught', () => {
 	assert.equal(editedInPlace(`${banner}const x = 2\n`), true)
 	assert.equal(editedInPlace(body), false)
 })
+
+test('text rules: a required string, a forbidden pattern in a code block, a rule that matches nothing', () => {
+	const config = {
+		text: [
+			{
+				docs: ['.agents/skills/sentry/SKILL.md'],
+				require: ['dataset=tracemetrics'],
+				forbid: ['metrics/(query|meta)/'],
+			},
+			{ docs: ['docs/gone.md'], require: ['x'] },
+		],
+	}
+	assert.deepEqual(
+		run(
+			{ '.agents/skills/sentry/SKILL.md': 'Query it.\n```\ncurl sentry.io/api/0/metrics/query/\n```\n' },
+			config
+		),
+		[
+			'.agents/skills/sentry/SKILL.md:0 dataset=tracemetrics',
+			'.agents/skills/sentry/SKILL.md:3 metrics/query/',
+			'doc-refs.config.json:0 docs/gone.md',
+		]
+	)
+	assert.deepEqual(
+		run({ '.agents/skills/sentry/SKILL.md': 'Use `dataset=tracemetrics`.' }, { text: [config.text[0]] }),
+		[]
+	)
+})
