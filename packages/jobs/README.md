@@ -435,6 +435,8 @@ You can also implement `RunLedger` yourself:
 - `running(fn, { staleAfterMs, exceptKey })`, for singleton crons: the newest unfinished run of `fn`, younger than `staleAfterMs`, for another key.
 - `retrying(run)`, for a ledger that keeps a row per inline attempt.
 
+`finish` gets the handler's return value as JSON in `decision`, cut to 2,000 characters, and the error message in `error`, cut to 500. For a ledger that keeps more, it also gets `output`, the value as the handler returned it (or the payload check's refusal), and `cause`, the Error itself with its stack, on a failed run. `retrying` gets `cause` too.
+
 A run's status comes from its return value. `{ skipped: true }` or `{ skipped: "<reason>" }` is skipped, and `{ ok: false }` or `{ status: "failed" }` is failed. Anything else is completed, and a thrown error is failed.
 
 ### `workers-jobs/testing`

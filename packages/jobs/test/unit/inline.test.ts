@@ -10,15 +10,17 @@
  *   honouring an error's `retryAfter`.
  * - A singleton cron skips a slot while an earlier slot's run is unfinished,
  *   until that run is stale, inline or on a Workflow.
+ * - The ledger gets the handler's output and the Error as they were, beside
+ *   the truncated `decision` and `error`, so it can keep more than those hold.
  */
 import { describe, expect, it } from "vitest";
 import { d1Ledger } from "../../src/d1.js";
 import { type JobDef, jobFactory } from "../../src/define.js";
 import { createJobs, type JobsOptions } from "../../src/jobs.js";
-import type { RunLedger } from "../../src/ledger.js";
+import type { RunFinish, RunLedger, RunRetry } from "../../src/ledger.js";
 import { sqliteD1 } from "../../src/sqlite.js";
-import { fakeWorkflow, JOB_RUNS_DDL } from "../../src/testing.js";
-import type { Logger } from "../../src/types.js";
+import { fakeWorkflow, inlineStep, JOB_RUNS_DDL } from "../../src/testing.js";
+import type { Logger, StandardSchemaV1 } from "../../src/types.js";
 
 type Events = { "user/created": { userId: string } };
 type Env = { name: string };
@@ -360,5 +362,168 @@ describe("a singleton cron", () => {
         workflows: { default: () => t.wf.binding },
       }),
     ).toThrow(/singleton, which needs a ledger/);
+  });
+});
+
+describe("the ledger's view of a run", () => {
+  function capture(jobs: JobDef<Env>[]) {
+    const { db } = sqliteD1(JOB_RUNS_DDL);
+    const base = d1Ledger(db);
+    const finished: RunFinish[] = [];
+    const retried: RunRetry[] = [];
+    const ledger: RunLedger = {
+      ...base,
+      async finish(r) {
+        finished.push(r);
+        return base.finish(r);
+      },
+      async retrying(r) {
+        retried.push(r);
+      },
+    };
+    const wf = fakeWorkflow();
+    const runner = createJobs<Env, Events>({
+      jobs,
+      workflows: { default: () => wf.binding },
+      ledger: () => ledger,
+      log: quiet,
+    });
+    return { runner, finished, retried };
+  }
+  const big = { text: "x".repeat(5000) };
+  const longError = () => new Error("boom ".repeat(200));
+
+  it("gets the whole output and the Error with its stack, inline, beside the truncated columns", async () => {
+    let calls = 0;
+    const job = defineJob(
+      { id: "big", retries: 1, cron: "0 13 * * *", inline: true },
+      async () => {
+        calls += 1;
+        if (calls === 1) throw Object.assign(longError(), { retryAfter: 0 });
+        return big;
+      },
+    );
+    const t = capture([job]);
+    await t.runner.scheduled(
+      { cron: "0 13 * * *", scheduledTime: Date.UTC(2026, 10, 3, 13) },
+      env,
+    );
+
+    const [retry] = t.retried;
+    expect(retry?.error.length).toBeLessThanOrEqual(500);
+    expect(retry?.cause?.message).toBe("boom ".repeat(200));
+    expect(retry?.cause?.stack).toContain("inline.test.ts");
+    const [done] = t.finished;
+    expect(done?.status).toBe("completed");
+    expect(done?.output).toEqual(big);
+    expect(done?.decision?.length).toBeLessThan(JSON.stringify(big).length);
+  });
+
+  it("gets the Error on the last failed attempt, inline and on a Workflow", async () => {
+    const thrown = longError();
+    const inline = defineJob(
+      { id: "dies", retries: 0, cron: "0 14 * * *", inline: true },
+      async () => {
+        throw thrown;
+      },
+    );
+    const onWorkflow = defineJob(
+      {
+        id: "dies-wf",
+        key: (d) => d.userId,
+        retries: 0,
+        event: "user/created",
+      },
+      async () => {
+        throw thrown;
+      },
+    );
+    const t = capture([inline, onWorkflow]);
+    await t.runner.scheduled(
+      { cron: "0 14 * * *", scheduledTime: Date.UTC(2026, 10, 3, 14) },
+      env,
+    );
+    await expect(
+      t.runner.run(
+        env,
+        {
+          instanceId: "dies-wf-u1",
+          payload: { fn: "dies-wf", data: { userId: "u1" } },
+        },
+        inlineStep().step,
+      ),
+    ).rejects.toThrow("boom");
+
+    expect(t.finished.map((f) => [f.fn, f.status, f.cause])).toEqual([
+      ["dies", "failed", thrown],
+      ["dies-wf", "failed", thrown],
+    ]);
+  });
+
+  it("gets the output of a Workflow run", async () => {
+    const job = defineJob(
+      { id: "big-wf", key: (d) => d.userId, retries: 0, event: "user/created" },
+      async () => big,
+    );
+    const t = capture([job]);
+    await t.runner.run(
+      env,
+      {
+        instanceId: "big-wf-u1",
+        payload: { fn: "big-wf", data: { userId: "u1" } },
+      },
+      inlineStep().step,
+    );
+    expect(t.finished[0]?.output).toEqual(big);
+  });
+  it("gets the payload check's refusal as the output of a skipped run, inline and on a Workflow", async () => {
+    const refuse: StandardSchemaV1<unknown, { userId: string }> = {
+      "~standard": {
+        version: 1,
+        vendor: "test",
+        validate: () => ({ issues: [{ message: "no" }] }),
+      },
+    };
+    const inline = defineJob(
+      {
+        id: "picky",
+        key: (d) => d.userId,
+        retries: 0,
+        event: "user/created",
+        inline: true,
+        schema: refuse,
+      },
+      async () => "ran",
+    );
+    const onWorkflow = defineJob(
+      {
+        id: "picky-wf",
+        key: (d) => d.userId,
+        retries: 0,
+        event: "user/created",
+        schema: refuse,
+      },
+      async () => "ran",
+    );
+    const t = capture([inline, onWorkflow]);
+    await t.runner.runInline(env, {
+      job: "picky",
+      data: { userId: "u1" },
+      event: "user/created",
+      runId: "msg-1:picky",
+    });
+    await t.runner.run(
+      env,
+      {
+        instanceId: "picky-wf-u1",
+        payload: { fn: "picky-wf", data: { userId: "u1" } },
+      },
+      inlineStep().step,
+    );
+    const refused = { skipped: "invalid payload", issues: ["no"] };
+    expect(t.finished.map((f) => [f.fn, f.status, f.output])).toEqual([
+      ["picky", "skipped", refused],
+      ["picky-wf", "skipped", refused],
+    ]);
   });
 });

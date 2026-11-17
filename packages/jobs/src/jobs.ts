@@ -765,6 +765,7 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(
           status: "skipped",
           decision: toDecision(checked.skipped, DECISION_MAX),
           error: null,
+          output: checked.skipped,
         });
         return checked.skipped;
       }
@@ -791,6 +792,7 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(
           status,
           decision: toDecision(output, DECISION_MAX),
           error: null,
+          output,
         });
         return output;
       } catch (err) {
@@ -831,6 +833,7 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(
             status: "failed",
             decision: null,
             error: truncate(error.message, ERROR_MAX),
+            cause: error,
           },
           error,
         );
@@ -993,6 +996,7 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(
             status: "skipped",
             decision: toDecision(checked.skipped, DECISION_MAX),
             error: null,
+            output: checked.skipped,
           });
           return {
             ...base,
@@ -1039,7 +1043,12 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(
               error: error.message,
             });
             await record(env, "retrying", async (l) => {
-              await l.retrying?.({ ...run, error: message, delayMs: delay });
+              await l.retrying?.({
+                ...run,
+                error: message,
+                delayMs: delay,
+                cause: error,
+              });
             });
             failed = {
               ...base,
@@ -1053,7 +1062,13 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(
             await inlineOnFailure(env, job, scope, error, checked.input);
             await finish(
               env,
-              { ...run, status: "failed", decision: null, error: message },
+              {
+                ...run,
+                status: "failed",
+                decision: null,
+                error: message,
+                cause: error,
+              },
               error,
             );
             failed = { ...base, result: "ran", status: "failed", error };
@@ -1066,6 +1081,7 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(
           status,
           decision: toDecision(output, DECISION_MAX),
           error: null,
+          output,
         });
         return { ...base, result: "ran", status, output };
       });

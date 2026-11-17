@@ -23,6 +23,14 @@ export type RunFinish = RunStart & {
   decision: string | null;
   /** The error message, truncated. */
   error: string | null;
+  /**
+   * The handler's return value as it returned it, before the JSON and the
+   * truncation in `decision`. Set when the handler (or the payload check)
+   * produced one, for a ledger that keeps more than `decision` holds.
+   */
+  output?: unknown;
+  /** The error itself, stack included, on a failed run. */
+  cause?: Error;
 };
 
 /** An inline attempt that failed with attempts left. */
@@ -32,6 +40,8 @@ export type RunRetry = RunStart & {
   error: string;
   /** How long until the next attempt. */
   delayMs: number;
+  /** The error itself, stack included. */
+  cause?: Error;
 };
 
 export interface RunLedger {

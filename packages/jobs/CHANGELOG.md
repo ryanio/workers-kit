@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.0 (2026-11-17)
+
+- `RunFinish` has `output`, the handler's return value as it returned it (or the payload check's refusal), and `cause`, the Error with its stack on a failed run. `RunRetry` has `cause`. A ledger that keeps more than the truncated `decision` and `error` reads these instead of rebuilding them.
+
 ## 0.5.0 (2026-11-17)
 
 - `lock` in `createJobs`: an app's own lease for inline singletons, as `JobLock` (`acquire(key, { job, runId, holdMs })` resolving a `JobLease` or `null`, and an optional `renewEveryMs`). With it, an inline singleton holds the lease for its `runInline` call instead of reading the ledger, and releases it however the call ends. A held lease skips the run, recorded as skipped. A lease with `renew` is renewed every `renewEveryMs`, stopping one interval short of `holdMs` (the job's `singleton.staleAfter`), when `renew` resolves `false`, and at release. A lock that throws fails open and is logged. Without `lock`, singletons read the ledger as in 0.4. Crons on a Workflow always read the ledger.
