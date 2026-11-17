@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1 (2026-11-17)
+
+- `inlineStep`'s `do` takes Workflows' two-argument form, `do(name, callback)`, as well as `do(name, config, callback)`, so code that calls Workflows' step API directly can run on it. With no config, a step retries as the engine does by default. The step is typed `InlineStep`, which is exported.
+- A failure `inlineStep`'s `fail` injects is thrown from the step's callback, as a real step failure is. Under workerd with an older compatibility date (2025-12-01), the earlier synchronous throw was reported as an unhandled rejection that failed the test run.
+
 ## 0.3.0 (2026-11-17)
 
 - `defineJob` takes an optional `schema` for event jobs: any Standard Schema v1 (Zod, Valibot, ArkType), typed by interface, with no runtime dependency. The run checks the payload before the handler. A payload that fails is recorded as skipped with the issues as its decision, and the run neither throws nor retries. The handler and `onFailure` get the schema's output, and `event.data` is typed from it.

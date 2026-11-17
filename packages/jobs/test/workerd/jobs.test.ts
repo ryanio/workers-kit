@@ -8,7 +8,12 @@
  */
 import { env, introspectWorkflowInstance } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { checkLedgerTable, JOB_RUNS_DDL } from "../../src/testing.js";
+import { createJobs, d1Ledger, jobFactory } from "../../src/index.js";
+import {
+  checkLedgerTable,
+  inlineStep,
+  JOB_RUNS_DDL,
+} from "../../src/testing.js";
 import { type Env, jobs } from "./worker.js";
 
 const e = env as unknown as Env;
@@ -96,5 +101,44 @@ describe("in workerd", () => {
       'job_runs.started_at is INTEGER, but time "iso" writes text',
       'job_runs.finished_at is INTEGER, but time "iso" writes text',
     ]);
+  });
+});
+
+describe("inlineStep in workerd", () => {
+  it("fails a job through onFailure with nothing left unhandled", async () => {
+    const defineJob = jobFactory<{ "escrow/stuck": { id: string } }, Env>();
+    const failed: string[] = [];
+    const release = defineJob(
+      {
+        id: "release",
+        retries: 1,
+        event: "escrow/stuck",
+        key: (d) => d.id,
+        onFailure: async ({ data }) => {
+          failed.push(data.id);
+        },
+      },
+      async ({ step }) => step.run("pay", async () => "paid"),
+    );
+    const local = createJobs<Env, { "escrow/stuck": { id: string } }>({
+      jobs: [release],
+      workflows: { default: (env) => env.JOB_WORKFLOW },
+      ledger: (env) => d1Ledger(env.DB),
+      log: { info() {}, warn() {}, error() {} },
+    });
+    const s = inlineStep({
+      fail: (name) => (name === "pay" ? new Error("chain down") : undefined),
+    });
+    await expect(
+      local.run(
+        e,
+        {
+          instanceId: "release-esc_9",
+          payload: { fn: "release", data: { id: "esc_9" } },
+        },
+        s.step,
+      ),
+    ).rejects.toThrow("chain down");
+    expect(failed).toEqual(["esc_9"]);
   });
 });

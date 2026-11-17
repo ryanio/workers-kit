@@ -1,7 +1,10 @@
 {
   "name": "workers-jobs-test",
   "main": "./worker.ts",
-  "compatibility_date": "2026-11-01",
+  // An older date than most apps use: on it, a failure injected through
+  // inlineStep's `fail` surfaces as an unhandled rejection unless it is
+  // thrown from a callback, and the inlineStep workerd test checks that.
+  "compatibility_date": "2025-12-01",
   "compatibility_flags": ["nodejs_compat"],
   "d1_databases": [
     {

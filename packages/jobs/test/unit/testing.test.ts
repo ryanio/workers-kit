@@ -8,7 +8,12 @@ import { describe, expect, it } from "vitest";
 import { d1Ledger } from "../../src/d1.js";
 import { jobEnv, withJobEnv } from "../../src/env.js";
 import { sqliteD1 } from "../../src/sqlite.js";
-import { checkLedgerTable, JOB_RUNS_DDL, jobStep } from "../../src/testing.js";
+import {
+  checkLedgerTable,
+  inlineStep,
+  JOB_RUNS_DDL,
+  jobStep,
+} from "../../src/testing.js";
 
 type Events = { "item/ready": { id: string } };
 
@@ -210,5 +215,17 @@ describe("d1Ledger", () => {
     const iso = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/;
     expect(row.started_at).toMatch(iso);
     expect(row.finished_at).toMatch(iso);
+  });
+});
+
+describe("inlineStep", () => {
+  it("takes Workflows' two-argument step.do, retrying as the engine does with no config", async () => {
+    const s = inlineStep({
+      fail: (name, attempt) =>
+        name === "fetch" && attempt < 3 ? new Error("flaky") : undefined,
+    });
+    expect(await s.step.do("fetch", async () => "body")).toBe("body");
+    expect(s.attempts.get("fetch")).toBe(3);
+    expect(s.calls).toEqual([{ kind: "do", name: "fetch", config: {} }]);
   });
 });

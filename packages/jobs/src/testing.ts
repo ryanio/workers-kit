@@ -93,6 +93,11 @@ export type StepCall = {
   at?: Date | number;
 };
 
+/** A `WorkflowStepLike` whose `do` also takes `do(name, callback)`. */
+export type InlineStep = WorkflowStepLike & {
+  do<T>(name: string, callback: () => Promise<T>): Promise<T>;
+};
+
 /** Workflows' own retry count for a step whose config sets none. */
 const ENGINE_DEFAULT_RETRIES = 5;
 
@@ -107,6 +112,9 @@ const ENGINE_DEFAULT_RETRIES = 5;
  *
  * Pass `memo` to replay: a name already in it returns the stored result
  * without running the callback, as Workflows does after a hibernation.
+ *
+ * `do` also takes Workflows' two-argument form, `do(name, callback)`, for code
+ * that hands this step to its own steps directly.
  */
 export function inlineStep(
   opts: {
@@ -117,8 +125,19 @@ export function inlineStep(
   const calls: StepCall[] = [];
   const attempts = new Map<string, number>();
   const memo = opts.memo ?? new Map<string, unknown>();
-  const step: WorkflowStepLike = {
-    async do(name, config, callback) {
+  const step: InlineStep = {
+    async do<T>(
+      name: string,
+      configOrCallback: StepConfig | (() => Promise<T>),
+      maybeCallback?: () => Promise<T>,
+    ): Promise<T> {
+      const config =
+        typeof configOrCallback === "function" ? {} : configOrCallback;
+      const callback = (
+        typeof configOrCallback === "function"
+          ? configOrCallback
+          : maybeCallback
+      ) as () => Promise<T>;
       calls.push({ kind: "do", name, config });
       if (memo.has(name)) return memo.get(name) as never;
       const limit = config.retries?.limit ?? ENGINE_DEFAULT_RETRIES;
@@ -126,8 +145,9 @@ export function inlineStep(
         attempts.set(name, (attempts.get(name) ?? 0) + 1);
         try {
           const failure = opts.fail?.(name, attempt);
-          if (failure) throw failure;
-          const result = await callback();
+          // Thrown from a callback, as a step's own failure is, so workerd sees
+          // the same rejection it would see on the engine.
+          const result = await (failure ? Promise.reject(failure) : callback());
           memo.set(name, result);
           return result;
         } catch (err) {
