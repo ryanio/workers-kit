@@ -1,4 +1,10 @@
-import { checkIdent, DEFAULT_COLUMNS, type LedgerColumns, type RunLedger, type SqlLedgerOptions } from "./ledger.js";
+import {
+  checkIdent,
+  DEFAULT_COLUMNS,
+  type LedgerColumns,
+  type RunLedger,
+  type SqlLedgerOptions,
+} from "./ledger.js";
 
 // The run ledger on Postgres, through whatever client you already have
 // (pg, postgres.js, Prisma's $queryRawUnsafe, Hyperdrive). You pass one
@@ -28,7 +34,10 @@ export type PostgresLedgerOptions = SqlLedgerOptions & {
   decisionType?: "text" | "jsonb";
 };
 
-export function postgresLedger(query: PgQuery, options: PostgresLedgerOptions = {}): RunLedger {
+export function postgresLedger(
+  query: PgQuery,
+  options: PostgresLedgerOptions = {},
+): RunLedger {
   const table = checkIdent(options.table ?? "job_runs");
   const c: LedgerColumns = { ...DEFAULT_COLUMNS, ...options.columns };
   for (const name of Object.values(c)) checkIdent(name);
@@ -40,7 +49,13 @@ export function postgresLedger(query: PgQuery, options: PostgresLedgerOptions = 
   return {
     async start(run) {
       const cols = [c.id, c.fn, c.key, c.status, ...constants.map(([n]) => n)];
-      const values = [prefix + run.id, run.fn, run.key, "started", ...constants.map(([, v]) => v)];
+      const values = [
+        prefix + run.id,
+        run.fn,
+        run.key,
+        "started",
+        ...constants.map(([, v]) => v),
+      ];
       const params = values.map((_, i) => `$${i + 1}`);
       await query(
         `INSERT INTO ${table} (${cols.join(", ")}, ${c.startedAt}) VALUES (${params.join(", ")}, now()) ON CONFLICT (${c.id}) DO NOTHING`,
@@ -57,13 +72,21 @@ export function postgresLedger(query: PgQuery, options: PostgresLedgerOptions = 
 
     async latestKeys(fns) {
       if (fns.length === 0) return new Map();
-      const where = [`${c.fn} = ANY($1)`, ...constants.map(([n], i) => `${n} = $${i + 2}`)].join(" AND ");
+      const where = [
+        `${c.fn} = ANY($1)`,
+        ...constants.map(([n], i) => `${n} = $${i + 2}`),
+      ].join(" AND ");
       const result = await query(
         `SELECT ${c.fn} AS fn, MAX(${c.key}) AS latest FROM ${table} WHERE ${where} GROUP BY ${c.fn}`,
         [[...fns], ...constants.map(([, v]) => v)],
       );
       const rows = Array.isArray(result) ? result : result.rows;
-      return new Map(rows.map((r) => [String(r.fn), r.latest == null ? "" : String(r.latest)]));
+      return new Map(
+        rows.map((r) => [
+          String(r.fn),
+          r.latest == null ? "" : String(r.latest),
+        ]),
+      );
     },
   };
 }

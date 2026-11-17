@@ -1,8 +1,25 @@
-import { defaultGraceMs, firesPerDay, lastDueSlotMs, parseCron } from "./cron.js";
+import {
+  defaultGraceMs,
+  firesPerDay,
+  lastDueSlotMs,
+  parseCron,
+} from "./cron.js";
 import type { JobDef } from "./define.js";
 import { withJobEnv } from "./env.js";
-import { instanceId, isDuplicateId, isEngineAbort, type SlotKeyFormat, slotKey } from "./ids.js";
-import { errorText, type RunLedger, statusFromOutput, toDecision, truncate } from "./ledger.js";
+import {
+  instanceId,
+  isDuplicateId,
+  isEngineAbort,
+  type SlotKeyFormat,
+  slotKey,
+} from "./ids.js";
+import {
+  errorText,
+  type RunLedger,
+  statusFromOutput,
+  toDecision,
+  truncate,
+} from "./ledger.js";
 import { makeStep } from "./step.js";
 import type {
   Duration,
@@ -30,7 +47,11 @@ export type JobsOptions<Env> = {
   /** Cron slot keys: `YYYYMMDDHHmm` (default) or `YYYYMMDD`, for crons that fire at most once a day. */
   slotKey?: SlotKeyFormat;
   /** Step defaults: delay 10 seconds, exponential backoff, timeout 10 minutes. */
-  steps?: { delay?: Duration; backoff?: "constant" | "linear" | "exponential"; timeout?: Duration };
+  steps?: {
+    delay?: Duration;
+    backoff?: "constant" | "linear" | "exponential";
+    timeout?: Duration;
+  };
   /** Most steps one instance may take before the adapter throws. Default 1,024, the Workflows cap. */
   maxSteps?: number;
   /** Instance retention. Default 7 days on success, 30 on error. */
@@ -38,7 +59,12 @@ export type JobsOptions<Env> = {
   /** How the ledger and `onFinish` read a handler's return value. */
   statusOf?: (output: unknown) => RunStatus;
   /** Called after a run is recorded, e.g. for a cron monitor check-in. Errors are logged, not thrown. */
-  onFinish?: (info: { job: string; status: RunStatus; env: Env; error?: Error }) => void | Promise<void>;
+  onFinish?: (info: {
+    job: string;
+    status: RunStatus;
+    env: Env;
+    error?: Error;
+  }) => void | Promise<void>;
   backstop?: {
     /** How often one isolate checks. Default 15 minutes. */
     everyMs?: number;
@@ -61,7 +87,9 @@ const ON_FAILURE_RETRIES = 2;
 
 /** One schema issue as `path: message`, or the message alone at the root. */
 function issueText(issue: StandardSchemaV1.Issue): string {
-  const path = (issue.path ?? []).map((p) => String(typeof p === "object" ? p.key : p)).join(".");
+  const path = (issue.path ?? [])
+    .map((p) => String(typeof p === "object" ? p.key : p))
+    .join(".");
   return path ? `${path}: ${issue.message}` : issue.message;
 }
 
@@ -71,7 +99,9 @@ const consoleLog: Logger = {
   error: (m, f) => console.error(m, f ?? {}),
 };
 
-export type Jobs<Env, Ev extends EventMap> = ReturnType<typeof createJobs<Env, Ev>>;
+export type Jobs<Env, Ev extends EventMap> = ReturnType<
+  typeof createJobs<Env, Ev>
+>;
 
 /**
  * One call that wires every job: `scheduled` for the Cron Trigger handler,
@@ -80,11 +110,16 @@ export type Jobs<Env, Ev extends EventMap> = ReturnType<typeof createJobs<Env, E
  * id, a cron Cloudflare would misread, or a job naming a Workflow that is not
  * in `workflows`, so a bad config fails the deploy instead of a run.
  */
-export function createJobs<Env, Ev extends EventMap = EventMap>(options: JobsOptions<Env>) {
+export function createJobs<Env, Ev extends EventMap = EventMap>(
+  options: JobsOptions<Env>,
+) {
   const log = options.log ?? consoleLog;
   const format = options.slotKey ?? "minute";
   const statusOf = options.statusOf ?? statusFromOutput;
-  const retention = options.retention ?? { successRetention: "7 days", errorRetention: "30 days" };
+  const retention = options.retention ?? {
+    successRetention: "7 days",
+    errorRetention: "30 days",
+  };
   const stepDefaults = {
     delay: options.steps?.delay ?? "10 seconds",
     backoff: options.steps?.backoff ?? ("exponential" as const),
@@ -98,8 +133,15 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(options: JobsOpt
     if (byId.has(job.id)) throw new Error(`two jobs have the id "${job.id}"`);
     byId.set(job.id, job);
     const wf = workflowName(job);
-    if (!options.workflows[wf]) throw new Error(`job ${job.id} runs on Workflow "${wf}", which is not in workflows`);
-    if (job.event) subscribers.set(job.event, [...(subscribers.get(job.event) ?? []), job.id]);
+    if (!options.workflows[wf])
+      throw new Error(
+        `job ${job.id} runs on Workflow "${wf}", which is not in workflows`,
+      );
+    if (job.event)
+      subscribers.set(job.event, [
+        ...(subscribers.get(job.event) ?? []),
+        job.id,
+      ]);
     if (job.cron) {
       parseCron(job.cron);
       if (format === "day" && firesPerDay(job.cron) > 1) {
@@ -126,13 +168,23 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(options: JobsOpt
   }
 
   /** Creates one instance. A taken id means the work already started: `"duplicate"`, not an error. */
-  async function createInstance(env: Env, fn: string, key: string, params: Omit<JobParams, "fn" | "key">) {
+  async function createInstance(
+    env: Env,
+    fn: string,
+    key: string,
+    params: Omit<JobParams, "fn" | "key">,
+  ) {
     const id = instanceId(fn, key);
     try {
-      await bindingFor(env, fn).create({ id, params: { fn, key, ...params }, retention });
+      await bindingFor(env, fn).create({
+        id,
+        params: { fn, key, ...params },
+        retention,
+      });
       return { fn, id, result: "created" as CreateResult };
     } catch (err) {
-      if (isDuplicateId(err)) return { fn, id, result: "duplicate" as CreateResult };
+      if (isDuplicateId(err))
+        return { fn, id, result: "duplicate" as CreateResult };
       throw err;
     }
   }
@@ -145,9 +197,13 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(options: JobsOpt
     try {
       key = job.key ? job.key(data, { nowMs }) : null;
     } catch (err) {
-      throw new Error(`job ${job.id}: its key function threw: ${errorText(err)}`);
+      throw new Error(
+        `job ${job.id}: its key function threw: ${errorText(err)}`,
+      );
     }
-    return key ?? `${nowMs.toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    return (
+      key ?? `${nowMs.toString(36)}${Math.random().toString(36).slice(2, 8)}`
+    );
   }
 
   /**
@@ -161,21 +217,40 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(options: JobsOpt
     events: { name: K; data: Ev[K]; ts?: number } | readonly EventOf<Ev>[],
     nowMs = Date.now(),
   ) {
-    const list = (Array.isArray(events) ? events : [events]) as readonly { name: string; data: unknown; ts?: number }[];
+    const list = (Array.isArray(events) ? events : [events]) as readonly {
+      name: string;
+      data: unknown;
+      ts?: number;
+    }[];
     const results: { fn: string; id: string; result: CreateResult }[] = [];
     let failure: unknown;
     for (const event of list) {
       const fns = subscribers.get(event.name) ?? [];
-      if (fns.length === 0) log.warn("jobs.no_subscriber", { event: event.name });
+      if (fns.length === 0)
+        log.warn("jobs.no_subscriber", { event: event.name });
       for (const fn of fns) {
         const job = byId.get(fn) as JobDef<Env>;
         try {
-          const params = { data: event.data, event: event.name, ...(event.ts === undefined ? {} : { ts: event.ts }) };
-          const r = await createInstance(env, fn, keyFor(job, event.data, nowMs), params);
-          if (r.result === "duplicate") log.info("jobs.duplicate", { fn, event: event.name, id: r.id });
+          const params = {
+            data: event.data,
+            event: event.name,
+            ...(event.ts === undefined ? {} : { ts: event.ts }),
+          };
+          const r = await createInstance(
+            env,
+            fn,
+            keyFor(job, event.data, nowMs),
+            params,
+          );
+          if (r.result === "duplicate")
+            log.info("jobs.duplicate", { fn, event: event.name, id: r.id });
           results.push(r);
         } catch (err) {
-          log.error("jobs.create_failed", { fn, event: event.name, error: errorText(err) });
+          log.error("jobs.create_failed", {
+            fn,
+            event: event.name,
+            error: errorText(err),
+          });
           failure ??= err;
         }
       }
@@ -186,11 +261,17 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(options: JobsOpt
 
   /** One cron job's run for one slot. Safe to call twice: the id carries the slot. */
   function startCronSlot(env: Env, fn: string, slotMs: number) {
-    return createInstance(env, fn, slotKey(slotMs, format), { data: {}, slotMs });
+    return createInstance(env, fn, slotKey(slotMs, format), {
+      data: {},
+      slotMs,
+    });
   }
 
   /** The Cron Trigger handler's body. Never throws; failures are logged. */
-  async function scheduled(controller: { cron: string; scheduledTime: number }, env: Env) {
+  async function scheduled(
+    controller: { cron: string; scheduledTime: number },
+    env: Env,
+  ) {
     const fns = cronJobs.get(controller.cron);
     if (!fns) {
       log.error("jobs.unmatched_cron", { cron: controller.cron });
@@ -200,16 +281,28 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(options: JobsOpt
     for (const fn of fns) {
       try {
         const r = await startCronSlot(env, fn, controller.scheduledTime);
-        log.info("jobs.cron_dispatch", { fn, cron: controller.cron, result: r.result });
+        log.info("jobs.cron_dispatch", {
+          fn,
+          cron: controller.cron,
+          result: r.result,
+        });
         results.push(r);
       } catch (err) {
-        log.error("jobs.cron_dispatch_failed", { fn, cron: controller.cron, error: errorText(err) });
+        log.error("jobs.cron_dispatch_failed", {
+          fn,
+          cron: controller.cron,
+          error: errorText(err),
+        });
       }
     }
     return results;
   }
 
-  async function record(env: Env, what: string, write: (ledger: RunLedger) => Promise<void>) {
+  async function record(
+    env: Env,
+    what: string,
+    write: (ledger: RunLedger) => Promise<void>,
+  ) {
     if (!options.ledger) return;
     try {
       await write(options.ledger(env));
@@ -218,7 +311,12 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(options: JobsOpt
     }
   }
 
-  async function finished(env: Env, job: string, status: RunStatus, error?: Error) {
+  async function finished(
+    env: Env,
+    job: string,
+    status: RunStatus,
+    error?: Error,
+  ) {
     if (!options.onFinish) return;
     try {
       await options.onFinish({ job, status, env, ...(error ? { error } : {}) });
@@ -246,7 +344,10 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(options: JobsOpt
       return { ok: false, reason: "unknown job" };
     }
     const runId = event.instanceId;
-    const key = slotMs !== undefined ? slotKey(slotMs, format) : (event.payload.key ?? keyFor(job, data, Date.now()));
+    const key =
+      slotMs !== undefined
+        ? slotKey(slotMs, format)
+        : (event.payload.key ?? keyFor(job, data, Date.now()));
     await record(env, "start", (l) => l.start({ id: runId, fn, key }));
 
     const adapter = makeStep<Ev, Env>({
@@ -265,10 +366,24 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(options: JobsOpt
     if (job.schema) {
       const checked = await job.schema["~standard"].validate(data);
       if (checked.issues) {
-        const output = { skipped: "invalid payload", issues: checked.issues.map(issueText) };
-        log.warn("jobs.invalid_payload", { fn, instanceId: runId, issues: output.issues });
+        const output = {
+          skipped: "invalid payload",
+          issues: checked.issues.map(issueText),
+        };
+        log.warn("jobs.invalid_payload", {
+          fn,
+          instanceId: runId,
+          issues: output.issues,
+        });
         await record(env, "finish", (l) =>
-          l.finish({ id: runId, fn, key, status: "skipped", decision: toDecision(output, DECISION_MAX), error: null }),
+          l.finish({
+            id: runId,
+            fn,
+            key,
+            status: "skipped",
+            decision: toDecision(output, DECISION_MAX),
+            error: null,
+          }),
         );
         await finished(env, fn, "skipped");
         return output;
@@ -291,7 +406,14 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(options: JobsOpt
       );
       const status = statusOf(output);
       await record(env, "finish", (l) =>
-        l.finish({ id: runId, fn, key, status, decision: toDecision(output, DECISION_MAX), error: null }),
+        l.finish({
+          id: runId,
+          fn,
+          key,
+          status,
+          decision: toDecision(output, DECISION_MAX),
+          error: null,
+        }),
       );
       await finished(env, fn, status);
       return output;
@@ -304,17 +426,30 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(options: JobsOpt
         await step.do(
           "on-failure",
           {
-            retries: { limit: ON_FAILURE_RETRIES, delay: stepDefaults.delay, backoff: stepDefaults.backoff },
+            retries: {
+              limit: ON_FAILURE_RETRIES,
+              delay: stepDefaults.delay,
+              backoff: stepDefaults.backoff,
+            },
             timeout: stepDefaults.timeout,
           },
           async () => {
-            await withJobEnv(env, () => onFailure({ error, data: input, env, runId }));
+            await withJobEnv(env, () =>
+              onFailure({ error, data: input, env, runId }),
+            );
             return null;
           },
         );
       }
       await record(env, "finish", (l) =>
-        l.finish({ id: runId, fn, key, status: "failed", decision: null, error: truncate(error.message, ERROR_MAX) }),
+        l.finish({
+          id: runId,
+          fn,
+          key,
+          status: "failed",
+          decision: null,
+          error: truncate(error.message, ERROR_MAX),
+        }),
       );
       await finished(env, fn, "failed", error);
       throw error;
@@ -330,20 +465,32 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(options: JobsOpt
    */
   async function backstop(env: Env, nowMs = Date.now()) {
     const ledger = options.ledger?.(env);
-    if (!ledger?.latestKeys) throw new Error("the backstop needs a ledger with latestKeys");
+    if (!ledger?.latestKeys)
+      throw new Error("the backstop needs a ledger with latestKeys");
     const grace = options.backstop?.graceMs ?? defaultGraceMs;
     const due = [...cronJobs].flatMap(([cron, fns]) =>
-      fns.map((fn) => ({ fn, slotMs: lastDueSlotMs(cron, nowMs, grace(cron)) })),
+      fns.map((fn) => ({
+        fn,
+        slotMs: lastDueSlotMs(cron, nowMs, grace(cron)),
+      })),
     );
     if (due.length === 0) return [];
     const latest = await ledger.latestKeys(due.map((d) => d.fn));
     const started = [];
     for (const { fn, slotMs } of due) {
       const last = latest.get(fn);
-      if (last === undefined && (options.backstop?.firstRun ?? "wait") === "wait") continue;
+      if (
+        last === undefined &&
+        (options.backstop?.firstRun ?? "wait") === "wait"
+      )
+        continue;
       if ((last ?? "") >= slotKey(slotMs, format)) continue;
       const r = await startCronSlot(env, fn, slotMs);
-      log.warn("jobs.backstop_started", { fn, slot: slotKey(slotMs, format), result: r.result });
+      log.warn("jobs.backstop_started", {
+        fn,
+        slot: slotKey(slotMs, format),
+        result: r.result,
+      });
       started.push(r);
     }
     return started;
@@ -353,7 +500,8 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(options: JobsOpt
 
   /** `backstop`, at most once per isolate per `everyMs`, for the request path. Never throws. */
   async function catchUpCrons(env: Env, nowMs = Date.now()): Promise<void> {
-    if (nowMs - lastCheckMs < (options.backstop?.everyMs ?? 15 * 60_000)) return;
+    if (nowMs - lastCheckMs < (options.backstop?.everyMs ?? 15 * 60_000))
+      return;
     lastCheckMs = nowMs;
     try {
       await backstop(env, nowMs);

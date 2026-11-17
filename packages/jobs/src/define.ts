@@ -1,5 +1,11 @@
 import { parseCron } from "./cron.js";
-import type { Duration, EventMap, FailureContext, JobContext, StandardSchemaV1 } from "./types.js";
+import type {
+  Duration,
+  EventMap,
+  FailureContext,
+  JobContext,
+  StandardSchemaV1,
+} from "./types.js";
 
 // A job is a handler, one trigger (an event or a cron), an explicit retry
 // count and, for event jobs, an explicit instance key.
@@ -19,7 +25,12 @@ type Common<D, Env> = {
   onFailure?: (ctx: FailureContext<D, Env>) => Promise<void>;
 };
 
-export type EventJobOptions<Ev extends EventMap, E extends keyof Ev & string, Env, D = Ev[E]> = Common<D, Env> & {
+export type EventJobOptions<
+  Ev extends EventMap,
+  E extends keyof Ev & string,
+  Env,
+  D = Ev[E],
+> = Common<D, Env> & {
   event: E;
   /**
    * The instance key for one delivery. Two deliveries with the same key are
@@ -63,15 +74,25 @@ export type JobDef<Env = unknown> = {
   onFailure: ((ctx: FailureContext<any, Env>) => Promise<void>) | undefined;
 };
 
-type Handler<D, Env, Ev extends EventMap> = (ctx: JobContext<D, Env, Ev>) => Promise<unknown>;
+type Handler<D, Env, Ev extends EventMap> = (
+  ctx: JobContext<D, Env, Ev>,
+) => Promise<unknown>;
 
 export type DefineJob<Ev extends EventMap, Env> = {
   <E extends keyof Ev & string, S extends StandardSchemaV1<unknown, unknown>>(
-    options: EventJobOptions<Ev, E, Env, StandardSchemaV1.InferOutput<S>> & { schema: S },
+    options: EventJobOptions<Ev, E, Env, StandardSchemaV1.InferOutput<S>> & {
+      schema: S;
+    },
     handler: Handler<StandardSchemaV1.InferOutput<S>, Env, Ev>,
   ): JobDef<Env>;
-  <E extends keyof Ev & string>(options: EventJobOptions<Ev, E, Env>, handler: Handler<Ev[E], Env, Ev>): JobDef<Env>;
-  (options: CronJobOptions<Env>, handler: Handler<Record<string, never>, Env, Ev>): JobDef<Env>;
+  <E extends keyof Ev & string>(
+    options: EventJobOptions<Ev, E, Env>,
+    handler: Handler<Ev[E], Env, Ev>,
+  ): JobDef<Env>;
+  (
+    options: CronJobOptions<Env>,
+    handler: Handler<Record<string, never>, Env, Ev>,
+  ): JobDef<Env>;
 };
 
 /**
@@ -82,7 +103,10 @@ export type DefineJob<Ev extends EventMap, Env> = {
  * export const defineJob = jobFactory<Events, Env>();
  * ```
  */
-export function jobFactory<Ev extends EventMap, Env = unknown>(): DefineJob<Ev, Env> {
+export function jobFactory<Ev extends EventMap, Env = unknown>(): DefineJob<
+  Ev,
+  Env
+> {
   return ((
     options: EventJobOptions<Ev, keyof Ev & string, Env> | CronJobOptions<Env>,
     handler: Handler<never, Env, Ev>,
@@ -91,12 +115,20 @@ export function jobFactory<Ev extends EventMap, Env = unknown>(): DefineJob<Ev, 
       throw new Error(`job id "${options.id}" must match ${JOB_ID}`);
     }
     if (!Number.isInteger(options.retries) || options.retries < 0) {
-      throw new Error(`job ${options.id}: retries must be a whole number, got ${options.retries}`);
+      throw new Error(
+        `job ${options.id}: retries must be a whole number, got ${options.retries}`,
+      );
     }
     const isCron = "cron" in options;
     if (isCron) parseCron(options.cron);
-    if (!isCron && options.schema && options.schema["~standard"]?.version !== 1) {
-      throw new Error(`job ${options.id}: schema must implement Standard Schema v1`);
+    if (
+      !isCron &&
+      options.schema &&
+      options.schema["~standard"]?.version !== 1
+    ) {
+      throw new Error(
+        `job ${options.id}: schema must implement Standard Schema v1`,
+      );
     }
     return {
       id: options.id,
@@ -106,7 +138,9 @@ export function jobFactory<Ev extends EventMap, Env = unknown>(): DefineJob<Ev, 
       workflow: options.workflow,
       timeout: options.timeout,
       key: isCron ? undefined : (options.key as JobDef["key"]),
-      ...(!isCron && options.schema ? { schema: options.schema as StandardSchemaV1 } : {}),
+      ...(!isCron && options.schema
+        ? { schema: options.schema as StandardSchemaV1 }
+        : {}),
       handler: handler as JobDef<Env>["handler"],
       onFailure: options.onFailure as JobDef<Env>["onFailure"],
     };

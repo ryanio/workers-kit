@@ -1,4 +1,10 @@
-import { checkIdent, DEFAULT_COLUMNS, type LedgerColumns, type RunLedger, type SqlLedgerOptions } from "./ledger.js";
+import {
+  checkIdent,
+  DEFAULT_COLUMNS,
+  type LedgerColumns,
+  type RunLedger,
+  type SqlLedgerOptions,
+} from "./ledger.js";
 
 // The run ledger on D1 (SQLite). Plain SQL, so it works under any ORM or
 // none. The table needs the columns in `DEFAULT_COLUMNS` (or the names you
@@ -38,15 +44,30 @@ export function d1Ledger(db: D1Like, options: D1LedgerOptions = {}): RunLedger {
   const constants = Object.entries(options.constants ?? {});
   for (const [name] of constants) checkIdent(name);
   const prefix = options.idPrefix ?? "";
-  const now = () => (options.time === "iso" ? new Date().toISOString() : Date.now());
+  const now = () =>
+    options.time === "iso" ? new Date().toISOString() : Date.now();
 
   return {
     async start(run) {
-      const cols = [c.id, c.fn, c.key, c.status, c.startedAt, ...constants.map(([n]) => n)];
+      const cols = [
+        c.id,
+        c.fn,
+        c.key,
+        c.status,
+        c.startedAt,
+        ...constants.map(([n]) => n),
+      ];
       const sql = `INSERT INTO ${table} (${cols.join(", ")}) VALUES (${cols.map(() => "?").join(", ")}) ON CONFLICT DO NOTHING`;
       await db
         .prepare(sql)
-        .bind(prefix + run.id, run.fn, run.key, "started", now(), ...constants.map(([, v]) => v))
+        .bind(
+          prefix + run.id,
+          run.fn,
+          run.key,
+          "started",
+          now(),
+          ...constants.map(([, v]) => v),
+        )
         .run();
     },
 
@@ -60,9 +81,10 @@ export function d1Ledger(db: D1Like, options: D1LedgerOptions = {}): RunLedger {
 
     async latestKeys(fns) {
       if (fns.length === 0) return new Map();
-      const where = [`${c.fn} IN (${fns.map(() => "?").join(", ")})`, ...constants.map(([n]) => `${n} = ?`)].join(
-        " AND ",
-      );
+      const where = [
+        `${c.fn} IN (${fns.map(() => "?").join(", ")})`,
+        ...constants.map(([n]) => `${n} = ?`),
+      ].join(" AND ");
       const sql = `SELECT ${c.fn} AS fn, MAX(${c.key}) AS latest FROM ${table} WHERE ${where} GROUP BY ${c.fn}`;
       const { results } = await db
         .prepare(sql)

@@ -38,7 +38,12 @@ export interface RunLedger {
 export function statusFromOutput(output: unknown): RunStatus {
   if (output && typeof output === "object") {
     const o = output as Record<string, unknown>;
-    if (o.skipped === true || typeof o.skipped === "string" || o.status === "skipped") return "skipped";
+    if (
+      o.skipped === true ||
+      typeof o.skipped === "string" ||
+      o.status === "skipped"
+    )
+      return "skipped";
     if (o.ok === false || o.status === "failed") return "failed";
   }
   return "completed";
@@ -102,6 +107,7 @@ export type SqlLedgerOptions = {
 const IDENT = /^"?[A-Za-z_][A-Za-z0-9_]*"?(\."?[A-Za-z_][A-Za-z0-9_]*"?)?$/;
 
 export function checkIdent(name: string): string {
-  if (!IDENT.test(name)) throw new Error(`ledger: "${name}" is not a plain SQL identifier`);
+  if (!IDENT.test(name))
+    throw new Error(`ledger: "${name}" is not a plain SQL identifier`);
   return name;
 }

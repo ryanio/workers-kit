@@ -13,7 +13,11 @@ import { type Env, jobs } from "./worker.js";
 
 const e = env as unknown as Env;
 const row = (id: string) =>
-  e.DB.prepare("SELECT fn, entity_key, status, decision FROM job_runs WHERE id = ?").bind(id).first();
+  e.DB.prepare(
+    "SELECT fn, entity_key, status, decision FROM job_runs WHERE id = ?",
+  )
+    .bind(id)
+    .first();
 
 beforeAll(async () => {
   await e.DB.exec(JOB_RUNS_DDL);
@@ -21,13 +25,22 @@ beforeAll(async () => {
 
 describe("in workerd", () => {
   it("runs an event job to completion and records it, and a repeat event is a duplicate", async () => {
-    await using instance = await introspectWorkflowInstance(e.JOB_WORKFLOW, "send-welcome-usr_a");
+    await using instance = await introspectWorkflowInstance(
+      e.JOB_WORKFLOW,
+      "send-welcome-usr_a",
+    );
     await instance.modify(async (m) => {
       await m.disableSleeps();
     });
 
-    const first = await jobs.sendEvent(e, { name: "user/created", data: { userId: "usr_a" } });
-    const again = await jobs.sendEvent(e, { name: "user/created", data: { userId: "usr_a" } });
+    const first = await jobs.sendEvent(e, {
+      name: "user/created",
+      data: { userId: "usr_a" },
+    });
+    const again = await jobs.sendEvent(e, {
+      name: "user/created",
+      data: { userId: "usr_a" },
+    });
     expect(first.map((r) => r.result)).toEqual(["created"]);
     expect(again.map((r) => r.result)).toEqual(["duplicate"]);
 
@@ -49,17 +62,31 @@ describe("in workerd", () => {
 
   it("starts one instance for a cron fired twice in a slot, and the backstop fills a missed slot", async () => {
     const at = Date.UTC(2026, 10, 3, 13, 0);
-    await using daily = await introspectWorkflowInstance(e.JOB_WORKFLOW, "daily-202611031300");
-    const a = await jobs.scheduled({ cron: "0 13 * * *", scheduledTime: at }, e);
-    const b = await jobs.scheduled({ cron: "0 13 * * *", scheduledTime: at + 30_000 }, e);
+    await using daily = await introspectWorkflowInstance(
+      e.JOB_WORKFLOW,
+      "daily-202611031300",
+    );
+    const a = await jobs.scheduled(
+      { cron: "0 13 * * *", scheduledTime: at },
+      e,
+    );
+    const b = await jobs.scheduled(
+      { cron: "0 13 * * *", scheduledTime: at + 30_000 },
+      e,
+    );
     expect([...a, ...b].map((r) => r.result)).toEqual(["created", "duplicate"]);
     await daily.waitForStatus("complete");
 
-    await using sweep = await introspectWorkflowInstance(e.JOB_WORKFLOW, "sweep-202611031345");
+    await using sweep = await introspectWorkflowInstance(
+      e.JOB_WORKFLOW,
+      "sweep-202611031345",
+    );
     const started = await jobs.backstop(e, Date.UTC(2026, 10, 3, 14, 0));
     expect(started.map((r) => r.id)).toEqual(["sweep-202611031345"]);
     await sweep.waitForStatus("complete");
-    expect(await row("sweep-202611031345")).toMatchObject({ status: "skipped" });
+    expect(await row("sweep-202611031345")).toMatchObject({
+      status: "skipped",
+    });
     expect(await jobs.backstop(e, Date.UTC(2026, 10, 3, 14, 0))).toEqual([]);
   });
 

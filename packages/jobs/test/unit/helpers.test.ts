@@ -10,25 +10,45 @@ import { postgresLedger } from "../../src/postgres.js";
 import { checkJobsConfig, cronsFromWrangler } from "../../src/testing.js";
 
 const defineJob = jobFactory<{ "a/b": { id: string } }>();
-const daily = defineJob({ id: "daily", retries: 1, cron: "0 13 * * *" }, async () => null);
-const weekly = defineJob({ id: "weekly", retries: 1, cron: "0 13 * * MON" }, async () => null);
+const daily = defineJob(
+  { id: "daily", retries: 1, cron: "0 13 * * *" },
+  async () => null,
+);
+const weekly = defineJob(
+  { id: "weekly", retries: 1, cron: "0 13 * * MON" },
+  async () => null,
+);
 
 describe("checkJobsConfig", () => {
   it("reads crons from wrangler.toml and wrangler.jsonc", () => {
     expect(
-      cronsFromWrangler('[triggers]\n# crons = ["no"]\ncrons = [\n  "0 13 * * *",\n  "0 13 * * MON",\n]\n'),
+      cronsFromWrangler(
+        '[triggers]\n# crons = ["no"]\ncrons = [\n  "0 13 * * *",\n  "0 13 * * MON",\n]\n',
+      ),
     ).toEqual(["0 13 * * *", "0 13 * * MON"]);
-    expect(cronsFromWrangler('{\n  // "crons": ["no"]\n  "triggers": { "crons": ["0 13 * * *"] }\n}')).toEqual([
-      "0 13 * * *",
-    ]);
+    expect(
+      cronsFromWrangler(
+        '{\n  // "crons": ["no"]\n  "triggers": { "crons": ["0 13 * * *"] }\n}',
+      ),
+    ).toEqual(["0 13 * * *"]);
   });
 
   it("passes when the jobs and the config agree", () => {
-    expect(checkJobsConfig({ jobs: [daily, weekly], wrangler: 'crons = ["0 13 * * *", "0 13 * * MON"]' })).toEqual([]);
+    expect(
+      checkJobsConfig({
+        jobs: [daily, weekly],
+        wrangler: 'crons = ["0 13 * * *", "0 13 * * MON"]',
+      }),
+    ).toEqual([]);
   });
 
   it("names a numeric weekday, an unused trigger and a job the config does not list", () => {
-    expect(checkJobsConfig({ jobs: [daily, weekly], wrangler: 'crons = ["0 13 * * *", "0 13 * * 1"]' })).toEqual([
+    expect(
+      checkJobsConfig({
+        jobs: [daily, weekly],
+        wrangler: 'crons = ["0 13 * * *", "0 13 * * 1"]',
+      }),
+    ).toEqual([
       expect.stringMatching(/numeric/),
       'trigger "0 13 * * 1" in the wrangler config starts no job',
       'job weekly runs on "0 13 * * MON", which the wrangler config does not list in that spelling',
@@ -60,14 +80,25 @@ describe("postgresLedger", () => {
       },
       {
         table: '"JobRun"',
-        columns: { key: '"entityKey"', startedAt: '"startedAt"', finishedAt: '"finishedAt"' },
+        columns: {
+          key: '"entityKey"',
+          startedAt: '"startedAt"',
+          finishedAt: '"finishedAt"',
+        },
         idPrefix: "cloudflare:",
         constants: { runner: "cloudflare" },
         decisionType: "jsonb",
       },
     );
     await ledger.start({ id: "daily-1", fn: "daily", key: "1" });
-    await ledger.finish({ id: "daily-1", fn: "daily", key: "1", status: "completed", decision: "{}", error: null });
+    await ledger.finish({
+      id: "daily-1",
+      fn: "daily",
+      key: "1",
+      status: "completed",
+      decision: "{}",
+      error: null,
+    });
     const latest = await ledger.latestKeys?.(["daily"]);
     expect(queries).toEqual([
       [
@@ -87,7 +118,9 @@ describe("postgresLedger", () => {
   });
 
   it("refuses an identifier that is not plain", () => {
-    expect(() => postgresLedger(async () => [], { table: "job_runs; drop table x" })).toThrow(/identifier/);
+    expect(() =>
+      postgresLedger(async () => [], { table: "job_runs; drop table x" }),
+    ).toThrow(/identifier/);
   });
 });
 

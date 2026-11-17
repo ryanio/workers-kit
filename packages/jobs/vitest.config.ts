@@ -8,7 +8,11 @@ export default defineConfig({
     projects: [
       { test: { name: "unit", include: ["test/unit/**/*.test.ts"] } },
       {
-        plugins: [cloudflareTest({ wrangler: { configPath: "./test/workerd/wrangler.jsonc" } })],
+        plugins: [
+          cloudflareTest({
+            wrangler: { configPath: "./test/workerd/wrangler.jsonc" },
+          }),
+        ],
         test: { name: "workerd", include: ["test/workerd/**/*.test.ts"] },
       },
     ],

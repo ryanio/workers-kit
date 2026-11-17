@@ -8,8 +8,29 @@ const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
 
-export const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
-const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+export const WEEKDAYS = [
+  "SUN",
+  "MON",
+  "TUE",
+  "WED",
+  "THU",
+  "FRI",
+  "SAT",
+] as const;
+const MONTHS = [
+  "JAN",
+  "FEB",
+  "MAR",
+  "APR",
+  "MAY",
+  "JUN",
+  "JUL",
+  "AUG",
+  "SEP",
+  "OCT",
+  "NOV",
+  "DEC",
+];
 
 /** How far back the slot search looks: far enough for a yearly cron. */
 const SEARCH_DAYS = 400;
@@ -48,16 +69,19 @@ function parseField(
       const at = names.indexOf(token.toUpperCase());
       if (at >= 0) return at + nameBase;
     }
-    if (!/^\d{1,2}$/.test(token)) throw new CronError(cron, `cannot read "${token}"`);
+    if (!/^\d{1,2}$/.test(token))
+      throw new CronError(cron, `cannot read "${token}"`);
     const n = Number(token);
-    if (n < min || n > max) throw new CronError(cron, `${n} is outside ${min}-${max}`);
+    if (n < min || n > max)
+      throw new CronError(cron, `${n} is outside ${min}-${max}`);
     return n;
   };
   const out = new Set<number>();
   for (const part of field.split(",")) {
     const [base = "", stepText] = part.split("/");
     const step = stepText === undefined ? 1 : Number(stepText);
-    if (!Number.isInteger(step) || step < 1) throw new CronError(cron, `bad step in "${part}"`);
+    if (!Number.isInteger(step) || step < 1)
+      throw new CronError(cron, `bad step in "${part}"`);
     let from: number;
     let to: number;
     if (base === "*") {
@@ -67,7 +91,8 @@ function parseField(
       const [a = "", b = ""] = base.split("-");
       from = value(a);
       to = value(b);
-      if (to < from) throw new CronError(cron, `range "${base}" runs backwards`);
+      if (to < from)
+        throw new CronError(cron, `range "${base}" runs backwards`);
     } else {
       from = value(base);
       to = stepText === undefined ? from : max;
@@ -104,7 +129,10 @@ export function parseCron(cron: string): CronFields {
     weekdays: dow === "*" ? null : parseField(cron, dow, 0, 6, WEEKDAYS),
   };
   if (fields.days && fields.weekdays) {
-    throw new CronError(cron, "restricts both day of month and weekday; pick one");
+    throw new CronError(
+      cron,
+      "restricts both day of month and weekday; pick one",
+    );
   }
   return fields;
 }
@@ -134,7 +162,10 @@ export function slotAtOrBefore(cron: string, atMs: number): number {
       }
     }
   }
-  throw new CronError(cron, `no slot in the ${SEARCH_DAYS} days before ${new Date(atMs).toISOString()}`);
+  throw new CronError(
+    cron,
+    `no slot in the ${SEARCH_DAYS} days before ${new Date(atMs).toISOString()}`,
+  );
 }
 
 /** How many times a cron can fire in one UTC day, at most. */
@@ -154,6 +185,10 @@ export function defaultGraceMs(cron: string): number {
 }
 
 /** The latest slot of `cron` that should have started by `nowMs`, given its grace. */
-export function lastDueSlotMs(cron: string, nowMs: number, graceMs = defaultGraceMs(cron)): number {
+export function lastDueSlotMs(
+  cron: string,
+  nowMs: number,
+  graceMs = defaultGraceMs(cron),
+): number {
   return slotAtOrBefore(cron, nowMs - graceMs);
 }

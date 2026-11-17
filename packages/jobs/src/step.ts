@@ -1,5 +1,12 @@
 import { withJobEnv } from "./env.js";
-import type { Duration, EventMap, EventOf, JobStep, StepConfig, WorkflowStepLike } from "./types.js";
+import type {
+  Duration,
+  EventMap,
+  EventOf,
+  JobStep,
+  StepConfig,
+  WorkflowStepLike,
+} from "./types.js";
 
 // The `step` a handler gets, on top of a Workflows step.
 //
@@ -24,7 +31,9 @@ export type StepAdapterOptions<Env> = {
   backoff: "constant" | "linear" | "exponential";
   timeout: Duration;
   maxSteps: number;
-  dispatch: (events: readonly { name: string; data: unknown; ts?: number }[]) => Promise<void>;
+  dispatch: (
+    events: readonly { name: string; data: unknown; ts?: number }[],
+  ) => Promise<void>;
 };
 
 export class StepLimitError extends Error {
@@ -42,7 +51,9 @@ export function toJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-export function makeStep<Ev extends EventMap, Env>(o: StepAdapterOptions<Env>): JobStep<Ev> {
+export function makeStep<Ev extends EventMap, Env>(
+  o: StepAdapterOptions<Env>,
+): JobStep<Ev> {
   let count = 0;
   const counted = (name: string) => {
     count += 1;
@@ -55,8 +66,15 @@ export function makeStep<Ev extends EventMap, Env>(o: StepAdapterOptions<Env>): 
 
   const run: JobStep<Ev>["run"] = (name, fn, options) => {
     counted(name);
-    return o.step.do(name, config(options?.retries, options?.timeout), async () =>
-      toJson(await (o.env === undefined ? fn() : withJobEnv(o.env, async () => fn()))),
+    return o.step.do(
+      name,
+      config(options?.retries, options?.timeout),
+      async () =>
+        toJson(
+          await (o.env === undefined
+            ? fn()
+            : withJobEnv(o.env, async () => fn())),
+        ),
     );
   };
 
@@ -71,7 +89,9 @@ export function makeStep<Ev extends EventMap, Env>(o: StepAdapterOptions<Env>): 
       return o.step.sleepUntil(name, at);
     },
     async sendEvent(name, events) {
-      const list = (Array.isArray(events) ? events : [events]) as readonly EventOf<Ev>[];
+      const list = (
+        Array.isArray(events) ? events : [events]
+      ) as readonly EventOf<Ev>[];
       if (list.length === 0) return;
       counted(name);
       await o.step.do(name, config(), async () => {
@@ -80,7 +100,8 @@ export function makeStep<Ev extends EventMap, Env>(o: StepAdapterOptions<Env>): 
       });
     },
     async forEachBatch(name, items, size, fn) {
-      if (!Number.isInteger(size) || size < 1) throw new Error(`forEachBatch "${name}": size must be at least 1`);
+      if (!Number.isInteger(size) || size < 1)
+        throw new Error(`forEachBatch "${name}": size must be at least 1`);
       const out = [];
       for (let i = 0; i * size < items.length; i++) {
         const batch = items.slice(i * size, (i + 1) * size);

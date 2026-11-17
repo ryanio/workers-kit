@@ -44,7 +44,10 @@ export function cronsFromWrangler(text: string): string[] {
  * - a numeric weekday, which Cloudflare reads with 1 as Sunday;
  * - a cron the backstop cannot schedule.
  */
-export function checkJobsConfig(opts: { jobs: readonly JobDef<never>[]; wrangler: string }): string[] {
+export function checkJobsConfig(opts: {
+  jobs: readonly JobDef<never>[];
+  wrangler: string;
+}): string[] {
   const problems: string[] = [];
   const configured = cronsFromWrangler(opts.wrangler);
   const used = new Set(opts.jobs.flatMap((j) => (j.cron ? [j.cron] : [])));
@@ -54,22 +57,30 @@ export function checkJobsConfig(opts: { jobs: readonly JobDef<never>[]; wrangler
     } catch (err) {
       problems.push(err instanceof CronError ? err.message : String(err));
     }
-    if (!used.has(cron)) problems.push(`trigger "${cron}" in the wrangler config starts no job`);
+    if (!used.has(cron))
+      problems.push(`trigger "${cron}" in the wrangler config starts no job`);
   }
   for (const job of opts.jobs) {
     if (job.cron && !configured.includes(job.cron)) {
-      problems.push(`job ${job.id} runs on "${job.cron}", which the wrangler config does not list in that spelling`);
+      problems.push(
+        `job ${job.id} runs on "${job.cron}", which the wrangler config does not list in that spelling`,
+      );
     }
   }
   const ids = opts.jobs.map((j) => j.id);
-  for (const id of new Set(ids.filter((id, i) => ids.indexOf(id) !== i))) problems.push(`two jobs have the id "${id}"`);
+  for (const id of new Set(ids.filter((id, i) => ids.indexOf(id) !== i)))
+    problems.push(`two jobs have the id "${id}"`);
   return problems;
 }
 
 /** Throws with every problem `checkJobsConfig` finds. */
-export function assertJobsConfig(opts: { jobs: readonly JobDef<never>[]; wrangler: string }): void {
+export function assertJobsConfig(opts: {
+  jobs: readonly JobDef<never>[];
+  wrangler: string;
+}): void {
   const problems = checkJobsConfig(opts);
-  if (problems.length > 0) throw new Error(`jobs config:\n- ${problems.join("\n- ")}`);
+  if (problems.length > 0)
+    throw new Error(`jobs config:\n- ${problems.join("\n- ")}`);
 }
 
 export type StepCall = {
@@ -98,7 +109,10 @@ const ENGINE_DEFAULT_RETRIES = 5;
  * without running the callback, as Workflows does after a hibernation.
  */
 export function inlineStep(
-  opts: { memo?: Map<string, unknown>; fail?: (name: string, attempt: number) => Error | undefined } = {},
+  opts: {
+    memo?: Map<string, unknown>;
+    fail?: (name: string, attempt: number) => Error | undefined;
+  } = {},
 ) {
   const calls: StepCall[] = [];
   const attempts = new Map<string, number>();
@@ -182,7 +196,14 @@ export function jobStep<Ev extends EventMap = EventMap>(
       return adapter.sendEvent(name, list);
     },
   };
-  return { step, calls: inline.calls, memo: inline.memo, attempts: inline.attempts, sent, events };
+  return {
+    step,
+    calls: inline.calls,
+    memo: inline.memo,
+    attempts: inline.attempts,
+    sent,
+    events,
+  };
 }
 
 /**
@@ -194,7 +215,13 @@ export const JOB_RUNS_DDL = [
   "CREATE INDEX job_runs_fn_entity_idx ON job_runs (fn, entity_key);",
 ].join("\n");
 
-type ColumnInfo = { name: string; type: string; notnull: number; dflt_value: unknown; pk: number };
+type ColumnInfo = {
+  name: string;
+  type: string;
+  notnull: number;
+  dflt_value: unknown;
+  pk: number;
+};
 
 const bare = (name: string) => name.replaceAll('"', "");
 
@@ -210,13 +237,20 @@ const bare = (name: string) => name.replaceAll('"', "");
  * - no other column is NOT NULL without a default, which would fail every start;
  * - an index leads with (fn, key), for the backstop's read.
  */
-export async function checkLedgerTable(db: D1Like, options: D1LedgerOptions = {}): Promise<string[]> {
+export async function checkLedgerTable(
+  db: D1Like,
+  options: D1LedgerOptions = {},
+): Promise<string[]> {
   const table = bare(options.table ?? "job_runs");
   const c: LedgerColumns = { ...DEFAULT_COLUMNS, ...options.columns };
   const name = (k: keyof LedgerColumns) => bare(c[k]);
-  const pragma = async <T>(sql: string) => (await db.prepare(sql).bind().all<T>()).results;
-  const [schema, base] = table.includes(".") ? table.split(".") : [undefined, table];
-  const p = (fn: string, arg: string) => `PRAGMA ${schema ? `"${schema}".` : ""}${fn}("${arg}")`;
+  const pragma = async <T>(sql: string) =>
+    (await db.prepare(sql).bind().all<T>()).results;
+  const [schema, base] = table.includes(".")
+    ? table.split(".")
+    : [undefined, table];
+  const p = (fn: string, arg: string) =>
+    `PRAGMA ${schema ? `"${schema}".` : ""}${fn}("${arg}")`;
 
   const info = await pragma<ColumnInfo>(p("table_info", base as string));
   if (info.length === 0) return [`table ${table} does not exist`];
@@ -229,7 +263,9 @@ export async function checkLedgerTable(db: D1Like, options: D1LedgerOptions = {}
   }
 
   const id = name("id");
-  const indexes = await pragma<{ name: string; unique: number }>(p("index_list", base as string));
+  const indexes = await pragma<{ name: string; unique: number }>(
+    p("index_list", base as string),
+  );
   const indexCols = async (index: string) =>
     (await pragma<{ seqno: number; name: string }>(p("index_info", index)))
       .sort((a, b) => a.seqno - b.seqno)
@@ -242,27 +278,43 @@ export async function checkLedgerTable(db: D1Like, options: D1LedgerOptions = {}
     if (index.unique && on.length === 1 && on[0] === id) unique = true;
     if (on[0] === name("fn") && on[1] === name("key")) lookup = true;
   }
-  if (cols.has(id) && !unique) problems.push(`${table}.${id} is not unique, so a replayed start would add a row`);
+  if (cols.has(id) && !unique)
+    problems.push(
+      `${table}.${id} is not unique, so a replayed start would add a row`,
+    );
 
   const time = options.time ?? "ms";
   for (const k of ["startedAt", "finishedAt"] as const) {
     const col = cols.get(name(k));
     if (!col) continue;
     const type = col.type.toUpperCase();
-    const fits = time === "ms" ? type.includes("INT") : /TEXT|CHAR|CLOB/.test(type);
+    const fits =
+      time === "ms" ? type.includes("INT") : /TEXT|CHAR|CLOB/.test(type);
     if (!fits)
       problems.push(
         `${table}.${col.name} is ${col.type || "untyped"}, but time "${time}" writes ${time === "ms" ? "integers" : "text"}`,
       );
   }
 
-  const written = new Set([name("id"), name("fn"), name("key"), name("status"), name("startedAt"), ...constants]);
+  const written = new Set([
+    name("id"),
+    name("fn"),
+    name("key"),
+    name("status"),
+    name("startedAt"),
+    ...constants,
+  ]);
   for (const col of info) {
     if (col.notnull && col.dflt_value === null && !written.has(col.name)) {
-      problems.push(`${table}.${col.name} is NOT NULL with no default, and the ledger never writes it`);
+      problems.push(
+        `${table}.${col.name} is NOT NULL with no default, and the ledger never writes it`,
+      );
     }
   }
-  if (!lookup) problems.push(`${table} has no index on (${name("fn")}, ${name("key")}), which the backstop reads by`);
+  if (!lookup)
+    problems.push(
+      `${table} has no index on (${name("fn")}, ${name("key")}), which the backstop reads by`,
+    );
   return problems;
 }
 
@@ -271,7 +323,8 @@ export function fakeWorkflow() {
   const created: { id: string; params: JobParams }[] = [];
   const binding: WorkflowBindingLike = {
     async create(o) {
-      if (created.some((c) => c.id === o.id)) throw new Error(`instance.already_exists: ${o.id}`);
+      if (created.some((c) => c.id === o.id))
+        throw new Error(`instance.already_exists: ${o.id}`);
       created.push({ id: o.id, params: o.params });
       return { id: o.id };
     },

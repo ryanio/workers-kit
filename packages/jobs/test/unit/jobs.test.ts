@@ -36,13 +36,24 @@ let sent: string[];
 let failures: string[];
 
 const welcome = defineJob(
-  { id: "send-welcome", retries: 2, event: "user/created", key: (d) => d.userId },
+  {
+    id: "send-welcome",
+    retries: 2,
+    event: "user/created",
+    key: (d) => d.userId,
+  },
   async ({ event, step }) => {
-    const at = await step.run("load", () => ({ when: new Date(Date.UTC(2026, 0, 1)), missing: undefined }));
+    const at = await step.run("load", () => ({
+      when: new Date(Date.UTC(2026, 0, 1)),
+      missing: undefined,
+    }));
     await step.run("send", () => {
       sent.push(`${event.data.userId}:${jobEnv<Env>().name}`);
     });
-    await step.sendEvent("next", { name: "report/requested", data: { reportId: `rpt_${event.data.userId}` } });
+    await step.sendEvent("next", {
+      name: "report/requested",
+      data: { reportId: `rpt_${event.data.userId}` },
+    });
     return { ok: true, at };
   },
 );
@@ -65,25 +76,51 @@ const release = defineJob(
 );
 
 const report = defineJob(
-  { id: "generate-report", retries: 2, event: "report/requested", key: (d) => d.reportId, workflow: "report" },
+  {
+    id: "generate-report",
+    retries: 2,
+    event: "report/requested",
+    key: (d) => d.reportId,
+    workflow: "report",
+  },
   async ({ event, step }) => {
-    const done = await step.forEachBatch("chunk", [1, 2, 3, 4, 5], 2, (batch) => batch.reduce((a, b) => a + b, 0));
+    const done = await step.forEachBatch("chunk", [1, 2, 3, 4, 5], 2, (batch) =>
+      batch.reduce((a, b) => a + b, 0),
+    );
     return { reportId: event.data.reportId, done };
   },
 );
 
-const digest = defineJob({ id: "digest-daily", retries: 1, cron: "0 13 * * *" }, async () => ({ skipped: "quiet" }));
-const weekly = defineJob({ id: "digest-weekly", retries: 1, cron: "0 13 * * MON" }, async () => ({ ok: true }));
-const sweep = defineJob({ id: "sweep", retries: 1, cron: "*/15 * * * *" }, async () => ({ ok: true }));
+const digest = defineJob(
+  { id: "digest-daily", retries: 1, cron: "0 13 * * *" },
+  async () => ({ skipped: "quiet" }),
+);
+const weekly = defineJob(
+  { id: "digest-weekly", retries: 1, cron: "0 13 * * MON" },
+  async () => ({ ok: true }),
+);
+const sweep = defineJob(
+  { id: "sweep", retries: 1, cron: "*/15 * * * *" },
+  async () => ({ ok: true }),
+);
 
-function setup(opts: { firstRun?: "start" | "wait"; graceMs?: (cron: string) => number } = {}) {
+function setup(
+  opts: {
+    firstRun?: "start" | "wait";
+    graceMs?: (cron: string) => number;
+  } = {},
+) {
   const events = fakeWorkflow();
   const crons = fakeWorkflow();
   const reports = fakeWorkflow();
   const { db, sqlite } = sqliteD1(JOB_RUNS_DDL);
   const jobs = createJobs<Env, Events>({
     jobs: [welcome, release, report, digest, weekly, sweep],
-    workflows: { events: () => events.binding, crons: () => crons.binding, report: () => reports.binding },
+    workflows: {
+      events: () => events.binding,
+      crons: () => crons.binding,
+      report: () => reports.binding,
+    },
     ledger: () => d1Ledger(db),
     log: quiet,
     backstop: {
@@ -93,11 +130,18 @@ function setup(opts: { firstRun?: "start" | "wait"; graceMs?: (cron: string) => 
   });
   const env: Env = { name: "prod" };
   const rows = () =>
-    sqlite.prepare("SELECT id, fn, entity_key, status, decision, error FROM job_runs ORDER BY id").all();
+    sqlite
+      .prepare(
+        "SELECT id, fn, entity_key, status, decision, error FROM job_runs ORDER BY id",
+      )
+      .all();
   return { jobs, env, events, crons, reports, rows };
 }
 
-const payload = (c: { id: string; params: JobParams }) => ({ instanceId: c.id, payload: c.params });
+const payload = (c: { id: string; params: JobParams }) => ({
+  instanceId: c.id,
+  payload: c.params,
+});
 
 beforeEach(() => {
   sent = [];
@@ -107,22 +151,39 @@ beforeEach(() => {
 describe("sendEvent", () => {
   it("starts one instance per subscriber with the job's key, and a repeat starts nothing", async () => {
     const t = setup();
-    const first = await t.jobs.sendEvent(t.env, { name: "user/created", data: { userId: "usr_a" } });
-    const again = await t.jobs.sendEvent(t.env, { name: "user/created", data: { userId: "usr_a" } });
+    const first = await t.jobs.sendEvent(t.env, {
+      name: "user/created",
+      data: { userId: "usr_a" },
+    });
+    const again = await t.jobs.sendEvent(t.env, {
+      name: "user/created",
+      data: { userId: "usr_a" },
+    });
     expect(first.map((r) => r.result)).toEqual(["created"]);
     expect(again.map((r) => r.result)).toEqual(["duplicate"]);
     expect(t.events.created).toEqual([
       {
         id: "send-welcome-usr_a",
-        params: { fn: "send-welcome", key: "usr_a", data: { userId: "usr_a" }, event: "user/created" },
+        params: {
+          fn: "send-welcome",
+          key: "usr_a",
+          data: { userId: "usr_a" },
+          event: "user/created",
+        },
       },
     ]);
   });
 
   it("keys a retry on the failure too, so a second failure of the same escrow runs again", async () => {
     const t = setup();
-    await t.jobs.sendEvent(t.env, { name: "escrow/release-failed", data: { escrowId: "esc_1", failureId: "f1" } });
-    await t.jobs.sendEvent(t.env, { name: "escrow/release-failed", data: { escrowId: "esc_1", failureId: "f2" } });
+    await t.jobs.sendEvent(t.env, {
+      name: "escrow/release-failed",
+      data: { escrowId: "esc_1", failureId: "f1" },
+    });
+    await t.jobs.sendEvent(t.env, {
+      name: "escrow/release-failed",
+      data: { escrowId: "esc_1", failureId: "f2" },
+    });
     expect(t.events.created.map((c) => c.id)).toEqual([
       "escrow-release-retry-esc_1-f1",
       "escrow-release-retry-esc_1-f2",
@@ -131,15 +192,25 @@ describe("sendEvent", () => {
 
   it("routes a job to the Workflow it names", async () => {
     const t = setup();
-    await t.jobs.sendEvent(t.env, { name: "report/requested", data: { reportId: "rpt_1" } });
-    expect(t.reports.created.map((c) => c.id)).toEqual(["generate-report-rpt_1"]);
+    await t.jobs.sendEvent(t.env, {
+      name: "report/requested",
+      data: { reportId: "rpt_1" },
+    });
+    expect(t.reports.created.map((c) => c.id)).toEqual([
+      "generate-report-rpt_1",
+    ]);
     expect(t.events.created).toEqual([]);
   });
 
   it("refuses an event whose key function throws, instead of keying it on a fixed fallback", async () => {
     const t = setup();
-    const bad = { name: "user/created", data: null } as unknown as { name: "user/created"; data: { userId: string } };
-    await expect(t.jobs.sendEvent(t.env, bad)).rejects.toThrow("job send-welcome: its key function threw");
+    const bad = { name: "user/created", data: null } as unknown as {
+      name: "user/created";
+      data: { userId: string };
+    };
+    await expect(t.jobs.sendEvent(t.env, bad)).rejects.toThrow(
+      "job send-welcome: its key function threw",
+    );
     expect(t.events.created).toEqual([]);
   });
 
@@ -148,9 +219,12 @@ describe("sendEvent", () => {
     t.events.binding.create = async () => {
       throw new Error("workflows unavailable");
     };
-    await expect(t.jobs.sendEvent(t.env, { name: "user/created", data: { userId: "usr_a" } })).rejects.toThrow(
-      "workflows unavailable",
-    );
+    await expect(
+      t.jobs.sendEvent(t.env, {
+        name: "user/created",
+        data: { userId: "usr_a" },
+      }),
+    ).rejects.toThrow("workflows unavailable");
   });
 });
 
@@ -159,15 +233,28 @@ describe("scheduled", () => {
     const t = setup();
     const at = Date.UTC(2026, 10, 3, 13, 0);
     await t.jobs.scheduled({ cron: "0 13 * * *", scheduledTime: at }, t.env);
-    await t.jobs.scheduled({ cron: "0 13 * * *", scheduledTime: at + 30_000 }, t.env);
+    await t.jobs.scheduled(
+      { cron: "0 13 * * *", scheduledTime: at + 30_000 },
+      t.env,
+    );
     expect(t.crons.created).toEqual([
-      { id: "digest-daily-202611031300", params: { fn: "digest-daily", key: "202611031300", data: {}, slotMs: at } },
+      {
+        id: "digest-daily-202611031300",
+        params: {
+          fn: "digest-daily",
+          key: "202611031300",
+          data: {},
+          slotMs: at,
+        },
+      },
     ]);
   });
 
   it("starts nothing for a cron spelled differently from the jobs' triggers", async () => {
     const t = setup();
-    expect(await t.jobs.scheduled({ cron: "0 13 * * 1", scheduledTime: 0 }, t.env)).toEqual([]);
+    expect(
+      await t.jobs.scheduled({ cron: "0 13 * * 1", scheduledTime: 0 }, t.env),
+    ).toEqual([]);
     expect(t.crons.created).toEqual([]);
   });
 });
@@ -175,23 +262,37 @@ describe("scheduled", () => {
 describe("a run", () => {
   it("checkpoints each step once as JSON, replays from the checkpoints, and records one row", async () => {
     const t = setup();
-    await t.jobs.sendEvent(t.env, { name: "user/created", data: { userId: "usr_a" } });
+    await t.jobs.sendEvent(t.env, {
+      name: "user/created",
+      data: { userId: "usr_a" },
+    });
     const created = t.events.created[0];
     if (!created) throw new Error("no instance");
     const replay = inlineStep();
 
     const output = await t.jobs.run(t.env, payload(created), replay.step);
-    const again = await t.jobs.run(t.env, payload(created), inlineStep({ memo: replay.memo }).step);
+    const again = await t.jobs.run(
+      t.env,
+      payload(created),
+      inlineStep({ memo: replay.memo }).step,
+    );
 
     expect(sent).toEqual(["usr_a:prod"]);
-    expect(output).toEqual({ ok: true, at: { when: "2026-01-01T00:00:00.000Z" } });
+    expect(output).toEqual({
+      ok: true,
+      at: { when: "2026-01-01T00:00:00.000Z" },
+    });
     expect(again).toEqual(output);
-    expect(replay.calls.map((c) => [c.name, c.config?.retries?.limit])).toEqual([
-      ["load", 2],
-      ["send", 2],
-      ["next", 2],
+    expect(replay.calls.map((c) => [c.name, c.config?.retries?.limit])).toEqual(
+      [
+        ["load", 2],
+        ["send", 2],
+        ["next", 2],
+      ],
+    );
+    expect(t.reports.created.map((c) => c.id)).toEqual([
+      "generate-report-rpt_usr_a",
     ]);
-    expect(t.reports.created.map((c) => c.id)).toEqual(["generate-report-rpt_usr_a"]);
     expect(t.rows()).toEqual([
       {
         id: "send-welcome-usr_a",
@@ -208,10 +309,15 @@ describe("a run", () => {
     const t = setup();
     await t.jobs.run(
       t.env,
-      { instanceId: "send-welcome-usr_old", payload: { fn: "send-welcome", data: { userId: "usr_old" } } },
+      {
+        instanceId: "send-welcome-usr_old",
+        payload: { fn: "send-welcome", data: { userId: "usr_old" } },
+      },
       inlineStep().step,
     );
-    expect(t.rows()).toMatchObject([{ id: "send-welcome-usr_old", entity_key: "usr_old" }]);
+    expect(t.rows()).toMatchObject([
+      { id: "send-welcome-usr_old", entity_key: "usr_old" },
+    ]);
   });
 
   it("batches items into one step per batch", async () => {
@@ -219,11 +325,18 @@ describe("a run", () => {
     const s = inlineStep();
     const out = await t.jobs.run(
       t.env,
-      { instanceId: "generate-report-r", payload: { fn: "generate-report", data: { reportId: "r" } } },
+      {
+        instanceId: "generate-report-r",
+        payload: { fn: "generate-report", data: { reportId: "r" } },
+      },
       s.step,
     );
     expect(out).toEqual({ reportId: "r", done: [3, 7, 5] });
-    expect(s.calls.map((c) => c.name)).toEqual(["chunk-0", "chunk-1", "chunk-2"]);
+    expect(s.calls.map((c) => c.name)).toEqual([
+      "chunk-0",
+      "chunk-1",
+      "chunk-2",
+    ]);
   });
 
   it("runs onFailure once after the last retry, records the failure and rethrows", async () => {
@@ -241,18 +354,27 @@ describe("a run", () => {
     ).rejects.toThrow("chain unavailable");
     expect(failures).toEqual(["esc_1:prod"]);
     expect(s.calls.map((c) => c.name)).toEqual(["release", "on-failure"]);
-    expect(Object.fromEntries(s.attempts)).toEqual({ release: 2, "on-failure": 1 });
-    expect(t.rows()).toMatchObject([{ status: "failed", error: "chain unavailable" }]);
+    expect(Object.fromEntries(s.attempts)).toEqual({
+      release: 2,
+      "on-failure": 1,
+    });
+    expect(t.rows()).toMatchObject([
+      { status: "failed", error: "chain unavailable" },
+    ]);
   });
 
   it("finishes when a step fails on its first attempt and passes on a retry", async () => {
     const t = setup();
     const s = inlineStep({
-      fail: (name, attempt) => (name === "send" && attempt === 1 ? new Error("smtp") : undefined),
+      fail: (name, attempt) =>
+        name === "send" && attempt === 1 ? new Error("smtp") : undefined,
     });
     await t.jobs.run(
       t.env,
-      { instanceId: "send-welcome-usr_b", payload: { fn: "send-welcome", data: { userId: "usr_b" } } },
+      {
+        instanceId: "send-welcome-usr_b",
+        payload: { fn: "send-welcome", data: { userId: "usr_b" } },
+      },
       s.step,
     );
     expect(s.attempts.get("send")).toBe(2);
@@ -262,7 +384,9 @@ describe("a run", () => {
 
   it("treats an engine abort as no failure: no hook, the row stays started", async () => {
     const t = setup();
-    const s = inlineStep({ fail: () => new Error("Aborting engine: Grace period complete") });
+    const s = inlineStep({
+      fail: () => new Error("Aborting engine: Grace period complete"),
+    });
     await expect(
       t.jobs.run(
         t.env,
@@ -283,11 +407,17 @@ describe("a run", () => {
       t.env,
       {
         instanceId: "digest-daily-202611031300",
-        payload: { fn: "digest-daily", data: {}, slotMs: Date.UTC(2026, 10, 3, 13) },
+        payload: {
+          fn: "digest-daily",
+          data: {},
+          slotMs: Date.UTC(2026, 10, 3, 13),
+        },
       },
       inlineStep().step,
     );
-    expect(t.rows()).toMatchObject([{ entity_key: "202611031300", status: "skipped" }]);
+    expect(t.rows()).toMatchObject([
+      { entity_key: "202611031300", status: "skipped" },
+    ]);
   });
 
   it("throws before passing the step cap", async () => {
@@ -305,7 +435,11 @@ describe("a run", () => {
       log: quiet,
     });
     await expect(
-      jobs.run({ name: "x" }, { instanceId: "many-u", payload: { fn: "many", data: {} } }, inlineStep().step),
+      jobs.run(
+        { name: "x" },
+        { instanceId: "many-u", payload: { fn: "many", data: {} } },
+        inlineStep().step,
+      ),
     ).rejects.toThrow(/forEachBatch/);
   });
 });
@@ -317,7 +451,14 @@ describe("backstop", () => {
     const t = setup({ graceMs: () => 0 });
     await t.jobs.run(
       t.env,
-      { instanceId: "x", payload: { fn: "digest-daily", data: {}, slotMs: Date.UTC(2026, 10, 2, 13) } },
+      {
+        instanceId: "x",
+        payload: {
+          fn: "digest-daily",
+          data: {},
+          slotMs: Date.UTC(2026, 10, 2, 13),
+        },
+      },
       inlineStep().step,
     );
     // 13:05, inside the default 30 minutes for a daily cron.
@@ -329,11 +470,21 @@ describe("backstop", () => {
     const t = setup({ firstRun: "start" });
     await t.jobs.run(
       t.env,
-      { instanceId: "x", payload: { fn: "digest-daily", data: {}, slotMs: Date.UTC(2026, 10, 3, 13) } },
+      {
+        instanceId: "x",
+        payload: {
+          fn: "digest-daily",
+          data: {},
+          slotMs: Date.UTC(2026, 10, 3, 13),
+        },
+      },
       inlineStep().step,
     );
     const started = await t.jobs.backstop(t.env, NOW);
-    expect(started.map((r) => r.id).sort()).toEqual(["digest-weekly-202611021300", "sweep-202611031345"]);
+    expect(started.map((r) => r.id).sort()).toEqual([
+      "digest-weekly-202611021300",
+      "sweep-202611031345",
+    ]);
   });
 
   it("by default leaves a cron with no run at all, so a first deploy starts nothing", async () => {
@@ -353,14 +504,22 @@ describe("backstop", () => {
 
 describe("config errors fail at load time", () => {
   it("a numeric weekday", () => {
-    expect(() => defineJob({ id: "w", retries: 1, cron: "0 13 * * 1" }, async () => null)).toThrow(/numeric/);
+    expect(() =>
+      defineJob({ id: "w", retries: 1, cron: "0 13 * * 1" }, async () => null),
+    ).toThrow(/numeric/);
   });
 
   it("a duplicate id, an unknown Workflow, and day keys on a sub-daily cron", () => {
     const wf = { default: () => fakeWorkflow().binding };
-    expect(() => createJobs({ jobs: [digest, digest], workflows: wf })).toThrow(/two jobs/);
-    expect(() => createJobs({ jobs: [report], workflows: wf })).toThrow(/"report"/);
-    expect(() => createJobs({ jobs: [sweep], workflows: wf, slotKey: "day" })).toThrow(/more than once a day/);
+    expect(() => createJobs({ jobs: [digest, digest], workflows: wf })).toThrow(
+      /two jobs/,
+    );
+    expect(() => createJobs({ jobs: [report], workflows: wf })).toThrow(
+      /"report"/,
+    );
+    expect(() =>
+      createJobs({ jobs: [sweep], workflows: wf, slotKey: "day" }),
+    ).toThrow(/more than once a day/);
   });
 });
 
@@ -375,7 +534,9 @@ describe("a job with a schema", () => {
         const raw = (value as { count?: unknown } | null)?.count;
         return typeof raw === "string" && /^\d+$/.test(raw)
           ? { value: { count: Number(raw) } }
-          : { issues: [{ message: "must be digits", path: [{ key: "count" }] }] };
+          : {
+              issues: [{ message: "must be digits", path: [{ key: "count" }] }],
+            };
       },
     },
   };
@@ -410,7 +571,8 @@ describe("a job with a schema", () => {
       ledger: () => d1Ledger(db),
       log: quiet,
     });
-    const rows = () => sqlite.prepare("SELECT status, decision, error FROM job_runs").all();
+    const rows = () =>
+      sqlite.prepare("SELECT status, decision, error FROM job_runs").all();
     return { jobs, rows };
   }
 
@@ -427,12 +589,20 @@ describe("a job with a schema", () => {
       { instanceId: "count-x", payload: { fn: "count", data: { count: "x" } } },
       s.step,
     );
-    expect(out).toEqual({ skipped: "invalid payload", issues: ["count: must be digits"] });
+    expect(out).toEqual({
+      skipped: "invalid payload",
+      issues: ["count: must be digits"],
+    });
     expect(seen).toEqual([]);
     expect(failed).toEqual([]);
     expect(s.calls).toEqual([]);
     expect(t.rows()).toEqual([
-      { status: "skipped", decision: '{"skipped":"invalid payload","issues":["count: must be digits"]}', error: null },
+      {
+        status: "skipped",
+        decision:
+          '{"skipped":"invalid payload","issues":["count: must be digits"]}',
+        error: null,
+      },
     ]);
   });
 
@@ -440,7 +610,10 @@ describe("a job with a schema", () => {
     const t = countSetup();
     await t.jobs.run(
       { name: "prod" },
-      { instanceId: "count-12", payload: { fn: "count", data: { count: "12" } } },
+      {
+        instanceId: "count-12",
+        payload: { fn: "count", data: { count: "12" } },
+      },
       inlineStep().step,
     );
     expect(seen).toEqual([12]);
@@ -448,10 +621,19 @@ describe("a job with a schema", () => {
   });
 
   it("refuses a schema that is not Standard Schema v1 at definition time", () => {
-    const bad = { "~standard": { version: 2 } } as unknown as StandardSchemaV1<unknown, { count: string }>;
+    const bad = { "~standard": { version: 2 } } as unknown as StandardSchemaV1<
+      unknown,
+      { count: string }
+    >;
     expect(() =>
       jobFactory<CountEvents, Env>()(
-        { id: "bad", retries: 0, event: "count/requested", key: (d) => d.count, schema: bad },
+        {
+          id: "bad",
+          retries: 0,
+          event: "count/requested",
+          key: (d) => d.count,
+          schema: bad,
+        },
         async () => null,
       ),
     ).toThrow(/Standard Schema v1/);

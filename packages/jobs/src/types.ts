@@ -25,7 +25,11 @@ export type StepConfig = { retries?: RetryConfig; timeout?: Duration };
 
 /** The part of the Workflows `WorkflowStep` this package calls. */
 export interface WorkflowStepLike {
-  do<T>(name: string, config: StepConfig, callback: () => Promise<T>): Promise<T>;
+  do<T>(
+    name: string,
+    config: StepConfig,
+    callback: () => Promise<T>,
+  ): Promise<T>;
   sleep(name: string, duration: Duration): Promise<void>;
   sleepUntil(name: string, timestamp: Date | number): Promise<void>;
 }
@@ -63,11 +67,18 @@ export type StepOptions = { retries?: number; timeout?: Duration };
 /** The `step` a handler gets. Every name is a memo key: keep it deterministic and never rename it. */
 export interface JobStep<Ev extends EventMap = EventMap> {
   /** Runs `fn` once and checkpoints its result as JSON. A replay returns the checkpoint. */
-  run<T>(name: string, fn: () => Promise<T> | T, options?: StepOptions): Promise<T>;
+  run<T>(
+    name: string,
+    fn: () => Promise<T> | T,
+    options?: StepOptions,
+  ): Promise<T>;
   sleep(name: string, duration: Duration): Promise<void>;
   sleepUntil(name: string, at: Date | number): Promise<void>;
   /** Starts the jobs these events trigger, inside one step, so it happens once. */
-  sendEvent(name: string, events: EventOf<Ev> | readonly EventOf<Ev>[]): Promise<void>;
+  sendEvent(
+    name: string,
+    events: EventOf<Ev> | readonly EventOf<Ev>[],
+  ): Promise<void>;
   /**
    * Splits `items` into batches of `size` and runs each batch as its own step,
    * named `<name>-0`, `<name>-1`, and so on, one after another. Use it in
@@ -99,8 +110,14 @@ export interface StandardSchemaV1<Input = unknown, Output = Input> {
   readonly "~standard": {
     readonly version: 1;
     readonly vendor: string;
-    readonly validate: (value: unknown) => StandardSchemaV1.Result<Output> | Promise<StandardSchemaV1.Result<Output>>;
-    readonly types?: { readonly input: Input; readonly output: Output } | undefined;
+    readonly validate: (
+      value: unknown,
+    ) =>
+      | StandardSchemaV1.Result<Output>
+      | Promise<StandardSchemaV1.Result<Output>>;
+    readonly types?:
+      | { readonly input: Input; readonly output: Output }
+      | undefined;
   };
 }
 
@@ -110,13 +127,22 @@ export declare namespace StandardSchemaV1 {
     | { readonly issues: ReadonlyArray<Issue> };
   type Issue = {
     readonly message: string;
-    readonly path?: ReadonlyArray<PropertyKey | { readonly key: PropertyKey }> | undefined;
+    readonly path?:
+      | ReadonlyArray<PropertyKey | { readonly key: PropertyKey }>
+      | undefined;
   };
   /** The type a schema's `validate` returns on success. */
-  type InferOutput<S extends StandardSchemaV1> = NonNullable<S["~standard"]["types"]>["output"];
+  type InferOutput<S extends StandardSchemaV1> = NonNullable<
+    S["~standard"]["types"]
+  >["output"];
 }
 
-export type FailureContext<D, Env> = { error: Error; data: D; env: Env; runId: string };
+export type FailureContext<D, Env> = {
+  error: Error;
+  data: D;
+  env: Env;
+  runId: string;
+};
 
 export type RunStatus = "completed" | "failed" | "skipped";
 

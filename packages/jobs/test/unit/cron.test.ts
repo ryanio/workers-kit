@@ -3,7 +3,12 @@
  * last slot the backstop expects to have run.
  */
 import { describe, expect, it } from "vitest";
-import { defaultGraceMs, lastDueSlotMs, parseCron, slotAtOrBefore } from "../../src/cron.js";
+import {
+  defaultGraceMs,
+  lastDueSlotMs,
+  parseCron,
+  slotAtOrBefore,
+} from "../../src/cron.js";
 
 const iso = (ms: number) => new Date(ms).toISOString();
 // Tuesday 2026-11-03 12:00 UTC
@@ -32,21 +37,43 @@ describe("parseCron", () => {
 
 describe("slots", () => {
   it("finds the latest daily, weekly, hourly and sub-hourly slot", () => {
-    expect(iso(slotAtOrBefore("0 4 * * *", NOW))).toBe("2026-11-03T04:00:00.000Z");
-    expect(iso(slotAtOrBefore("0 13 * * *", NOW))).toBe("2026-11-02T13:00:00.000Z");
-    expect(iso(slotAtOrBefore("0 13 * * MON", NOW))).toBe("2026-11-02T13:00:00.000Z");
-    expect(iso(slotAtOrBefore("0 10 * * MON", Date.UTC(2026, 10, 2, 9, 0)))).toBe("2026-10-26T10:00:00.000Z");
-    expect(iso(slotAtOrBefore("30 * * * *", NOW))).toBe("2026-11-03T11:30:00.000Z");
-    expect(iso(slotAtOrBefore("0 */4 * * *", NOW))).toBe("2026-11-03T12:00:00.000Z");
-    expect(iso(slotAtOrBefore("*/5 * * * *", NOW + 7 * 60_000))).toBe("2026-11-03T12:05:00.000Z");
-    expect(iso(slotAtOrBefore("0 0 1 JAN *", NOW))).toBe("2026-01-01T00:00:00.000Z");
+    expect(iso(slotAtOrBefore("0 4 * * *", NOW))).toBe(
+      "2026-11-03T04:00:00.000Z",
+    );
+    expect(iso(slotAtOrBefore("0 13 * * *", NOW))).toBe(
+      "2026-11-02T13:00:00.000Z",
+    );
+    expect(iso(slotAtOrBefore("0 13 * * MON", NOW))).toBe(
+      "2026-11-02T13:00:00.000Z",
+    );
+    expect(
+      iso(slotAtOrBefore("0 10 * * MON", Date.UTC(2026, 10, 2, 9, 0))),
+    ).toBe("2026-10-26T10:00:00.000Z");
+    expect(iso(slotAtOrBefore("30 * * * *", NOW))).toBe(
+      "2026-11-03T11:30:00.000Z",
+    );
+    expect(iso(slotAtOrBefore("0 */4 * * *", NOW))).toBe(
+      "2026-11-03T12:00:00.000Z",
+    );
+    expect(iso(slotAtOrBefore("*/5 * * * *", NOW + 7 * 60_000))).toBe(
+      "2026-11-03T12:05:00.000Z",
+    );
+    expect(iso(slotAtOrBefore("0 0 1 JAN *", NOW))).toBe(
+      "2026-01-01T00:00:00.000Z",
+    );
   });
 
   it("allows a daily slot 30 minutes and a sub-hourly one 10 before it counts as due", () => {
     expect(defaultGraceMs("0 4 * * *")).toBe(30 * 60_000);
     expect(defaultGraceMs("*/5 * * * *")).toBe(10 * 60_000);
-    expect(iso(lastDueSlotMs("0 4 * * *", Date.UTC(2026, 10, 3, 4, 20)))).toBe("2026-11-02T04:00:00.000Z");
-    expect(iso(lastDueSlotMs("0 4 * * *", Date.UTC(2026, 10, 3, 4, 31)))).toBe("2026-11-03T04:00:00.000Z");
-    expect(iso(lastDueSlotMs("*/5 * * * *", NOW))).toBe("2026-11-03T11:50:00.000Z");
+    expect(iso(lastDueSlotMs("0 4 * * *", Date.UTC(2026, 10, 3, 4, 20)))).toBe(
+      "2026-11-02T04:00:00.000Z",
+    );
+    expect(iso(lastDueSlotMs("0 4 * * *", Date.UTC(2026, 10, 3, 4, 31)))).toBe(
+      "2026-11-03T04:00:00.000Z",
+    );
+    expect(iso(lastDueSlotMs("*/5 * * * *", NOW))).toBe(
+      "2026-11-03T11:50:00.000Z",
+    );
   });
 });

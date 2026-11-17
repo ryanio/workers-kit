@@ -39,24 +39,39 @@ type Events = {
 const defineJob = jobFactory<Events, Env>();
 
 const sendWelcome = defineJob(
-  { id: "send-welcome", retries: 2, event: "user/created", key: (d) => d.userId },
+  {
+    id: "send-welcome",
+    retries: 2,
+    event: "user/created",
+    key: (d) => d.userId,
+  },
   async ({ event, step, env }) => {
-    const user = await step.run("load-user", () => loadUser(env, event.data.userId));
+    const user = await step.run("load-user", () =>
+      loadUser(env, event.data.userId),
+    );
     await step.sleep("wait-1d", "1 day");
     await step.run("send-email", () => sendEmail(env, user.email));
     return { ok: true };
   },
 );
 
-const dailyDigest = defineJob({ id: "daily-digest", retries: 1, cron: "0 13 * * MON-FRI" }, async ({ step, env }) => {
-  const users = await step.run("load-users", () => listUserIds(env));
-  await step.forEachBatch("send", users, 50, (batch) => sendDigests(env, batch));
-  return { ok: true, users: users.length };
-});
+const dailyDigest = defineJob(
+  { id: "daily-digest", retries: 1, cron: "0 13 * * MON-FRI" },
+  async ({ step, env }) => {
+    const users = await step.run("load-users", () => listUserIds(env));
+    await step.forEachBatch("send", users, 50, (batch) =>
+      sendDigests(env, batch),
+    );
+    return { ok: true, users: users.length };
+  },
+);
 
 export const jobs = createJobs<Env, Events>({
   jobs: [sendWelcome, dailyDigest],
-  workflows: { events: (env) => env.JOB_WORKFLOW, crons: (env) => env.CRON_WORKFLOW },
+  workflows: {
+    events: (env) => env.JOB_WORKFLOW,
+    crons: (env) => env.CRON_WORKFLOW,
+  },
   ledger: (env) => d1Ledger(env.DB),
 });
 ```
@@ -65,7 +80,11 @@ Wire it into the Worker:
 
 ```ts
 // index.ts
-import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
+import {
+  WorkflowEntrypoint,
+  type WorkflowEvent,
+  type WorkflowStep,
+} from "cloudflare:workers";
 import type { JobParams } from "workers-jobs";
 import { jobs } from "./jobs";
 
@@ -82,7 +101,10 @@ export default {
     // Starts any cron slot a dead trigger missed. At most one ledger read per isolate per 15 minutes.
     ctx.waitUntil(jobs.catchUpCrons(env));
     if (new URL(request.url).pathname === "/signup") {
-      await jobs.sendEvent(env, { name: "user/created", data: { userId: "usr_1" } });
+      await jobs.sendEvent(env, {
+        name: "user/created",
+        data: { userId: "usr_1" },
+      });
     }
     return new Response("ok");
   },
@@ -136,7 +158,10 @@ import { assertJobsConfig } from "workers-jobs/testing";
 import { jobs } from "../src/jobs";
 
 it("the jobs and wrangler.toml agree", () => {
-  assertJobsConfig({ jobs: [...jobs.jobs.values()], wrangler: readFileSync("wrangler.toml", "utf8") });
+  assertJobsConfig({
+    jobs: [...jobs.jobs.values()],
+    wrangler: readFileSync("wrangler.toml", "utf8"),
+  });
 });
 ```
 
@@ -196,7 +221,13 @@ import { z } from "zod";
 const UserCreated = z.object({ userId: z.string().min(1) });
 
 const sendWelcome = defineJob(
-  { id: "send-welcome", retries: 2, event: "user/created", key: (d) => d.userId, schema: UserCreated },
+  {
+    id: "send-welcome",
+    retries: 2,
+    event: "user/created",
+    key: (d) => d.userId,
+    schema: UserCreated,
+  },
   async ({ event, step }) => {
     // event.data is z.output<typeof UserCreated>
   },

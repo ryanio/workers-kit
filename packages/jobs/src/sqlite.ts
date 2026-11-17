@@ -1,4 +1,8 @@
-import { DatabaseSync, type SQLInputValue, type StatementSync } from "node:sqlite";
+import {
+  DatabaseSync,
+  type SQLInputValue,
+  type StatementSync,
+} from "node:sqlite";
 
 // `workers-jobs/testing/sqlite`: D1's statement API over Node's built-in
 // SQLite, for tests that run under Node. It has its own entry so a test inside
@@ -20,7 +24,11 @@ export type SqliteD1Meta = {
   size_after: number;
 };
 
-export type SqliteD1Result<T> = { results: T[]; success: true; meta: SqliteD1Meta };
+export type SqliteD1Result<T> = {
+  results: T[];
+  success: true;
+  meta: SqliteD1Meta;
+};
 
 export interface SqliteD1Statement {
   bind(...values: unknown[]): SqliteD1Statement;
@@ -32,7 +40,9 @@ export interface SqliteD1Statement {
 
 export interface SqliteD1Database {
   prepare(sql: string): SqliteD1Statement;
-  batch<T = Record<string, unknown>>(statements: readonly SqliteD1Statement[]): Promise<SqliteD1Result<T>[]>;
+  batch<T = Record<string, unknown>>(
+    statements: readonly SqliteD1Statement[],
+  ): Promise<SqliteD1Result<T>[]>;
   exec(sql: string): Promise<{ count: number; duration: number }>;
 }
 
@@ -47,13 +57,21 @@ export type SqliteD1Options = {
 type Row = Record<string, SQLInputValue>;
 
 function toValue(value: unknown): SQLInputValue {
-  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "bigint") {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "bigint"
+  ) {
     return value;
   }
   if (typeof value === "boolean") return value ? 1 : 0;
   if (value instanceof ArrayBuffer) return new Uint8Array(value);
-  if (ArrayBuffer.isView(value)) return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
-  throw new Error(`D1_TYPE_ERROR: Type '${typeof value}' not supported for value '${String(value)}'`);
+  if (ArrayBuffer.isView(value))
+    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  throw new Error(
+    `D1_TYPE_ERROR: Type '${typeof value}' not supported for value '${String(value)}'`,
+  );
 }
 
 /**
@@ -67,13 +85,20 @@ function toValue(value: unknown): SQLInputValue {
 export function sqliteD1<DB = SqliteD1Database>(
   ddl: string | readonly string[] = [],
   options: SqliteD1Options = {},
-): { db: DB; sqlite: DatabaseSync; calls: SqliteD1Call[]; batches: SqliteD1Call[][] } {
+): {
+  db: DB;
+  sqlite: DatabaseSync;
+  calls: SqliteD1Call[];
+  batches: SqliteD1Call[][];
+} {
   const sqlite = new DatabaseSync(":memory:");
   for (const text of typeof ddl === "string" ? [ddl] : ddl) sqlite.exec(text);
   const calls: SqliteD1Call[] = [];
   const batches: SqliteD1Call[][] = [];
   const compiled = new Map<string, StatementSync>();
-  const counters = sqlite.prepare("SELECT total_changes() AS total, last_insert_rowid() AS id");
+  const counters = sqlite.prepare(
+    "SELECT total_changes() AS total, last_insert_rowid() AS id",
+  );
   const counts = () => counters.get() as { total: number; id: number };
 
   const compile = (sql: string): StatementSync => {
@@ -101,7 +126,9 @@ export function sqliteD1<DB = SqliteD1Database>(
         stmt.setReturnArrays(false);
       }
     } else {
-      rows = (stmt.all(...values) as Row[]).map((row) => (arrays ? Object.values(row) : { ...row }));
+      rows = (stmt.all(...values) as Row[]).map((row) =>
+        arrays ? Object.values(row) : { ...row },
+      );
     }
     const after = counts();
     const changes = after.total - before;
@@ -117,7 +144,10 @@ export function sqliteD1<DB = SqliteD1Database>(
     return { rows, meta, stmt };
   }
 
-  const statement = (sql: string, args: unknown[]): SqliteD1Statement & { call: () => SqliteD1Call } => ({
+  const statement = (
+    sql: string,
+    args: unknown[],
+  ): SqliteD1Statement & { call: () => SqliteD1Call } => ({
     call: () => ({ sql, args }),
     bind: (...values) => statement(sql, values),
     async all<T>() {
@@ -133,13 +163,17 @@ export function sqliteD1<DB = SqliteD1Database>(
       const row = rows[0] as Record<string, unknown> | undefined;
       if (!row) return null;
       if (column === undefined) return row as T;
-      if (!(column in row)) throw new Error(`D1_COLUMN_NOTFOUND: Column not found (${column})`);
+      if (!(column in row))
+        throw new Error(`D1_COLUMN_NOTFOUND: Column not found (${column})`);
       return row[column] as T;
     },
     async raw<T>(o?: { columnNames?: boolean }) {
       const { rows, stmt } = execute({ sql, args }, true);
       if (!o?.columnNames) return rows as T[];
-      const names = typeof stmt.columns === "function" ? stmt.columns().map((col) => col.name) : [];
+      const names =
+        typeof stmt.columns === "function"
+          ? stmt.columns().map((col) => col.name)
+          : [];
       return [names, ...rows] as T[];
     },
   });
@@ -147,7 +181,9 @@ export function sqliteD1<DB = SqliteD1Database>(
   const db: SqliteD1Database = {
     prepare: (sql) => statement(sql, []),
     async batch<T>(statements: readonly SqliteD1Statement[]) {
-      const list = statements.map((s) => (s as ReturnType<typeof statement>).call());
+      const list = statements.map((s) =>
+        (s as ReturnType<typeof statement>).call(),
+      );
       batches.push(list);
       sqlite.exec("BEGIN");
       try {
@@ -167,7 +203,10 @@ export function sqliteD1<DB = SqliteD1Database>(
       const failure = options.fail?.(sql, []);
       if (failure) throw failure;
       sqlite.exec(sql);
-      return { count: sql.split(";").filter((part) => part.trim() !== "").length, duration: 0 };
+      return {
+        count: sql.split(";").filter((part) => part.trim() !== "").length,
+        duration: 0,
+      };
     },
   };
 

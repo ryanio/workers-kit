@@ -28,7 +28,10 @@ function hash12(text: string): string {
     a = Math.imul(a ^ c, 0x01000193) >>> 0;
     b = Math.imul(b ^ c ^ (a >>> 7), 0x01000193) >>> 0;
   }
-  return (a >>> 0).toString(16).padStart(8, "0") + ((b >>> 0) & 0xffff).toString(16).padStart(4, "0");
+  return (
+    (a >>> 0).toString(16).padStart(8, "0") +
+    ((b >>> 0) & 0xffff).toString(16).padStart(4, "0")
+  );
 }
 
 export type SlotKeyFormat = "minute" | "day";
@@ -40,7 +43,9 @@ export type SlotKeyFormat = "minute" | "day";
  */
 export function slotKey(ms: number, format: SlotKeyFormat = "minute"): string {
   const iso = new Date(ms).toISOString();
-  return format === "day" ? iso.slice(0, 10).replaceAll("-", "") : iso.slice(0, 16).replace(/[-T:]/g, "");
+  return format === "day"
+    ? iso.slice(0, 10).replaceAll("-", "")
+    : iso.slice(0, 16).replace(/[-T:]/g, "");
 }
 
 const DUPLICATE = /already[ ._]exists|duplicate/i;
@@ -56,5 +61,7 @@ export function isDuplicateId(err: unknown): boolean {
  * step, so this is not a failure to record or act on.
  */
 export function isEngineAbort(err: unknown): boolean {
-  return (err instanceof Error ? err.message : String(err)).startsWith("Aborting engine");
+  return (err instanceof Error ? err.message : String(err)).startsWith(
+    "Aborting engine",
+  );
 }
