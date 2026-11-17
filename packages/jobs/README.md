@@ -195,6 +195,16 @@ Set `slotKey: "day"` to key crons by `YYYYMMDD` instead. That only suits setups 
 
 Each job sets `retries`, and the adapter passes it to every `step.do` along with a 10 second exponential delay and a 10 minute timeout. Those defaults can be changed in `steps`. Step results go through a JSON round trip on the first run too. A handler sees the same shapes either way: `undefined` becomes `null`, and a `Date` becomes an ISO string.
 
+### Side effects inside a step
+
+A step's result is saved only after its callback returns. A step that sends an email or charges a card and then throws, or whose result is lost before it is saved, runs its callback again on the retry. Dedup by instance id does not help here, because it is the same instance. Pass the provider an idempotency key built from what makes the effect unique, such as `report-ready/<userId>/<reportId>`, so the retry returns the first result instead of repeating it. Provider keys usually expire after about a day. To guard longer than that, also write a claim row to your own database in an earlier step.
+
+```ts
+await step.run("send-email", () =>
+  sendEmail({ to, subject, html, idempotencyKey: `welcome/${userId}` }),
+);
+```
+
 ### Engine aborts
 
 An error whose message starts with "Aborting engine" is rethrown without touching the ledger or running `onFailure`. The instance replays from its last step.
