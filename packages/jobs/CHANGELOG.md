@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 (2026-11-17)
+
+- `lock` in `createJobs`: an app's own lease for inline singletons, as `JobLock` (`acquire(key, { job, runId, holdMs })` resolving a `JobLease` or `null`, and an optional `renewEveryMs`). With it, an inline singleton holds the lease for its `runInline` call instead of reading the ledger, and releases it however the call ends. A held lease skips the run, recorded as skipped. A lease with `renew` is renewed every `renewEveryMs`, stopping one interval short of `holdMs` (the job's `singleton.staleAfter`), when `renew` resolves `false`, and at release. A lock that throws fails open and is logged. Without `lock`, singletons read the ledger as in 0.4. Crons on a Workflow always read the ledger.
+- Inline event jobs can be singletons with a `lock`: `singleton: { staleAfter, key }` takes one lease per key (`<job>:<key>`), or one for the job without `key`. `createJobs` refuses an event singleton that is not inline or has no lock.
+- A singleton that skips a later attempt of a run (a redelivery that finds the lease held) closes the run's row as skipped.
+
 ## 0.4.0 (2026-11-17)
 
 - Inline jobs: `inline: true` runs a job in the invocation that starts it, with no Workflow. `scheduled()` runs inline crons concurrently and awaits them. `runInline(env, call, ctx?)` runs any job here, for an app that delivers events itself (a queue consumer); with `attempt` it runs one attempt and returns `retryInMs` when attempts are left. An inline run's `retries` counts attempts of the whole run, each attempt replays the steps the last one finished, the first attempt claims the ledger row so a repeat is a `duplicate`, and the last failed attempt runs `onFailure`. Inline steps cannot sleep. `sendEvent` refuses an inline subscriber, and the backstop leaves inline crons alone.

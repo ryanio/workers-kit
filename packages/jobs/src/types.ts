@@ -105,6 +105,36 @@ export type JobContext<D, Env, Ev extends EventMap> = {
   attempt?: number;
 };
 
+/**
+ * An app's own lease, for singleton jobs: a Durable Object, a KV row, a
+ * database advisory lock. `createJobs` takes one as `lock`.
+ */
+export interface JobLock {
+  /**
+   * Takes the lease on `key`, or resolves `null` when another run holds it.
+   * `key` is the job id, or `<job>:<singleton key>` for a keyed singleton.
+   * `holdMs` is the longest the run may keep the lease: the job's
+   * `singleton.staleAfter`. A throw lets the run go ahead unguarded.
+   */
+  acquire(
+    key: string,
+    options: { job: string; runId: string; holdMs: number },
+  ): Promise<JobLease | null>;
+  /**
+   * How often to call a lease's `renew` while its run goes on. Renewal
+   * stops one interval short of `holdMs`, and on release.
+   */
+  renewEveryMs?: number;
+}
+
+/** A lease `JobLock.acquire` granted. */
+export interface JobLease {
+  /** Pushes the lease out. Resolve `false` when it is no longer this run's. */
+  renew?(): Promise<boolean>;
+  /** Gives the lease back, once, when the run ends however it ends. */
+  release(): Promise<void>;
+}
+
 /** The part of a Worker's `ExecutionContext` the package passes through to `around`. */
 export type ExecutionContextLike = {
   waitUntil(promise: Promise<unknown>): void;

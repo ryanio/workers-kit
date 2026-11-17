@@ -29,6 +29,8 @@ import type {
   EventMap,
   EventOf,
   ExecutionContextLike,
+  JobLease,
+  JobLock,
   JobParams,
   Logger,
   RunScope,
@@ -67,7 +69,7 @@ export type InlineResult = {
   id: string;
   /**
    * `ran`; `duplicate` when the ledger already had this run's row on its
-   * first attempt; `held` when a singleton cron skipped the slot.
+   * first attempt; `held` when a singleton skipped the run.
    */
   result: "ran" | "duplicate" | "held";
   status?: RunStatus;
@@ -98,6 +100,13 @@ export type JobsOptions<Env> = {
   workflows: Record<string, (env: Env) => WorkflowBindingLike | undefined>;
   /** Where runs are recorded. The backstop needs one with `latestKeys`, a singleton cron one with `running`. */
   ledger?: (env: Env) => RunLedger;
+  /**
+   * The app's own lease for inline singleton jobs. With it, an inline
+   * singleton takes a lease for the length of its run instead of reading the
+   * ledger, and event jobs can be singletons by key. Crons on a Workflow
+   * keep the ledger read: a lease cannot be held across a hibernation.
+   */
+  lock?: (env: Env) => JobLock;
   /** Cron slot keys: `YYYYMMDDHHmm` (default) or `YYYYMMDD`, for crons that fire at most once a day. */
   slotKey?: SlotKeyFormat;
   /**
@@ -210,7 +219,7 @@ export type Jobs<Env, Ev extends EventMap> = ReturnType<
  * `runInline` for jobs that run where they are delivered, and `catchUpCrons`
  * for the request path. Throws at load time on a duplicate job id, a cron
  * Cloudflare would misread, a job naming a Workflow that is not in
- * `workflows`, or a singleton with no ledger, so a bad config fails the
+ * `workflows`, or a singleton with nothing to guard it, so a bad config fails the
  * deploy instead of a run.
  */
 export function createJobs<Env, Ev extends EventMap = EventMap>(
@@ -241,9 +250,18 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(
       throw new Error(
         `job ${job.id} runs on Workflow "${wf}", which is not in workflows`,
       );
-    if (job.singleton && !options.ledger)
+    if (job.singleton && job.event && !(job.inline && options.lock))
       throw new Error(
-        `job ${job.id} is a singleton, which needs a ledger to find its running slot`,
+        `job ${job.id} is an event singleton, which needs inline: true and a lock`,
+      );
+    if (
+      job.singleton &&
+      job.cron &&
+      !options.ledger &&
+      !(job.inline && options.lock)
+    )
+      throw new Error(
+        `job ${job.id} is a singleton, which needs a ledger to find its running slot, or a lock`,
       );
     if (job.event)
       subscribers.set(job.event, [
@@ -509,19 +527,108 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(
     }
     if (!other) return null;
     log.info("jobs.singleton_held", { fn: job.id, key, running: other.id });
-    const run = { id: runId, fn: job.id, key };
-    if ((await recordStart(env, run)) !== false) {
-      await finish(env, {
-        ...run,
-        status: "skipped",
-        decision: toDecision(
-          { skipped: "singleton", running: other.id },
-          DECISION_MAX,
-        ),
-        error: null,
-      });
-    }
+    await recordHeld(env, { id: runId, fn: job.id, key }, other.id);
     return other.id;
+  }
+
+  /**
+   * Records a run a singleton skipped: a start, then a `skipped` finish. A
+   * first attempt whose row already existed is a repeat of a recorded run,
+   * so it is left as it was; a later attempt's row is closed as skipped.
+   */
+  async function recordHeld(env: Env, run: RunStart, running?: string) {
+    const claimed = await recordStart(env, run);
+    if (claimed === false && (run.attempt ?? 1) === 1) return;
+    await finish(env, {
+      ...run,
+      status: "skipped",
+      decision: toDecision(
+        { skipped: "singleton", ...(running ? { running } : {}) },
+        DECISION_MAX,
+      ),
+      error: null,
+    });
+  }
+
+  /**
+   * Takes the app's lease for an inline singleton: the lease, `"held"` when
+   * another run has it, or `null` to run unguarded (no lock, or one that
+   * threw, which is logged).
+   */
+  async function takeLease(
+    env: Env,
+    job: JobDef<Env>,
+    data: unknown,
+    runId: string,
+  ): Promise<JobLease | "held" | null> {
+    const singleton = job.singleton as NonNullable<JobDef["singleton"]>;
+    let lockKey = job.id;
+    let lease: JobLease | null;
+    try {
+      if (singleton.key) lockKey = `${job.id}:${singleton.key(data)}`;
+      lease = await (options.lock as (env: Env) => JobLock)(env).acquire(
+        lockKey,
+        { job: job.id, runId, holdMs: singleton.staleAfterMs },
+      );
+    } catch (err) {
+      log.warn("jobs.lock_failed", {
+        fn: job.id,
+        key: lockKey,
+        error: errorText(err),
+      });
+      return null;
+    }
+    if (lease) return lease;
+    log.info("jobs.singleton_held", { fn: job.id, key: lockKey });
+    return "held";
+  }
+
+  /**
+   * Renews a lease every `renewEveryMs` until `stop`, or until one more
+   * interval would pass `holdMs`. A renewal that resolves `false` ends it; one
+   * that throws is retried on the next beat. The run goes on either way.
+   */
+  function keepLease(env: Env, job: JobDef<Env>, lease: JobLease) {
+    const every = options.lock?.(env).renewEveryMs;
+    const renew = lease.renew?.bind(lease);
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (renew && every && every > 0) {
+      const giveUpAt =
+        Date.now() + (job.singleton as { staleAfterMs: number }).staleAfterMs;
+      const beat = async () => {
+        if (stopped) return;
+        if (Date.now() + every >= giveUpAt) {
+          log.warn("jobs.lock_ceiling", { fn: job.id });
+          return;
+        }
+        try {
+          if (!(await renew())) {
+            log.error("jobs.lock_lost", { fn: job.id });
+            return;
+          }
+        } catch (err) {
+          log.warn("jobs.lock_renew_failed", {
+            fn: job.id,
+            error: errorText(err),
+          });
+        }
+        if (!stopped) timer = setTimeout(beat, every);
+      };
+      timer = setTimeout(beat, every);
+    }
+    return async () => {
+      stopped = true;
+      if (timer !== undefined) clearTimeout(timer);
+      try {
+        await lease.release();
+      } catch (err) {
+        log.warn("jobs.lock_release_failed", {
+          fn: job.id,
+          error: errorText(err),
+        });
+      }
+    };
   }
 
   /** `startCronSlot`, unless the job is a singleton with a run still going. */
@@ -754,8 +861,10 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(
    * attempt + 1; steps run again on each delivery.
    *
    * The first attempt claims the ledger row, so a second delivery of the
-   * same run id is a `duplicate` and does not run. A singleton cron skips
-   * the slot while an earlier one runs. The last failed attempt runs
+   * same run id is a `duplicate` and does not run. A singleton skips the
+   * run while an earlier one holds the slot: by the app's `lock` when there
+   * is one, held for this call's attempts, otherwise by the ledger (crons,
+   * first attempts only). The last failed attempt runs
    * `onFailure` once. Throws for an unknown job or an attempt past the
    * job's last; a failed run resolves with `status: "failed"`.
    */
@@ -781,9 +890,45 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(
         ? slotKey(call.slotMs, format)
         : keyFor(job, data, Date.now()));
     const runId = call.runId ?? instanceId(job.id, key);
-    if (first === 1 && (await heldBy(env, job, key, runId)))
-      return { fn: job.id, id: runId, result: "held" };
+    const held = { fn: job.id, id: runId, result: "held" as const };
+    let release: (() => Promise<void>) | undefined;
+    if (job.singleton && options.lock) {
+      const lease = await takeLease(env, job, data, runId);
+      if (lease === "held") {
+        await recordHeld(env, {
+          id: runId,
+          fn: job.id,
+          key,
+          attempt: first,
+        });
+        return held;
+      }
+      if (lease) release = keepLease(env, job, lease);
+    } else if (first === 1 && (await heldBy(env, job, key, runId))) return held;
 
+    try {
+      return await runAttempts(
+        env,
+        job,
+        call,
+        { data, key, runId, first },
+        ctx,
+      );
+    } finally {
+      await release?.();
+    }
+  }
+
+  /** The attempts of one `runInline` call. */
+  async function runAttempts(
+    env: Env,
+    job: JobDef<Env>,
+    call: InlineCall,
+    r0: { data: unknown; key: string; runId: string; first: number },
+    ctx: ExecutionContextLike | undefined,
+  ): Promise<InlineResult> {
+    const { data, key, runId, first } = r0;
+    const attempts = job.retries + 1;
     const memo = new Map<string, unknown>();
     for (let attempt = first; ; attempt++) {
       const r = await runAttempt(env, job, {

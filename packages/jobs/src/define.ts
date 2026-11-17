@@ -66,6 +66,15 @@ export type EventJobOptions<
    * retrying. The handler and `onFailure` get the schema's output.
    */
   schema?: StandardSchemaV1<unknown, D>;
+  /**
+   * Inline event jobs, with a `lock` in `createJobs`: skip a delivery while
+   * another run with the same `key` (or, without one, any run of this job)
+   * holds the lease. `staleAfter` is the longest one run may hold it.
+   */
+  singleton?: {
+    staleAfter: Duration;
+    key?: (data: Ev[E]) => string;
+  };
 };
 
 export type CronJobOptions<Env> = Common<Record<string, never>, Env> & {
@@ -96,8 +105,10 @@ export type JobDef<Env = unknown> = {
     | undefined;
   /** Runs in the invocation that starts it, not on a Workflow. */
   inline: boolean;
-  /** Crons that skip a slot while an earlier one runs. */
-  singleton?: { staleAfterMs: number } | undefined;
+  /** Jobs that skip a run while an earlier one holds the slot or the lease. */
+  singleton?:
+    | { staleAfterMs: number; key?: ((data: unknown) => string) | undefined }
+    | undefined;
   /** The payload check, for event jobs that set `schema`. */
   schema?: StandardSchemaV1 | undefined;
   // biome-ignore lint/suspicious/noExplicitAny: the runner calls handlers with data typed per job.
@@ -153,14 +164,18 @@ export function jobFactory<Ev extends EventMap, Env = unknown>(): DefineJob<
     }
     const isCron = "cron" in options;
     if (isCron) parseCron(options.cron);
-    let singleton: { staleAfterMs: number } | undefined;
-    if (isCron && options.singleton) {
+    let singleton: JobDef["singleton"];
+    if (options.singleton) {
       const staleAfterMs = durationMs(options.singleton.staleAfter);
       if (!(staleAfterMs > 0))
         throw new Error(
           `job ${options.id}: singleton.staleAfter must be more than 0`,
         );
-      singleton = { staleAfterMs };
+      const key =
+        !isCron && "key" in options.singleton
+          ? (options.singleton.key as ((data: unknown) => string) | undefined)
+          : undefined;
+      singleton = { staleAfterMs, ...(key ? { key } : {}) };
     }
     if (
       !isCron &&

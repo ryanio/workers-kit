@@ -54,6 +54,8 @@ export type {
   ExecutionContextLike,
   FailureContext,
   JobContext,
+  JobLease,
+  JobLock,
   JobParams,
   JobStep,
   KeyCandidate,

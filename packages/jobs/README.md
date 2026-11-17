@@ -272,6 +272,43 @@ defineJob(
 
 The check is a ledger read, not a lock: on a Workflow, an instance that is queued but has not started yet has no row and does not block.
 
+### Singletons on your own lock
+
+Pass `lock` to `createJobs` and inline singletons take a lease from it instead of reading the ledger. The lease covers the whole `runInline` call (every attempt it runs) and is released when the call ends, whether the run completed, failed or threw. A run whose lease is held elsewhere is skipped, with the same `skipped` start and finish as above (its decision is `{"skipped":"singleton"}`), and resolves `held`. Crons on a Workflow keep the ledger read, since a lease cannot be held across a hibernation.
+
+With a lock, inline event jobs can be singletons too, per key: `singleton: { staleAfter, key: (data) => data.claimId }` skips a delivery while another run for the same claim holds the lease. Without `key` there is one lease for the job.
+
+```ts
+type JobLock = {
+  acquire(
+    key: string, // the job id, or `<job>:<singleton key>`
+    options: { job: string; runId: string; holdMs: number },
+  ): Promise<JobLease | null>; // null: held elsewhere
+  renewEveryMs?: number;
+};
+type JobLease = { renew?(): Promise<boolean>; release(): Promise<void> };
+```
+
+- `holdMs` is the job's `singleton.staleAfter`: the longest one run may keep the lease.
+- When the lease has `renew` and the lock sets `renewEveryMs`, the package renews it on that interval while the run goes on. That lets the lease itself be short, so a crashed run's lease lapses on its own soon after, while a live run keeps it. Renewal stops one interval short of `holdMs`, when `renew` resolves `false` (the lease moved on, logged as `jobs.lock_lost`), and at release. A renewal that throws is retried on the next beat. The run goes on in every case.
+- A lock that throws fails open: the run goes ahead unguarded and `jobs.lock_failed` is logged. A singleton key function that throws counts as the lock throwing. A failed release is logged (`jobs.lock_release_failed`) and does not change the run's result. To count blind runs, catch inside `acquire` and return a lease whose `release` does nothing.
+
+```ts
+// A Durable Object lease with a 90 second TTL, renewed every 30 seconds.
+lock: (env) => ({
+  renewEveryMs: 30_000,
+  async acquire(key, { job }) {
+    const stub = env.SCHEDULER_LOCK.get(env.SCHEDULER_LOCK.idFromName(job));
+    const grant = await stub.acquire(key, 90_000);
+    if (!grant.acquired) return null;
+    return {
+      renew: () => stub.renew(key, grant.token, 90_000),
+      release: () => stub.release(key, grant.token),
+    };
+  },
+}),
+```
+
 ### `around`
 
 `around(scope, fn)` wraps every run and every step callback, so the code in them runs inside a context the app sets up: a request-scoped database client, a tracing scope, error capture. `scope` has `env`, `job`, `runId`, `step` (`null` for the run, otherwise the step's name, `on-failure` included), `attempt` for inline runs, and `ctx`, the `ExecutionContext` given to `run`, `scheduled` or `runInline`. A run's ledger writes and `onFinish` happen inside the run's scope, and an error the handler throws passes through it.
@@ -341,7 +378,7 @@ Returns `defineJob`, typed for your events and env.
 - `onFailure`.
 - `schema`: event jobs only. A Standard Schema the payload must pass (see [Payload schemas](#payload-schemas)).
 - `inline`: run in the invocation that starts it (see [Inline jobs](#inline-jobs)).
-- `singleton`: crons only. `{ staleAfter }` (see [Singleton crons](#singleton-crons)).
+- `singleton`: `{ staleAfter }` on a cron, or `{ staleAfter, key }` on an inline event job with a `lock` (see [Singleton crons](#singleton-crons) and [Singletons on your own lock](#singletons-on-your-own-lock)).
 
 The handler gets `{ event: { name, data, ts }, step, env, runId, attempt }`. A cron's `event.ts` is its slot time. `attempt` is set for inline runs only.
 
@@ -358,6 +395,7 @@ It takes these options:
 - `retention`
 - `statusOf`
 - `around`: see [`around`](#around).
+- `lock`: `(env) => JobLock`, for singletons (see [Singletons on your own lock](#singletons-on-your-own-lock)).
 - `onFinish`: gets `{ job, status, env, runId, error }`.
 - `backstop`: `{ everyMs, graceMs, firstRun }`.
 - `log`

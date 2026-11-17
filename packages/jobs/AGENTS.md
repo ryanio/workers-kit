@@ -5,7 +5,7 @@
 ## Layout
 
 - `src/define.ts`: `jobFactory` and `defineJob`. Ids, retries and crons are checked at definition time.
-- `src/jobs.ts`: `createJobs`, with `sendEvent`, `scheduled`, the `run` body, `runInline` and the backstop.
+- `src/jobs.ts`: `createJobs`, with `sendEvent`, `scheduled`, the `run` body, `runInline`, the singleton guards (ledger read, or the app's `lock` with its renewal) and the backstop.
 - `src/step.ts`: the step adapter. `src/duration.ts`: Workflows durations in ms. `src/cron.ts`: cron parsing and slot math. `src/ids.ts`: instance ids, slot keys, the duplicate and engine-abort checks.
 - `src/ledger.ts`, `src/d1.ts`, `src/postgres.ts`: the run ledger interface and its two SQL adapters.
 - `src/testing.ts`: the `workers-jobs/testing` entry, which runs under Node and workerd. `src/sqlite.ts`: the `workers-jobs/testing/sqlite` entry, Node only.
