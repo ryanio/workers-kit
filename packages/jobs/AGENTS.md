@@ -42,7 +42,7 @@ npm pack             # builds dist/ and writes the tarball
 
 A release is a version bump on main. `.github/workflows/release.yml` runs on every push that changes `package.json`: when that version is not on npm, it runs the gate, publishes through npm trusted publishing (GitHub environment `npm`, no token anywhere, provenance attached), tags the commit `v<version>` and opens a GitHub release from the version's CHANGELOG section.
 
-1. Bump `version` in `package.json` and add a dated `## <version> (YYYY-MM-DD)` section to `CHANGELOG.md`.
+1. Bump `version` in `package.json` and add a dated `## <version> (YYYY-MM-DD)` section to `CHANGELOG.md`, renaming `## Unreleased` if it is there. A change that waits for the next release goes under `## Unreleased`.
 2. Run `npm run check`, commit both and push to main.
 
 Never tag by hand or run `npm publish` locally. The npm page shows the README of the published version, so a README-only fix reaches it at the next release; a commit that changes only docs carries `[skip ci]` in its title.

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `engines.node` is `>=22`, as in workers-start. Node 20 reached end of life in April 2026. Apps on Workers are unaffected; it applies to installs and tests under Node.
+
 ## 0.6.0 (2026-11-17)
 
 - `RunFinish` has `output`, the handler's return value as it returned it (or the payload check's refusal), and `cause`, the Error with its stack on a failed run. `RunRetry` has `cause`. A ledger that keeps more than the truncated `decision` and `error` reads these instead of rebuilding them.
