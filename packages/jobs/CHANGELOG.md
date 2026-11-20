@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 (2026-11-20)
 
+- Package metadata (`repository`, `homepage`, `bugs`) points at [ryanio/workers-kit](https://github.com/ryanio/workers-kit), where the package now lives. The first release published from there.
 - `engines.node` is `>=22`, as in workers-start. Node 20 reached end of life in April 2026. Apps on Workers are unaffected; it applies to installs and tests under Node.
 
 ## 0.6.0 (2026-11-17)

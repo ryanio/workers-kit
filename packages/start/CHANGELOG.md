@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.1 (2026-11-20)
+
+- Package metadata (`repository`, `homepage`, `bugs`) points at [ryanio/workers-kit](https://github.com/ryanio/workers-kit), where the package now lives. The first release published from there.
+
 ## 0.7.0 (2026-11-20)
 
 - `workers-start/cache`: `withEdgeCache(request, render, { version })` keeps rendered pages in the Workers Cache API by their `s-maxage`, with `sharedMaxAge` and `withoutBrowserMaxAge`.
