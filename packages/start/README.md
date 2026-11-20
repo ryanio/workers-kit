@@ -383,9 +383,9 @@ if (limited) return limited;
 ```
 
 - The client is counted by `clientKey(request, { salt })`: a SHA-256 of the salt and `cf-connecting-ip`, so no raw IP reaches the binding or a log. Pass `key` to count by something else, such as an API key or a join code. Keys are prefixed with the policy name.
-- A limited request gets a 429 problem (`application/problem+json`, `code: "rate_limited"`) with `Retry-After`, `RateLimit-Policy` and `RateLimit` (the IETF rate limit headers) and `cache-control: no-store`. `detail` replaces the sentence.
+- A limited request gets a 429 problem (`application/problem+json`, `code: "rate_limited"`) with `Retry-After`, `RateLimit-Policy` and `RateLimit` (the IETF rate limit headers) and `cache-control: no-store`. `detail` replaces the sentence, and `text: true` answers plain text with the same headers, for pages people read.
 - A missing binding, or one that throws, lets the request through and calls `onUnbound` once per isolate: failing closed would take a site down over a config slip, and staying quiet would hide it.
-- `allowVerifiedBots: true` lets Cloudflare-verified crawlers through uncounted.
+- `allowVerifiedBots: true` lets Cloudflare-verified crawlers (`cf.verifiedBotCategory` or `cf.botManagement.verifiedBot`) through uncounted.
 - The binding counts per location over 10 or 60 seconds. Quotas over hours or days (a plan's daily allowance) are product rules; keep those in the app's database.
 
 `checkRateLimit(binding, key)` is the bare check, and `tooManyRequests(policy)` the bare response, for code that builds its own flow.

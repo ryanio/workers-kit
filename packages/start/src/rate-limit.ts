@@ -93,16 +93,27 @@ export function rateLimitHeaders(
 /** The 429 problem for `policy`. `detail` replaces the default sentence. */
 export function tooManyRequests(
   policy: RateLimitPolicy,
-  { detail }: { detail?: string } = {},
+  { detail, text }: { detail?: string; text?: boolean } = {},
 ): Response {
+  const sentence =
+    detail ??
+    `Too many requests. Try again in ${policy.periodSeconds} seconds.`;
+  if (text) {
+    return new Response(`${sentence}\n`, {
+      status: 429,
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+        "cache-control": "no-store",
+        ...rateLimitHeaders(policy),
+      },
+    });
+  }
   const body = {
     type: "about:blank",
     title: "Too Many Requests",
     status: 429,
     code: "rate_limited",
-    detail:
-      detail ??
-      `Too many requests. Try again in ${policy.periodSeconds} seconds.`,
+    detail: sentence,
   };
   return new Response(JSON.stringify(body), {
     status: 429,
@@ -125,6 +136,8 @@ export interface RateLimitOptions {
   onUnbound?: (error?: unknown) => void;
   /** Detail for the 429. */
   detail?: string;
+  /** Answer with plain text instead of a problem, for pages people read. */
+  text?: boolean;
 }
 
 /**
@@ -141,8 +154,15 @@ export async function rateLimit(
   options: RateLimitOptions = {},
 ): Promise<Response | null> {
   if (options.allowVerifiedBots) {
-    const cf = (request as { cf?: { verifiedBotCategory?: string } }).cf;
-    if (cf?.verifiedBotCategory) return null;
+    const cf = (
+      request as {
+        cf?: {
+          verifiedBotCategory?: string;
+          botManagement?: { verifiedBot?: boolean };
+        };
+      }
+    ).cf;
+    if (cf?.verifiedBotCategory || cf?.botManagement?.verifiedBot) return null;
   }
   const key =
     options.key ??
@@ -154,5 +174,8 @@ export async function rateLimit(
   );
   return allowed
     ? null
-    : tooManyRequests(policy, options.detail ? { detail: options.detail } : {});
+    : tooManyRequests(policy, {
+        ...(options.detail ? { detail: options.detail } : {}),
+        ...(options.text ? { text: true } : {}),
+      });
 }

@@ -94,6 +94,27 @@ describe("rateLimit", () => {
   });
 });
 
+describe("page answers", () => {
+  it("answers people with text and lets either verified bot flag through", async () => {
+    const { b } = binding(0);
+    const res = await rateLimit(from("198.51.100.3"), b, POLICY, {
+      text: true,
+    });
+    expect(res?.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    expect(res?.headers.get("ratelimit-policy")).toBe('"api";q=2;w=60');
+    expect(await res?.text()).toBe(
+      "Too many requests. Try again in 60 seconds.\n",
+    );
+    const bot = from("66.249.66.2");
+    Object.defineProperty(bot, "cf", {
+      value: { botManagement: { verifiedBot: true } },
+    });
+    expect(
+      await rateLimit(bot, b, POLICY, { allowVerifiedBots: true }),
+    ).toBeNull();
+  });
+});
+
 describe("checkRateLimit", () => {
   it("fails open without a binding or when it throws, and reports each once", async () => {
     const seen: unknown[] = [];

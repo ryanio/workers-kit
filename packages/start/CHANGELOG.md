@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `rateLimit({ text: true })` and `tooManyRequests(policy, { text: true })` answer a plain text 429 with the same headers, for pages people read.
+- `allowVerifiedBots` also accepts `cf.botManagement.verifiedBot`.
 - `workers-start/http`: `fetchJson(url, options)` with a per-attempt timeout, full-jitter retries of 408, 425, 429, 5xx, timeouts and network errors for idempotent methods, `Retry-After` (header or JSON `retry_after`) up to a cap, and an overall budget; `withRetry`, `transient`, `HttpError` and `retryAfterSeconds` on their own.
 
 ## 0.13.0 (2026-11-20)
