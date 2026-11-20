@@ -32,6 +32,7 @@ describe("accessGuard", () => {
       "cf-access-jwt-assertion": await team.token("admin@example.com"),
     });
     expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
     expect(await res.json()).toEqual({ email: "admin@example.com" });
   });
 

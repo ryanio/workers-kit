@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0 (2026-11-20)
+
+- `accessGuard` marks admitted responses `cache-control: no-store` too, not only refusals; pass `noStore: false` to leave them alone.
+- The `workers-start` peer range is `>=0.8.0 <1`, so any 0.x from 0.8 satisfies it. `^0.8.0` matched 0.8 only and made npm install a second copy.
+
 ## 0.1.0 (2026-11-20)
 
 - `createApi()`: an `OpenAPIHono` app whose validation failures, unknown routes, `HTTPException`s and unexpected errors all answer RFC 9457 problems (`application/problem+json` with `type`, `title`, `status`, `code`, `detail` and, for validation, `errors`).

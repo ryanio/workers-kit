@@ -28,12 +28,15 @@ export interface AccessGuardOptions {
   verify?: AccessVerifier;
   /** Detail for the 503 when there is no config, such as which vars to set. */
   unconfiguredDetail?: string;
+  /** Also mark every admitted response `cache-control: no-store`. Default true: guarded data is per person. */
+  noStore?: boolean;
 }
 
 /**
  * Checks the Access token on every request it guards and sets
  * `c.var.access`. Failures answer 401 `unauthenticated`, 403 `forbidden`, or
- * 503 `unconfigured` / `unavailable`, all with `cache-control: no-store`.
+ * 503 `unconfigured` / `unavailable`. Every answer, refusals and admitted
+ * responses alike, carries `cache-control: no-store` unless `noStore: false`.
  */
 export function accessGuard(
   options: AccessGuardOptions,
@@ -58,6 +61,8 @@ export function accessGuard(
         : { service: result.service },
     );
     await next();
+    if (options.noStore !== false)
+      c.res.headers.set("cache-control", "no-store");
   };
 }
 

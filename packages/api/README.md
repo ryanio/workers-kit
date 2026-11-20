@@ -143,7 +143,7 @@ const overview = createRoute({
 admin.openapi(overview, (c) => c.json({ by: c.var.access }, 200));
 ```
 
-The guard checks the token with `workers-start/access` (see its README for what is checked) and sets `c.var.access` to `{ email }` or `{ service }`. A refusal is a problem with `cache-control: no-store`: 401 `unauthenticated`, 403 `forbidden`, or 503 `unconfigured` or `unavailable`. Pass `verify: createAccessVerifier({ fetch: team.fetch })` in tests, with a team from `workers-start/access/testing`.
+The guard checks the token with `workers-start/access` (see its README for what is checked) and sets `c.var.access` to `{ email }` or `{ service }`. Every guarded response carries `cache-control: no-store` (pass `noStore: false` to leave admitted responses alone), and a refusal is a problem: 401 `unauthenticated`, 403 `forbidden`, or 503 `unconfigured` or `unavailable`. Pass `verify: createAccessVerifier({ fetch: team.fetch })` in tests, with a team from `workers-start/access/testing`.
 
 ## Spec and client types
 
