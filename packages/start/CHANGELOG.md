@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.0 (2026-11-20)
 
 - `workerSentryOptions` and `browserSentryOptions` leave `tracesSampleRate` unset unless given, instead of 0: an unset rate turns tracing off entirely, where 0 still creates unsampled spans.
 - `BROWSER_DENY_URLS` also covers `ms-browser-extension://` and Safari's `webkit-masked-url:` frames.
