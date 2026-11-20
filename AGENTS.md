@@ -2,7 +2,7 @@
 
 `workers-kit` is an npm workspaces monorepo of TypeScript libraries for Cloudflare Workers. Each package in `packages/` is its own npm package with its own version, README, CHANGELOG and AGENTS.md:
 
-- [`packages/start`](packages/start/AGENTS.md): `workers-start`, helpers for TanStack Start apps on Workers.
+- [`packages/start`](packages/start/AGENTS.md): `workers-start`, zero-dependency helpers for apps on Workers (TanStack Start entry, caches, Access, Google, Sentry, mail, rate limits, HTTP, security headers, CORS, webhooks, bodies, logging).
 - [`packages/jobs`](packages/jobs/AGENTS.md): `workers-jobs`, background jobs on Cron Triggers and Workflows.
 - [`packages/api`](packages/api/AGENTS.md): `workers-api`, Hono APIs with problem responses, an Access guard, spec and types generation and spec checks.
 

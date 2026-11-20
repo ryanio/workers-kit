@@ -1,6 +1,6 @@
 # AGENTS.md
 
-`workers-start` is a TypeScript library of helpers for TanStack Start apps on Cloudflare Workers. The README is the user guide. This file is for agents changing the package; the repo's [AGENTS.md](../../AGENTS.md) has the commands, hooks and release steps shared by every package.
+`workers-start` is a TypeScript library of helpers for apps on Cloudflare Workers, TanStack Start apps most of all. The README is the user guide. This file is for agents changing the package; the repo's [AGENTS.md](../../AGENTS.md) has the commands, hooks and release steps shared by every package.
 
 ## Layout
 
@@ -14,6 +14,7 @@
 - `src/google.ts`: Google service account tokens, GA4 Data API and Search Console calls.
 - `src/sentry.ts`: Sentry options and filters, with no SDK import. `src/mail.ts`: the mailers over Email Sending and Resend.
 - `src/rate-limit.ts`: the rate limiting binding with hashed keys and the 429 answer.
+- `src/http.ts`: `fetchJson` and `withRetry`. `src/security.ts`, `src/cors.ts`: response headers. `src/body.ts`: capped request bodies. `src/webhooks.ts`: webhook signatures. `src/log.ts`: structured logging.
 - `src/access.ts`: Cloudflare Access JWT checks and the key cache. `src/access-testing.ts`: the `workers-start/access/testing` entry, a fake Access team for tests.
 - `src/check-bundle.ts`, `src/check-bundle-cli.ts`: the secret check and its `workers-start-check-bundle` bin.
 - `test/`: Node tests. The CLI and package tests run the built `dist/`, so `npm test` builds first.

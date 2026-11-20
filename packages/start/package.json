@@ -27,7 +27,12 @@
     "sentry",
     "email",
     "resend",
-    "rate-limit"
+    "rate-limit",
+    "webhooks",
+    "cors",
+    "csp",
+    "security-headers",
+    "logging"
   ],
   "type": "module",
   "sideEffects": false,
@@ -111,6 +116,31 @@
       "types": "./dist/http.d.ts",
       "import": "./dist/http.js",
       "default": "./dist/http.js"
+    },
+    "./body": {
+      "types": "./dist/body.d.ts",
+      "import": "./dist/body.js",
+      "default": "./dist/body.js"
+    },
+    "./log": {
+      "types": "./dist/log.d.ts",
+      "import": "./dist/log.js",
+      "default": "./dist/log.js"
+    },
+    "./webhooks": {
+      "types": "./dist/webhooks.d.ts",
+      "import": "./dist/webhooks.js",
+      "default": "./dist/webhooks.js"
+    },
+    "./security": {
+      "types": "./dist/security.d.ts",
+      "import": "./dist/security.js",
+      "default": "./dist/security.js"
+    },
+    "./cors": {
+      "types": "./dist/cors.d.ts",
+      "import": "./dist/cors.js",
+      "default": "./dist/cors.js"
     },
     "./package.json": "./package.json"
   },

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `workers-start/security`: `securityHeaders`, `withSecurityHeaders` and `contentSecurityPolicy`, with HSTS, nosniff, framing, referrer, permissions and COOP defaults, and CSP presets for GA4, Sentry, Cloudflare Web Analytics and WalletConnect. It never sends the deprecated `X-XSS-Protection`.
+- `workers-start/cors`: `cors()` with an origin allowlist (strings and RegExps), `Vary: Origin`, preflight answers, and a refusal of `"*"` with credentials.
+- `workers-start/body`: `readJson` and `readText` read a request body under a byte cap (default 64 KiB), streaming and cancelling past it whatever `Content-Length` says. `readJson` checks for a JSON content type and runs an optional `safeParse` schema. `bodyProblem` answers a failure with an RFC 9457 problem (400 `invalid_json` or `invalid_request`, 413 `too_large`, 415 `unsupported_media_type`).
+- `workers-start/webhooks`: `verifyDiscord` (Ed25519 with a replay window), `verifyHmac` (hex or base64 HMAC-SHA256, SHA-512 or SHA-1 with an optional prefix and signed timestamp, covering Alchemy, Neynar and GitHub) and `verifySvix` (Svix and Resend) read the raw body once and return it when the signature holds, or null, never throwing. `timingSafeEqual` compares strings or bytes in constant time.
+- `workers-start/log`: `createLogger` writes one structured object per call for Workers Logs, redacting sensitive keys at any depth, serialising Errors, with a level threshold and `child`. `requestId` returns `cf-ray`, else `x-request-id`, else a new UUID.
 - `cachedEntry` checks KV before recomputing when the local copy is past fresh, so values another location or process wrote are used. `cache: false` skips the Cache API tier, `kvTtlSeconds` sets KV's expiry (null keeps values until overwritten), and an entry served after a failed recompute carries the `error`.
 - The rate limiting README notes that Pages Functions cannot use the binding.
 - `peekCached(key, options)` reads a cached entry without computing or refreshing.

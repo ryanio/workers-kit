@@ -10,22 +10,27 @@ It has no runtime dependencies. Each piece is its own entry point, so an app tak
 
 Check this list before writing a helper in an app. Anything generic to TanStack Start on Workers that is missing belongs here, with a test, rather than in one app.
 
-| Entry point                    | Exports                                                                                                                           | For                                                                                             |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `workers-start/entry`          | `createEntry`, `withHeaders`, `wantsMarkdown`, `acceptsHtml`                                                                      | The Worker entry: Markdown for agents, Accept fixes, 405s, headers on every response            |
-| `workers-start/head`           | `createPageHead`, `jsonLdScript`                                                                                                  | Per-route head tags and escaped JSON-LD                                                         |
-| `workers-start/scripts`        | `themeScript`, `analyticsScript`, `tagManagerScript`, `gaEvent`, `inlineJson`                                                     | Inline bootstraps, analytics events, JSON safe inside a script tag                              |
-| `workers-start/cache`          | `withEdgeCache`, `sharedMaxAge`, `withoutBrowserMaxAge`, `cached`, `cachedEntry`                                                  | Rendered pages and computed values kept in the Workers Cache API                                |
-| `workers-start/workers`        | `getBinding`, `getEnvString`, `afterResponse`, `isKvNamespace`                                                                    | Bindings and `waitUntil` without a static `cloudflare:workers` import                           |
-| `workers-start/access`         | `verifyAccessToken`, `createAccessVerifier`, `parseAccessConfig`, `accessToken`                                                   | Cloudflare Access sign-ins checked in the Worker, failing closed                                |
-| `workers-start/access/testing` | `createTestAccessTeam`                                                                                                            | A fake Access team for tests: keys, certs and signed tokens                                     |
-| `workers-start/google`         | `googleAccessToken`, `parseServiceAccount`, `ga4RunReport`, `ga4BatchRunReports`, `ga4Rows`, `inListFilter`, `searchConsoleQuery` | Google APIs as a service account: cached tokens, GA4 reports, Search Console                    |
-| `workers-start/sentry`         | `workerSentryOptions`, `browserSentryOptions`, `dropLocalEvents`, `isBrowserNoise`, `BROWSER_DENY_URLS`                           | Sentry options for a Worker and its pages: off without a DSN, no local events, no browser noise |
-| `workers-start/mail`           | `cloudflareMailer`, `resendMailer`, `recordingMailer`, `MailError`, `escapeHtml`                                                  | One `send` over Email Sending or Resend, text and HTML always, and a fake for tests             |
-| `workers-start/rate-limit`     | `rateLimit`, `clientKey`, `checkRateLimit`, `tooManyRequests`, `rateLimitHeaders`                                                 | The rate limiting binding with hashed client keys, fail-open reporting and one 429 answer       |
-| `workers-start/seo`            | `sitemapXml`, `robotsTxt`, `escapeXml`                                                                                            | `/sitemap.xml` and `/robots.txt` bodies                                                         |
-| `workers-start/accept`         | `parseAccept`, `quality`                                                                                                          | Accept header parsing                                                                           |
-| `workers-start/check-bundle`   | `workers-start-check-bundle` (bin)                                                                                                | Fails a build that would ship a local secret                                                    |
+| Entry point                    | Exports                                                                                                                           | For                                                                                                      |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `workers-start/entry`          | `createEntry`, `withHeaders`, `wantsMarkdown`, `acceptsHtml`                                                                      | The Worker entry: Markdown for agents, Accept fixes, 405s, headers on every response                     |
+| `workers-start/head`           | `createPageHead`, `jsonLdScript`                                                                                                  | Per-route head tags and escaped JSON-LD                                                                  |
+| `workers-start/scripts`        | `themeScript`, `analyticsScript`, `tagManagerScript`, `gaEvent`, `inlineJson`                                                     | Inline bootstraps, analytics events, JSON safe inside a script tag                                       |
+| `workers-start/cache`          | `withEdgeCache`, `sharedMaxAge`, `withoutBrowserMaxAge`, `cached`, `cachedEntry`                                                  | Rendered pages and computed values kept in the Workers Cache API                                         |
+| `workers-start/workers`        | `getBinding`, `getEnvString`, `afterResponse`, `isKvNamespace`                                                                    | Bindings and `waitUntil` without a static `cloudflare:workers` import                                    |
+| `workers-start/access`         | `verifyAccessToken`, `createAccessVerifier`, `parseAccessConfig`, `accessToken`                                                   | Cloudflare Access sign-ins checked in the Worker, failing closed                                         |
+| `workers-start/access/testing` | `createTestAccessTeam`                                                                                                            | A fake Access team for tests: keys, certs and signed tokens                                              |
+| `workers-start/google`         | `googleAccessToken`, `parseServiceAccount`, `ga4RunReport`, `ga4BatchRunReports`, `ga4Rows`, `inListFilter`, `searchConsoleQuery` | Google APIs as a service account: cached tokens, GA4 reports, Search Console                             |
+| `workers-start/sentry`         | `workerSentryOptions`, `browserSentryOptions`, `dropLocalEvents`, `isBrowserNoise`, `BROWSER_DENY_URLS`                           | Sentry options for a Worker and its pages: off without a DSN, no local events, no browser noise          |
+| `workers-start/mail`           | `cloudflareMailer`, `resendMailer`, `recordingMailer`, `MailError`, `escapeHtml`                                                  | One `send` over Email Sending or Resend, text and HTML always, and a fake for tests                      |
+| `workers-start/rate-limit`     | `rateLimit`, `clientKey`, `checkRateLimit`, `tooManyRequests`, `rateLimitHeaders`                                                 | The rate limiting binding with hashed client keys, fail-open reporting and one 429 answer                |
+| `workers-start/body`           | `bodyProblem`, `isJsonType`, `readJson`, `readText`                                                                               | Request bodies read under a byte cap, JSON type checked, schema run, failures as problems                |
+| `workers-start/log`            | `createLogger`, `requestId`                                                                                                       | Structured logs for Workers Logs, with redaction and request ids                                         |
+| `workers-start/webhooks`       | `timingSafeEqual`, `verifyDiscord`, `verifyHmac`, `verifySvix`                                                                    | Webhook signatures (Discord, HMAC senders, Svix and Resend) checked in constant time with replay windows |
+| `workers-start/security`       | `contentSecurityPolicy`, `securityHeaders`, `withSecurityHeaders`                                                                 | Security headers and a Content-Security-Policy builder with presets                                      |
+| `workers-start/cors`           | `cors`                                                                                                                            | CORS with an origin allowlist, preflights and `Vary: Origin`                                             |
+| `workers-start/seo`            | `sitemapXml`, `robotsTxt`, `escapeXml`                                                                                            | `/sitemap.xml` and `/robots.txt` bodies                                                                  |
+| `workers-start/accept`         | `parseAccept`, `quality`                                                                                                          | Accept header parsing                                                                                    |
+| `workers-start/check-bundle`   | `workers-start-check-bundle` (bin)                                                                                                | Fails a build that would ship a local secret                                                             |
 
 ## Why
 
@@ -391,6 +396,174 @@ if (limited) return limited;
 - The binding counts per location over 10 or 60 seconds. Quotas over hours or days (a plan's daily allowance) are product rules; keep those in the app's database.
 
 `checkRateLimit(binding, key, { name })` is the bare check, `tooManyRequests(policy)` the bare response, and `rateLimitProblem(policy)` its body as an object, for code that builds its own flow. The header and response helpers take any window, so a daily cap counted in the app's database answers the same way.
+
+## Security headers
+
+`workers-start/security` builds the security headers every page and API response should carry, and a Content Security Policy with presets for the third parties these apps load:
+
+```ts
+// src/server.ts
+import handler from "@tanstack/react-start/server-entry";
+import { createEntry } from "workers-start/entry";
+import { withSecurityHeaders } from "workers-start/security";
+
+const entry = createEntry({ handler });
+
+export default {
+  async fetch(request: Request, ...rest: unknown[]) {
+    const response = await entry.fetch(request, ...rest);
+    return withSecurityHeaders(response, {
+      csp: {
+        directives: { "script-src": ["'unsafe-inline'"] },
+        presets: ["ga4", "sentry", "cloudflareInsights"],
+      },
+    });
+  },
+};
+```
+
+- The defaults: `Strict-Transport-Security: max-age=63072000; includeSubDomains`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, a `Permissions-Policy` that turns off camera, microphone, geolocation, payment and usb, and `Cross-Origin-Opener-Policy: same-origin`. The deprecated `X-XSS-Protection` is never sent.
+- `hsts`, `referrerPolicy`, `permissionsPolicy` and `crossOriginOpenerPolicy` change one header, and `false` drops it. `permissionsPolicy: { camera: ["self"] }` merges over the defaults; a string replaces the header. Wallet and OAuth popups need `crossOriginOpenerPolicy: "same-origin-allow-popups"`.
+- `frame: "sameorigin"` sends `SAMEORIGIN` and puts `frame-ancestors 'self'` in the CSP; the default puts `frame-ancestors 'none'`. A policy that already names `frame-ancestors` keeps it.
+- No CSP is sent unless `csp` is given, as a header value or as options for `contentSecurityPolicy`. `reportOnly: true` (on the options or on `csp`) sends it as `Content-Security-Policy-Report-Only`, for a rollout.
+- `withSecurityHeaders` never overwrites a header the response already set, so a route with its own CSP or framing rule keeps it. `securityHeaders(options)` returns the plain object, for `withHeaders` or a `headers` init.
+
+`contentSecurityPolicy({ directives, presets, reportOnly, reportUri, nonce })` returns the header value. It starts from `default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: https:; upgrade-insecure-requests`.
+
+- `directives` add sources to a directive, duplicates dropped, order kept. A directive the base lacks is taken as given. `false` removes a directive, a base one included.
+- The presets are `ga4` (gtag.js and its collect beacons, `www.google.com` included), `sentry` (event ingest in the US, EU and older data regions), `cloudflareInsights` (the beacon the zone injects and where it posts) and `walletConnect` (the relay socket, the WalletConnect and AppKit APIs, and the Verify and embedded wallet frames). A `*-src` directive a preset creates starts from `'self'`. `CSP_PRESETS` lists each host with what it is for.
+- `nonce` adds `'nonce-…'` to `script-src`. Generate a new one per response.
+- `reportUri` adds `report-uri`, such as a Sentry project's security endpoint. `reportOnly` drops `upgrade-insecure-requests`, which browsers ignore in a report-only policy.
+
+## CORS
+
+`workers-start/cors` answers cross-origin requests to an API from an allowlist:
+
+```ts
+import { cors } from "workers-start/cors";
+import { handleApi } from "./api";
+
+const api = cors({
+  origins: [
+    "https://www.example.com",
+    /^https:\/\/[a-z0-9-]+\.preview\.example\.com$/,
+  ],
+  credentials: true,
+  headers: ["content-type", "authorization"],
+});
+
+export default {
+  async fetch(request: Request) {
+    const preflight = api.preflight(request);
+    if (preflight) return preflight;
+    return api.apply(request, await handleApi(request));
+  },
+};
+```
+
+- An origin on the list is echoed back in `Access-Control-Allow-Origin`. Strings match exactly, ignoring case; a RegExp is tested against the whole Origin header, so anchor it.
+- Every answer from an allowlist carries `Vary: Origin`, merged into any `Vary` the response has, so a cache never serves one origin's response to another.
+- An origin off the list gets no CORS headers, never a fallback origin, and the browser refuses the read.
+- `origins: "*"` allows anyone without credentials. Pairing it with `credentials: true` throws when the policy is built, because browsers reject that response.
+- `preflight` answers an OPTIONS request that has `Access-Control-Request-Method` with a 204 carrying the allowed methods (default GET, HEAD, POST, PUT, PATCH, DELETE), headers (default `content-type`) and `Access-Control-Max-Age` (default 600 seconds). Any other request gets null.
+- `exposeHeaders` lists response headers the page's script may read, such as `ratelimit`. `headers(request)` returns the plain object, for code that builds its own response.
+
+## Request bodies
+
+`workers-start/body` reads a request body with a size cap and answers the failures with one problem shape:
+
+```ts
+import { bodyProblem, readJson } from "workers-start/body";
+import { z } from "zod";
+
+const Signup = z.object({ email: z.string().email() });
+
+const body = await readJson(request, { schema: Signup, maxBytes: 16 * 1024 });
+if (!body.ok) return bodyProblem(body);
+await signUp(body.value.email);
+```
+
+- The body is streamed through a byte counter and the read is cancelled as soon as it passes `maxBytes` (default 64 KiB), so a chunked upload or one with a false `Content-Length` is never buffered past the cap. A `Content-Length` over the cap is refused before reading.
+- `readJson` answers 415 `unsupported_media_type` unless `content-type` is `application/json` or a `+json` type. `requireJsonType: false` skips that check.
+- An empty body, invalid UTF-8 or malformed JSON is 400 `invalid_json`. A body over the cap is 413 `too_large`.
+- `schema` is anything with a Zod style `safeParse`. A failure is 400 `invalid_request`, and the detail names the first issue, such as `email: Invalid email`.
+- Failures are values, not throws: `{ ok: false, status, code, detail }`. `bodyProblem(failure)` turns one into an RFC 9457 problem (`application/problem+json`, `{ type, title, status, code, detail }`, `cache-control: no-store`).
+
+`readText(request, { maxBytes })` reads text with the same cap, for webhooks that verify a signature over the raw body before parsing it.
+
+## Webhooks
+
+`workers-start/webhooks` checks signed webhooks on WebCrypto, with no SDK: Discord interactions (Ed25519), plain HMAC signatures (Alchemy, Neynar, GitHub and most others) and Svix (Resend, and any Standard Webhooks sender).
+
+```ts
+import { verifyDiscord, verifyHmac, verifySvix } from "workers-start/webhooks";
+
+const onError = (error: Error) => console.error("webhook secret", error);
+
+// Discord interactions
+const interaction = await verifyDiscord(request, env.DISCORD_PUBLIC_KEY, { onError });
+if (interaction === null) return new Response("bad signature", { status: 401 });
+const payload = JSON.parse(interaction);
+
+// Alchemy: hex HMAC-SHA256 of the body
+const activity = await verifyHmac(request, {
+  secret: env.ALCHEMY_SIGNING_KEY,
+  header: "x-alchemy-signature",
+  algorithm: "SHA-256",
+  encoding: "hex",
+  onError,
+});
+
+// GitHub: the same, after a "sha256=" prefix
+const push = await verifyHmac(request, {
+  secret: env.GITHUB_WEBHOOK_SECRET,
+  header: "x-hub-signature-256",
+  algorithm: "SHA-256",
+  encoding: "hex",
+  prefix: "sha256=",
+});
+
+// Resend, through Svix
+const event = await verifySvix(request, env.RESEND_WEBHOOK_SECRET, { onError }); // whsec_...
+```
+
+- Each check reads the raw body once and returns it as text when the signature holds, or null when it does not. Parse the returned text, not the request: the signature is over the exact bytes sent, and the body can only be read once.
+- Bad input (a missing header, malformed hex or base64, a wrong signature, a stale timestamp) is a null, never a throw. Every comparison runs in constant time, and `timingSafeEqual(a, b)` is exported for strings or bytes.
+- A missing or malformed secret or key also gives null, and calls `onError`. A forged request never does, so a secret pasted with a stray character shows up in the logs instead of looking like an attacker being turned away.
+- Answer null with 401, never 500. Senders retry a 5xx, so a 500 makes a forged or stale request come back again and again.
+- `verifyDiscord` checks `X-Signature-Ed25519` over `X-Signature-Timestamp` plus the body, and refuses a timestamp more than `toleranceSeconds` (default 300) from the clock either way, so a captured request cannot be replayed.
+- `verifySvix` reads `svix-id`, `svix-timestamp` and `svix-signature` (or the `webhook-*` names of Standard Webhooks), accepts any `v1` entry in the space separated list, which is how Svix rotates secrets, and has the same 300 second window. The secret may have its `whsec_` prefix or not.
+- `verifyHmac` takes `algorithm` (`SHA-256`, `SHA-512` or `SHA-1`), `encoding` (`hex`, read in any case, or `base64`) and an optional `prefix`. Neynar is `{ header: "x-neynar-signature", algorithm: "SHA-512", encoding: "hex" }`. For a sender that signs a timestamp too, give `timestampHeader` and `signedPayload: (body, timestamp) => string` (Slack is `` `v0:${timestamp}:${body}` ``); the window is only worth anything when the timestamp is part of what was signed.
+- `toleranceSeconds` and `now` (milliseconds since the epoch) set the window and the clock, for tests or a sender with a window of its own. On `verifyHmac` they apply only with `timestampHeader`.
+
+## Logging
+
+`workers-start/log` writes structured logs that [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/) can query field by field:
+
+```ts
+import { createLogger, requestId } from "workers-start/log";
+
+const log = createLogger("billing", {
+  base: { requestId: requestId(request) },
+});
+
+log.info("charged", { amount: 500, email: customer.email });
+// { level: "info", scope: "billing", msg: "charged", requestId: "8f2...-SJC", amount: 500, email: "[redacted]" }
+
+try {
+  await charge();
+} catch (error) {
+  log.error("charge failed", { error });
+}
+```
+
+- Each call writes one object to `console.log` (debug and info), `console.warn` or `console.error`: `{ level, scope, msg, ...base, ...fields }`. A field named `level`, `scope` or `msg` never replaces those three.
+- Values under sensitive keys become `"[redacted]"` at any depth, arrays included. A key matches when its last words are an entry's words, ignoring case and separators, so `token` covers `accessToken` and `x-auth-token` but not `tokenCount`. The default list is `email`, `ip`, `ipAddress`, `token`, `authorization`, `password`, `secret` and `cookie`; `redact` replaces it.
+- An `Error` becomes `{ name, message, stack }`, with its `cause` serialised the same way. Dates become ISO strings, bigints strings, and a cycle `"[circular]"`. Nesting past 8 levels is cut off as `"[truncated]"`.
+- `level` (default `info`) drops anything below it. `log.child(fields)` returns a logger that adds `fields` to every entry and keeps the level, redaction and sink.
+- `sink` receives each entry instead of the console, for tests or another transport.
+
+`requestId(request)` returns the `cf-ray` header, else `x-request-id`, else a new UUID, so one id ties together every line of a request.
 
 ## Sitemap and robots.txt
 

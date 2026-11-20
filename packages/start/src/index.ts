@@ -15,6 +15,14 @@ export {
   verifyAccessToken,
 } from "./access.js";
 export type {
+  BodyFailure,
+  BodyResult,
+  BodySchema,
+  ReadJsonOptions,
+  ReadTextOptions,
+} from "./body.js";
+export { bodyProblem, isJsonType, readJson, readText } from "./body.js";
+export type {
   CachedEntry,
   CachedKv,
   CachedOptions,
@@ -28,6 +36,8 @@ export {
   withEdgeCache,
   withoutBrowserMaxAge,
 } from "./cache.js";
+export type { Cors, CorsOptions } from "./cors.js";
+export { cors } from "./cors.js";
 export type {
   EntryOptions,
   FetchHandler,
@@ -93,6 +103,14 @@ export {
   withRetry,
 } from "./http.js";
 export type {
+  LogEntry,
+  LogFields,
+  Logger,
+  LoggerOptions,
+  LogLevel,
+} from "./log.js";
+export { createLogger, DEFAULT_REDACT, requestId } from "./log.js";
+export type {
   MailAddress,
   MailAttachment,
   Mailer,
@@ -137,6 +155,21 @@ export {
   themeScript,
 } from "./scripts.js";
 export type {
+  ContentSecurityPolicyOptions,
+  CspDirectives,
+  CspPreset,
+  HstsOptions,
+  SecurityHeadersOptions,
+} from "./security.js";
+export {
+  BASE_CSP,
+  CSP_PRESETS,
+  contentSecurityPolicy,
+  DEFAULT_PERMISSIONS,
+  securityHeaders,
+  withSecurityHeaders,
+} from "./security.js";
+export type {
   BrowserSentryOptions,
   SentryEventLike,
   WorkerSentryOptions,
@@ -155,6 +188,19 @@ export {
 } from "./sentry.js";
 export type { RobotsOptions, RobotsRule, SitemapEntry } from "./seo.js";
 export { escapeXml, robotsTxt, sitemapXml } from "./seo.js";
+export type {
+  DiscordVerifyOptions,
+  HmacVerifyOptions,
+  SvixVerifyOptions,
+  TimestampOptions,
+  WebhookErrorOptions,
+} from "./webhooks.js";
+export {
+  timingSafeEqual,
+  verifyDiscord,
+  verifyHmac,
+  verifySvix,
+} from "./webhooks.js";
 export type { WorkersModule } from "./workers.js";
 export {
   afterResponse,
