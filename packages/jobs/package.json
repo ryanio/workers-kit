@@ -1,6 +1,6 @@
 {
   "name": "workers-jobs",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Background jobs for Cloudflare Workers on Cron Triggers and Workflows: typed jobs, deduplicated instance ids, a backstop for dead triggers, and a run ledger for D1 or Postgres.",
   "license": "MIT",
   "author": "Ryan Ghods",

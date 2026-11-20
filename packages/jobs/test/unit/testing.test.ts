@@ -4,10 +4,15 @@
  * ledger table check names each way a table would break the ledger, and the
  * D1 ledger writes ISO times when asked.
  */
+
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { d1Ledger } from "../../src/d1.js";
 import { jobEnv, withJobEnv } from "../../src/env.js";
-import { sqliteD1 } from "../../src/sqlite.js";
+import { readMigrations, sqliteD1 } from "../../src/sqlite.js";
 import {
   checkLedgerTable,
   inlineStep,
@@ -227,5 +232,47 @@ describe("inlineStep", () => {
     expect(await s.step.do("fetch", async () => "body")).toBe("body");
     expect(s.attempts.get("fetch")).toBe(3);
     expect(s.calls).toEqual([{ kind: "do", name: "fetch", config: {} }]);
+  });
+});
+
+describe("readMigrations", () => {
+  it("reads the .sql files in order, skips what it is told, and wraps them in the foreign key pragmas", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "migrations-"));
+    try {
+      writeFileSync(
+        join(dir, "0002_posts.sql"),
+        "CREATE TABLE posts (id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id));\n--> statement-breakpoint\nCREATE INDEX posts_user ON posts(user_id);",
+      );
+      writeFileSync(
+        join(dir, "0001_users.sql"),
+        "CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT);",
+      );
+      writeFileSync(
+        join(dir, "0003_later.sql"),
+        "ALTER TABLE users ADD COLUMN name TEXT;",
+      );
+      writeFileSync(join(dir, "README.md"), "not sql");
+      const ddl = readMigrations(pathToFileURL(`${dir}/`), {
+        skip: ["0003_later.sql"],
+      });
+      expect(ddl[0]).toBe("PRAGMA foreign_keys = OFF");
+      expect(ddl.at(-1)).toBe("PRAGMA foreign_keys = ON");
+      expect(ddl.slice(1, -1).map((s) => s.slice(0, 18))).toEqual([
+        "CREATE TABLE users",
+        "CREATE TABLE posts",
+      ]);
+      const { db } = sqliteD1(ddl);
+      await db.prepare("INSERT INTO users (id, email) VALUES (1, 'a@b')").run();
+      await db.prepare("INSERT INTO posts (user_id) VALUES (1)").run();
+      expect(
+        await db.prepare("SELECT count(*) AS n FROM posts").first("n"),
+      ).toBe(1);
+      await expect(
+        db.prepare("SELECT name FROM users").all(),
+      ).rejects.toThrow();
+      expect(readMigrations(dir, { foreignKeysOff: false })).toHaveLength(3);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

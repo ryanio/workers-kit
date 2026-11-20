@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.0 (2026-11-20)
+
+- `workers-jobs/testing/sqlite`: `readMigrations(dir, { skip, foreignKeysOff })` reads an app's migrations folder (every `.sql` file, sorted by name, inside the foreign key pragmas) as DDL for `sqliteD1`, replacing the loader each app wrote for its tests.
+
 ## 0.7.0 (2026-11-20)
 
 - Package metadata (`repository`, `homepage`, `bugs`) points at [ryanio/workers-kit](https://github.com/ryanio/workers-kit), where the package now lives. The first release published from there.

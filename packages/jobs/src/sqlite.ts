@@ -1,8 +1,11 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   DatabaseSync,
   type SQLInputValue,
   type StatementSync,
 } from "node:sqlite";
+import { fileURLToPath } from "node:url";
 
 // `workers-jobs/testing/sqlite`: D1's statement API over Node's built-in
 // SQLite, for tests that run under Node. It has its own entry so a test inside
@@ -211,4 +214,33 @@ export function sqliteD1<DB = SqliteD1Database>(
   };
 
   return { db: db as DB, sqlite, calls, batches };
+}
+
+export type ReadMigrationsOptions = {
+  /** File names to leave out, to test code that ships before a migration. */
+  skip?: readonly string[];
+  /** Wrap the set in `PRAGMA foreign_keys = OFF` and `ON`, as D1 applies migrations. Default true. */
+  foreignKeysOff?: boolean;
+};
+
+/**
+ * An app's migrations as DDL for `sqliteD1`: every `.sql` file in `dir`,
+ * sorted by name, read as text. Drizzle's `--> statement-breakpoint` lines
+ * are SQL comments, so its migrations need nothing extra.
+ *
+ *   sqliteD1<D1Database>(readMigrations(new URL("../migrations/", import.meta.url)))
+ */
+export function readMigrations(
+  dir: string | URL,
+  options: ReadMigrationsOptions = {},
+): string[] {
+  const path = typeof dir === "string" ? dir : fileURLToPath(dir.href);
+  const skip = new Set(options.skip ?? []);
+  const files = readdirSync(path)
+    .filter((f) => f.endsWith(".sql") && !skip.has(f))
+    .sort();
+  const sql = files.map((f) => readFileSync(join(path, f), "utf8"));
+  return options.foreignKeysOff === false
+    ? sql
+    : ["PRAGMA foreign_keys = OFF", ...sql, "PRAGMA foreign_keys = ON"];
 }

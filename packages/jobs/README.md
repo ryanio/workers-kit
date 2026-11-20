@@ -504,6 +504,16 @@ const { db, sqlite } = sqliteD1<D1Database>(JOB_RUNS_DDL);
 const ledger = d1Ledger(db);
 ```
 
+`readMigrations(dir, { skip })` turns an app's migrations folder into that DDL: every `.sql` file, sorted by name, wrapped in `PRAGMA foreign_keys = OFF` and `ON` as D1 applies them (`foreignKeysOff: false` leaves the pragmas out). `skip` leaves files out, to test code that ships before a migration. Drizzle's `--> statement-breakpoint` lines are comments, so its folders work as they are.
+
+```ts
+import { readMigrations, sqliteD1 } from "workers-jobs/testing/sqlite";
+
+const { db } = sqliteD1<D1Database>(
+  readMigrations(new URL("../migrations/", import.meta.url)),
+);
+```
+
 ## Related
 
 [`workers-start`](https://github.com/ryanio/workers-kit/tree/main/packages/start) has the helpers for TanStack Start apps on Workers: Markdown for agents on the same URL, per-page head tags, lazy bindings and a check that no local secret ships in the build.
