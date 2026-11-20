@@ -1,0 +1,113 @@
+import { describe, expect, it } from "vitest";
+import {
+  browserSentryOptions,
+  isBrowserNoise,
+  isLocalEvent,
+  validDsn,
+  workerSentryOptions,
+} from "../src/sentry.js";
+
+const DSN = "https://key@o1.ingest.sentry.io/2";
+const at = (url: string) => ({ request: { url } });
+const error = (value: string) => ({ exception: { values: [{ value }] } });
+
+describe("isLocalEvent", () => {
+  it("knows local servers and keeps events without a request", () => {
+    for (const url of [
+      "http://localhost:5173/x",
+      "http://127.0.0.1:8787/",
+      "http://[::1]/",
+      "http://app.localhost/",
+    ]) {
+      expect(isLocalEvent(at(url)), url).toBe(true);
+    }
+    expect(isLocalEvent(at("https://example.com/"))).toBe(false);
+    expect(isLocalEvent({})).toBe(false);
+    expect(isLocalEvent(at("not a url"))).toBe(false);
+  });
+});
+
+describe("workerSentryOptions", () => {
+  it("is off without a usable DSN", () => {
+    for (const SENTRY_DSN of [undefined, "", "off", "http://insecure"]) {
+      expect(workerSentryOptions({ SENTRY_DSN })).toMatchObject({
+        dsn: undefined,
+        enabled: false,
+      });
+    }
+  });
+
+  it("drops local events only, then runs the app's own beforeSend", () => {
+    const seen: unknown[] = [];
+    const options = workerSentryOptions(
+      { SENTRY_DSN: ` ${DSN} ` },
+      {
+        tags: { runtime: "worker" },
+        beforeSend: (event) => {
+          seen.push(event);
+          return { ...event, scrubbed: true };
+        },
+      },
+    );
+    expect(options).toMatchObject({
+      dsn: DSN,
+      enabled: true,
+      tracesSampleRate: 0,
+      initialScope: { tags: { runtime: "worker" } },
+    });
+    expect(options).not.toHaveProperty("release");
+    expect(options).not.toHaveProperty("environment");
+    expect(options.beforeSend(at("http://localhost/"), {})).toBeNull();
+    expect(seen).toHaveLength(0);
+    const kept = options.beforeSend(
+      { ...at("https://example.com/"), ...error("Failed to fetch") },
+      {},
+    );
+    expect(kept).toMatchObject({ scrubbed: true });
+    expect(
+      options.beforeSendTransaction(at("http://127.0.0.1/"), {}),
+    ).toBeNull();
+  });
+});
+
+describe("browserSentryOptions", () => {
+  it("drops browser noise, local pages and extension scripts", () => {
+    const options = browserSentryOptions({
+      dsn: DSN,
+      noise: [/ResizeObserver/],
+    });
+    expect(options.enabled).toBe(true);
+    for (const message of [
+      "TypeError: Failed to fetch",
+      "Load failed",
+      "NetworkError when attempting to fetch resource.",
+      "Object captured as promise rejection with keys: code, message",
+      "User rejected the request.",
+      "ResizeObserver loop limit exceeded",
+    ]) {
+      expect(options.beforeSend(error(message), {}), message).toBeNull();
+    }
+    expect(
+      options.beforeSend(error("Cannot read properties of undefined"), {}),
+    ).not.toBeNull();
+    expect(options.beforeSend(at("http://localhost:3000/"), {})).toBeNull();
+    expect(
+      options.denyUrls.some((re) =>
+        re.test("chrome-extension://abc/inpage.js"),
+      ),
+    ).toBe(true);
+  });
+
+  it("stays off for a dev build even with a DSN", () => {
+    expect(browserSentryOptions({ dsn: DSN, enabled: false }).enabled).toBe(
+      false,
+    );
+    expect(browserSentryOptions({}).enabled).toBe(false);
+  });
+
+  it("exposes the noise check on its own", () => {
+    expect(isBrowserNoise(error("load failed"))).toBe(true);
+    expect(isBrowserNoise(error("real bug"))).toBe(false);
+    expect(validDsn("off")).toBeUndefined();
+  });
+});

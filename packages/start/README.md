@@ -8,19 +8,21 @@ It has no runtime dependencies. Each piece is its own entry point, so an app tak
 
 Check this list before writing a helper in an app. Anything generic to TanStack Start on Workers that is missing belongs here, with a test, rather than in one app.
 
-| Entry point                    | Exports                                                                                                                           | For                                                                                  |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `workers-start/entry`          | `createEntry`, `withHeaders`, `wantsMarkdown`, `acceptsHtml`                                                                      | The Worker entry: Markdown for agents, Accept fixes, 405s, headers on every response |
-| `workers-start/head`           | `createPageHead`, `jsonLdScript`                                                                                                  | Per-route head tags and escaped JSON-LD                                              |
-| `workers-start/scripts`        | `themeScript`, `analyticsScript`, `tagManagerScript`, `gaEvent`, `inlineJson`                                                     | Inline bootstraps, analytics events, JSON safe inside a script tag                   |
-| `workers-start/cache`          | `withEdgeCache`, `sharedMaxAge`, `withoutBrowserMaxAge`                                                                           | Rendered pages kept in the Workers Cache API                                         |
-| `workers-start/workers`        | `getBinding`, `getEnvString`, `afterResponse`, `isKvNamespace`                                                                    | Bindings and `waitUntil` without a static `cloudflare:workers` import                |
-| `workers-start/access`         | `verifyAccessToken`, `createAccessVerifier`, `parseAccessConfig`, `accessToken`                                                   | Cloudflare Access sign-ins checked in the Worker, failing closed                     |
-| `workers-start/access/testing` | `createTestAccessTeam`                                                                                                            | A fake Access team for tests: keys, certs and signed tokens                          |
-| `workers-start/google`         | `googleAccessToken`, `parseServiceAccount`, `ga4RunReport`, `ga4BatchRunReports`, `ga4Rows`, `inListFilter`, `searchConsoleQuery` | Google APIs as a service account: cached tokens, GA4 reports, Search Console         |
-| `workers-start/seo`            | `sitemapXml`, `robotsTxt`, `escapeXml`                                                                                            | `/sitemap.xml` and `/robots.txt` bodies                                              |
-| `workers-start/accept`         | `parseAccept`, `quality`                                                                                                          | Accept header parsing                                                                |
-| `workers-start/check-bundle`   | `workers-start-check-bundle` (bin)                                                                                                | Fails a build that would ship a local secret                                         |
+| Entry point                    | Exports                                                                                                                           | For                                                                                             |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `workers-start/entry`          | `createEntry`, `withHeaders`, `wantsMarkdown`, `acceptsHtml`                                                                      | The Worker entry: Markdown for agents, Accept fixes, 405s, headers on every response            |
+| `workers-start/head`           | `createPageHead`, `jsonLdScript`                                                                                                  | Per-route head tags and escaped JSON-LD                                                         |
+| `workers-start/scripts`        | `themeScript`, `analyticsScript`, `tagManagerScript`, `gaEvent`, `inlineJson`                                                     | Inline bootstraps, analytics events, JSON safe inside a script tag                              |
+| `workers-start/cache`          | `withEdgeCache`, `sharedMaxAge`, `withoutBrowserMaxAge`                                                                           | Rendered pages kept in the Workers Cache API                                                    |
+| `workers-start/workers`        | `getBinding`, `getEnvString`, `afterResponse`, `isKvNamespace`                                                                    | Bindings and `waitUntil` without a static `cloudflare:workers` import                           |
+| `workers-start/access`         | `verifyAccessToken`, `createAccessVerifier`, `parseAccessConfig`, `accessToken`                                                   | Cloudflare Access sign-ins checked in the Worker, failing closed                                |
+| `workers-start/access/testing` | `createTestAccessTeam`                                                                                                            | A fake Access team for tests: keys, certs and signed tokens                                     |
+| `workers-start/google`         | `googleAccessToken`, `parseServiceAccount`, `ga4RunReport`, `ga4BatchRunReports`, `ga4Rows`, `inListFilter`, `searchConsoleQuery` | Google APIs as a service account: cached tokens, GA4 reports, Search Console                    |
+| `workers-start/sentry`         | `workerSentryOptions`, `browserSentryOptions`, `dropLocalEvents`, `isBrowserNoise`, `BROWSER_DENY_URLS`                           | Sentry options for a Worker and its pages: off without a DSN, no local events, no browser noise |
+| `workers-start/mail`           | `cloudflareMailer`, `resendMailer`, `recordingMailer`, `MailError`, `escapeHtml`                                                  | One `send` over Email Sending or Resend, text and HTML always, and a fake for tests             |
+| `workers-start/seo`            | `sitemapXml`, `robotsTxt`, `escapeXml`                                                                                            | `/sitemap.xml` and `/robots.txt` bodies                                                         |
+| `workers-start/accept`         | `parseAccept`, `quality`                                                                                                          | Accept header parsing                                                                           |
+| `workers-start/check-bundle`   | `workers-start-check-bundle` (bin)                                                                                                | Fails a build that would ship a local secret                                                    |
 
 ## Why
 
@@ -279,6 +281,67 @@ const queries = await searchConsoleQuery(token, "sc-domain:example.com", {
 - `ga4Rows(report)` keys each row by header name, dimensions as strings and metrics as numbers; `{ totals: true }` reads the totals rows. `ga4BatchRunReports` sends up to five reports in one call. `inListFilter(field, values)` builds the common dimension filter.
 - `searchConsoleQuery` fills missing fields with zeros and treats a reply with no `rows` as no rows. `{ all: true }` pages with `startRow` until a short page.
 - A Google error status throws `GoogleApiError` with `status`, Google's message and its JSON `body`.
+
+## Sentry
+
+`workers-start/sentry` builds the options objects for `@sentry/cloudflare` and a browser SDK without importing either, so it adds nothing to a bundle that skips Sentry.
+
+```ts
+import * as Sentry from "@sentry/cloudflare";
+import { workerSentryOptions } from "workers-start/sentry";
+
+export default Sentry.withSentry(
+  (env: Env) => workerSentryOptions(env, { tags: { worker: "api" } }),
+  handler,
+);
+```
+
+```ts
+import * as Sentry from "@sentry/react";
+import { browserSentryOptions } from "workers-start/sentry";
+
+Sentry.init({
+  ...browserSentryOptions({
+    dsn: import.meta.env.VITE_SENTRY_DSN,
+    enabled: import.meta.env.PROD,
+  }),
+  integrations: [Sentry.browserTracingIntegration()],
+});
+```
+
+- No DSN, or one that is not an `https://` URL (`off`, a placeholder), means `enabled: false` and no traffic.
+- Both drop events whose request came from this machine (`localhost`, `127.0.0.1`, `[::1]`, `*.localhost`), so `wrangler dev` and `vite preview` never post into the production project. Events with no request, such as a cron run, are kept.
+- The browser options also drop requests that never left the device ("Failed to fetch", "Load failed", Firefox's NetworkError), errors from extensions and injected wallets, and a person declining a wallet prompt, and ignore scripts from extension URLs and Google Translate's proxy (`BROWSER_DENY_URLS`). Pass `noise` and `denyUrls` to add patterns.
+- The Worker options get no message filters: browser wording describes nothing workerd says, so a filter there could only hide a real failure.
+- `tracesSampleRate` defaults to 0. `release` and `environment` are left unset unless given, so `@sentry/cloudflare` reads `SENTRY_RELEASE` (or `CF_VERSION_METADATA`) and `SENTRY_ENVIRONMENT` itself. `beforeSend` runs after the built-in filters; spread the result to add integrations or a sampler.
+
+## Mail
+
+`workers-start/mail` sends over Cloudflare Email Sending or Resend through one `send`, and every message must carry a subject, a recipient, and both a plain text and an HTML body.
+
+```ts
+import { cloudflareMailer, resendMailer } from "workers-start/mail";
+
+const mail = env.NOTIFY
+  ? cloudflareMailer(env.NOTIFY)
+  : resendMailer({ apiKey: env.RESEND_API_KEY });
+
+await mail.send({
+  from: { email: "hello@example.com", name: "Example" },
+  to: "someone@example.com",
+  subject: "Welcome",
+  text: "Thanks for signing up.",
+  html: "<p>Thanks for signing up.</p>",
+  replyTo: "team@example.com",
+  listUnsubscribeUrl: "https://example.com/unsubscribe?t=...", // bulk and marketing mail
+  idempotencyKey: "welcome/usr_123", // Resend only
+});
+```
+
+- `cloudflareMailer(env.BINDING)` uses the binding's structured form; its senders and recipients must be allowed in the binding's wrangler config. `resendMailer({ apiKey })` posts to the Resend API with `fetch`, no SDK.
+- A failure throws `MailError` with Resend's `status` and a `permanent` flag (a 4xx other than 409 and 429), so a job step can retry only what might succeed.
+- `listUnsubscribeUrl` adds `List-Unsubscribe` and the one-click `List-Unsubscribe-Post` header. `headers` adds any others, such as `In-Reply-To`.
+- `recordingMailer()` applies the same checks and keeps every message in `sent`, for tests. `escapeHtml` escapes text for an HTML body.
 
 ## Sitemap and robots.txt
 

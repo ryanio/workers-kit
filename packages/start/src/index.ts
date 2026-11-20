@@ -77,6 +77,23 @@ export type {
 } from "./head.js";
 export { createPageHead, jsonLdScript } from "./head.js";
 export type {
+  MailAddress,
+  MailAttachment,
+  Mailer,
+  MailMessage,
+  MailResult,
+  ResendOptions,
+  SendEmailBinding,
+} from "./mail.js";
+export {
+  checkMessage,
+  cloudflareMailer,
+  escapeHtml,
+  MailError,
+  recordingMailer,
+  resendMailer,
+} from "./mail.js";
+export type {
   AnalyticsScriptOptions,
   GaEventParams,
   TagManagerScriptOptions,
@@ -89,6 +106,23 @@ export {
   tagManagerScript,
   themeScript,
 } from "./scripts.js";
+export type {
+  BrowserSentryOptions,
+  SentryEventLike,
+  WorkerSentryOptions,
+} from "./sentry.js";
+export {
+  BROWSER_DENY_URLS,
+  browserSentryOptions,
+  dropLocalEvents,
+  EXTENSION_ERROR,
+  isBrowserNoise,
+  isLocalEvent,
+  NETWORK_ERROR,
+  USER_REJECTION,
+  validDsn,
+  workerSentryOptions,
+} from "./sentry.js";
 export type { RobotsOptions, RobotsRule, SitemapEntry } from "./seo.js";
 export { escapeXml, robotsTxt, sitemapXml } from "./seo.js";
 export type { WorkersModule } from "./workers.js";

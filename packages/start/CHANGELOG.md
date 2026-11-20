@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.10.0 (2026-11-20)
+
+- `workers-start/sentry`: `workerSentryOptions(env, options)` and `browserSentryOptions(options)` build Sentry options without importing an SDK. No usable DSN turns Sentry off, events from local servers are dropped, and the browser options also drop network, extension, wallet and user-rejection noise (`isBrowserNoise`, `BROWSER_DENY_URLS`). Release and environment are left to `@sentry/cloudflare`'s own env reading unless given.
+- `workers-start/mail`: `cloudflareMailer(binding)` and `resendMailer({ apiKey })` behind one `send(message)`, which refuses a message without both a text and an HTML body. `MailError` carries the status and whether a retry can help; `recordingMailer()` is the test fake; `escapeHtml` for bodies.
+
 ## 0.9.0 (2026-11-20)
 
 - `workers-start/google`: Google APIs as a service account on WebCrypto. `googleAccessToken(account, scopes)` signs the JWT and caches the access token per account and scope (shared exchanges, failures not cached), `parseServiceAccount` reads the key file JSON, and `importServiceAccountKey` names a PKCS#1 or non-PEM key. `ga4RunReport`, `ga4BatchRunReports`, `ga4Rows` and `inListFilter` for the GA4 Data API, and `searchConsoleQuery` (with `all: true` paging) for Search Console. Errors throw `GoogleApiError` with Google's status and message.
