@@ -174,18 +174,25 @@ export function resendMailer(options: ResendOptions): Mailer {
           ...(a.contentType ? { content_type: a.contentType } : {}),
         }));
       }
-      const res = await fetcher("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${options.apiKey}`,
-          "content-type": "application/json",
-          ...(message.idempotencyKey
-            ? { "idempotency-key": message.idempotencyKey }
-            : {}),
-        },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(options.timeoutMs ?? 10_000),
-      });
+      let res: Response;
+      try {
+        res = await fetcher("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${options.apiKey}`,
+            "content-type": "application/json",
+            ...(message.idempotencyKey
+              ? { "idempotency-key": message.idempotencyKey }
+              : {}),
+          },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(options.timeoutMs ?? 10_000),
+        });
+      } catch (err) {
+        throw new MailError(
+          `Resend did not answer: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
       const json = (await res.json().catch(() => null)) as {
         id?: string;
         message?: string;

@@ -131,6 +131,19 @@ describe("resendMailer", () => {
     ).toBe(false);
   });
 
+  it("wraps a timeout or network failure in a MailError that may be retried", async () => {
+    const mail = resendMailer({
+      apiKey: "re_test",
+      fetch: async () => {
+        throw new DOMException("The operation timed out.", "TimeoutError");
+      },
+    });
+    const err = await mail.send(message).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(MailError);
+    expect((err as MailError).permanent).toBe(false);
+    expect((err as Error).message).toContain("timed out");
+  });
+
   it("refuses to send without an API key", async () => {
     await expect(
       resendMailer({ apiKey: undefined }).send(message),

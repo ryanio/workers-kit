@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.0 (2026-11-20)
+
+- `workers-start/rate-limit`: `rateLimit(request, binding, policy, options)` on the Workers rate limiting binding. It counts by a salted hash of the client IP (`clientKey`) or a key the app names, fails open with a once-per-isolate `onUnbound` report, can let verified bots through, and answers a 429 problem with `Retry-After`, `RateLimit-Policy`, `RateLimit` and `no-store` (`tooManyRequests`, `rateLimitHeaders`).
+- `isBrowserNoise` also reads `message` and `logentry.message`, `NETWORK_ERROR` matches "network error" with a space, and `EXTENSION_ERROR` matches the promise rejection object whatever order its keys come in.
+- `resendMailer` throws a `MailError` (not permanent) when Resend times out or cannot be reached, instead of the raw error.
+- `browserSentryOptions({ keep })` keeps events that read like noise but matter, before the noise check.
+
 ## 0.11.0 (2026-11-20)
 
 - `workerSentryOptions` and `browserSentryOptions` leave `tracesSampleRate` unset unless given, instead of 0: an unset rate turns tracing off entirely, where 0 still creates unsampled spans.

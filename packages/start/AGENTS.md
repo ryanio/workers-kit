@@ -13,6 +13,7 @@
 - `src/seo.ts`: sitemap and robots.txt bodies.
 - `src/google.ts`: Google service account tokens, GA4 Data API and Search Console calls.
 - `src/sentry.ts`: Sentry options and filters, with no SDK import. `src/mail.ts`: the mailers over Email Sending and Resend.
+- `src/rate-limit.ts`: the rate limiting binding with hashed keys and the 429 answer.
 - `src/access.ts`: Cloudflare Access JWT checks and the key cache. `src/access-testing.ts`: the `workers-start/access/testing` entry, a fake Access team for tests.
 - `src/check-bundle.ts`, `src/check-bundle-cli.ts`: the secret check and its `workers-start-check-bundle` bin.
 - `test/`: Node tests. The CLI and package tests run the built `dist/`, so `npm test` builds first.

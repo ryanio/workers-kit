@@ -94,6 +94,18 @@ export {
   resendMailer,
 } from "./mail.js";
 export type {
+  RateLimitBinding,
+  RateLimitOptions,
+  RateLimitPolicy,
+} from "./rate-limit.js";
+export {
+  checkRateLimit,
+  clientKey,
+  rateLimit,
+  rateLimitHeaders,
+  tooManyRequests,
+} from "./rate-limit.js";
+export type {
   AnalyticsScriptOptions,
   GaEventParams,
   TagManagerScriptOptions,

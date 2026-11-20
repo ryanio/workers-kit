@@ -19,6 +19,8 @@
 /** The part of a Sentry event the filters read. */
 export interface SentryEventLike {
   request?: { url?: string };
+  message?: string;
+  logentry?: { message?: string };
   exception?: { values?: { value?: string; type?: string }[] };
 }
 
@@ -46,10 +48,10 @@ export function dropLocalEvents<T extends SentryEventLike>(event: T): T | null {
 }
 
 /** Browser wording for a request that never left the device: Chrome, Safari, Firefox. */
-export const NETWORK_ERROR = /failed to fetch|load failed|networkerror/i;
+export const NETWORK_ERROR = /failed to fetch|load failed|network ?error/i;
 /** Errors thrown by extension content scripts and injected wallets. */
 export const EXTENSION_ERROR =
-  /func \w+ not found|tronlink|trap returned falsish|origin not allowed|object captured as promise rejection with keys: code, (data, )?message/i;
+  /func \w+ not found|tronlink|trap returned falsish|origin not allowed|object captured as promise rejection with keys: (?=[^\n]*\bcode\b)(?=[^\n]*\bmessage\b)/i;
 /** A person declining a wallet prompt. */
 export const USER_REJECTION = /user rejected|user denied|rejected the request/i;
 
@@ -66,15 +68,22 @@ export const BROWSER_DENY_URLS: readonly RegExp[] = [
   /webkit-masked-url:/i,
 ];
 
-/** Whether a browser event is noise that is not the app's to fix. `extra` adds patterns matched against the message. */
+/** The texts the noise check reads: the exception value, the message and the log entry. */
+function messagesOf(event: SentryEventLike): string[] {
+  return [
+    event.exception?.values?.[0]?.value,
+    event.message,
+    event.logentry?.message,
+  ].filter((m): m is string => typeof m === "string" && m !== "");
+}
+
+/** Whether a browser event is noise that is not the app's to fix. `extra` adds patterns matched against its messages. */
 export function isBrowserNoise(
   event: SentryEventLike,
   extra: readonly RegExp[] = [],
 ): boolean {
-  const message = event.exception?.values?.[0]?.value ?? "";
-  return [NETWORK_ERROR, EXTENSION_ERROR, USER_REJECTION, ...extra].some((re) =>
-    re.test(message),
-  );
+  const patterns = [NETWORK_ERROR, EXTENSION_ERROR, USER_REJECTION, ...extra];
+  return messagesOf(event).some((m) => patterns.some((re) => re.test(m)));
 }
 
 /** A DSN worth using: an `https://` URL. Anything else (empty, `off`, a placeholder) turns Sentry off. */
@@ -158,6 +167,8 @@ export function browserSentryOptions(
     denyUrls?: readonly RegExp[];
     /** More messages that are noise. */
     noise?: readonly RegExp[];
+    /** Events to keep even when they read like noise, such as handled captures from a wallet flow. */
+    keep?: (event: AnyEvent) => boolean;
   } = {},
 ): BrowserSentryOptions {
   const dsn = validDsn(options.dsn);
@@ -166,11 +177,11 @@ export function browserSentryOptions(
     dsn,
     enabled: dsn !== undefined && options.enabled !== false,
     denyUrls: [...BROWSER_DENY_URLS, ...(options.denyUrls ?? [])],
-    beforeSend: chain(
-      (event) =>
-        isLocalEvent(event) || isBrowserNoise(event, noise) ? null : event,
-      options.beforeSend,
-    ),
+    beforeSend: chain((event) => {
+      if (isLocalEvent(event)) return null;
+      if (options.keep?.(event)) return event;
+      return isBrowserNoise(event, noise) ? null : event;
+    }, options.beforeSend),
     beforeSendTransaction: dropLocalEvents,
   };
   if (options.tracesSampleRate !== undefined)

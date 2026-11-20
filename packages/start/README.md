@@ -20,6 +20,7 @@ Check this list before writing a helper in an app. Anything generic to TanStack 
 | `workers-start/google`         | `googleAccessToken`, `parseServiceAccount`, `ga4RunReport`, `ga4BatchRunReports`, `ga4Rows`, `inListFilter`, `searchConsoleQuery` | Google APIs as a service account: cached tokens, GA4 reports, Search Console                    |
 | `workers-start/sentry`         | `workerSentryOptions`, `browserSentryOptions`, `dropLocalEvents`, `isBrowserNoise`, `BROWSER_DENY_URLS`                           | Sentry options for a Worker and its pages: off without a DSN, no local events, no browser noise |
 | `workers-start/mail`           | `cloudflareMailer`, `resendMailer`, `recordingMailer`, `MailError`, `escapeHtml`                                                  | One `send` over Email Sending or Resend, text and HTML always, and a fake for tests             |
+| `workers-start/rate-limit`     | `rateLimit`, `clientKey`, `checkRateLimit`, `tooManyRequests`, `rateLimitHeaders`                                                 | The rate limiting binding with hashed client keys, fail-open reporting and one 429 answer       |
 | `workers-start/seo`            | `sitemapXml`, `robotsTxt`, `escapeXml`                                                                                            | `/sitemap.xml` and `/robots.txt` bodies                                                         |
 | `workers-start/accept`         | `parseAccept`, `quality`                                                                                                          | Accept header parsing                                                                           |
 | `workers-start/check-bundle`   | `workers-start-check-bundle` (bin)                                                                                                | Fails a build that would ship a local secret                                                    |
@@ -311,9 +312,9 @@ Sentry.init({
 
 - No DSN, or one that is not an `https://` URL (`off`, a placeholder), means `enabled: false` and no traffic.
 - Both drop events whose request came from this machine (`localhost`, `127.0.0.1`, `[::1]`, `*.localhost`), so `wrangler dev` and `vite preview` never post into the production project. Events with no request, such as a cron run, are kept.
-- The browser options also drop requests that never left the device ("Failed to fetch", "Load failed", Firefox's NetworkError), errors from extensions and injected wallets, and a person declining a wallet prompt, and ignore scripts from extension URLs and Google Translate's proxy (`BROWSER_DENY_URLS`). Pass `noise` and `denyUrls` to add patterns.
+- The browser options also drop requests that never left the device ("Failed to fetch", "Load failed", Firefox's NetworkError), errors from extensions and injected wallets, and a person declining a wallet prompt, and ignore scripts from extension URLs and Google Translate's proxy (`BROWSER_DENY_URLS`). Pass `noise` and `denyUrls` to add patterns, and `keep(event)` to keep an event that reads like noise (a handled capture from a wallet flow, say). The noise check reads the exception value, `message` and `logentry.message`.
 - The Worker options get no message filters: browser wording describes nothing workerd says, so a filter there could only hide a real failure.
-- `tracesSampleRate` defaults to 0. `release` and `environment` are left unset unless given, so `@sentry/cloudflare` reads `SENTRY_RELEASE` (or `CF_VERSION_METADATA`) and `SENTRY_ENVIRONMENT` itself. `beforeSend` runs after the built-in filters; spread the result to add integrations or a sampler.
+- `tracesSampleRate` is left unset unless given, which turns tracing off entirely (a rate of 0 still creates unsampled spans). `release` and `environment` are left unset unless given, so `@sentry/cloudflare` reads `SENTRY_RELEASE` (or `CF_VERSION_METADATA`) and `SENTRY_ENVIRONMENT` itself. `beforeSend` runs after the built-in filters; spread the result to add integrations or a sampler.
 
 ## Mail
 
@@ -342,6 +343,30 @@ await mail.send({
 - A failure throws `MailError` with Resend's `status` and a `permanent` flag (a 4xx other than 409 and 429), so a job step can retry only what might succeed.
 - `listUnsubscribeUrl` adds `List-Unsubscribe` and the one-click `List-Unsubscribe-Post` header. `headers` adds any others, such as `In-Reply-To`.
 - `recordingMailer()` applies the same checks and keeps every message in `sent`, for tests. `escapeHtml` escapes text for an HTML body.
+
+## Rate limiting
+
+`workers-start/rate-limit` puts one answer on the Workers [rate limiting binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/):
+
+```ts
+import { rateLimit } from "workers-start/rate-limit";
+
+const API = { name: "api", limit: 300, periodSeconds: 60 } as const; // matches wrangler's ratelimits entry
+
+const limited = await rateLimit(request, env.API_LIMIT, API, {
+  salt: env.RATE_LIMIT_SALT,
+  onUnbound: (error) => console.error("API_LIMIT binding missing or failing", error),
+});
+if (limited) return limited;
+```
+
+- The client is counted by `clientKey(request, { salt })`: a SHA-256 of the salt and `cf-connecting-ip`, so no raw IP reaches the binding or a log. Pass `key` to count by something else, such as an API key or a join code. Keys are prefixed with the policy name.
+- A limited request gets a 429 problem (`application/problem+json`, `code: "rate_limited"`) with `Retry-After`, `RateLimit-Policy` and `RateLimit` (the IETF rate limit headers) and `cache-control: no-store`. `detail` replaces the sentence.
+- A missing binding, or one that throws, lets the request through and calls `onUnbound` once per isolate: failing closed would take a site down over a config slip, and staying quiet would hide it.
+- `allowVerifiedBots: true` lets Cloudflare-verified crawlers through uncounted.
+- The binding counts per location over 10 or 60 seconds. Quotas over hours or days (a plan's daily allowance) are product rules; keep those in the app's database.
+
+`checkRateLimit(binding, key)` is the bare check, and `tooManyRequests(policy)` the bare response, for code that builds its own flow.
 
 ## Sitemap and robots.txt
 

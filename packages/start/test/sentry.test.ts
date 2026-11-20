@@ -108,6 +108,31 @@ describe("browserSentryOptions", () => {
     expect(browserSentryOptions({}).enabled).toBe(false);
   });
 
+  it("reads message and logentry too, and keeps what the app asks it to", () => {
+    const options = browserSentryOptions({
+      dsn: DSN,
+      keep: (event) => event.extra?.step === "connect",
+    });
+    expect(options.beforeSend({ message: "Network Error" }, {})).toBeNull();
+    expect(
+      options.beforeSend({ logentry: { message: "Load failed" } }, {}),
+    ).toBeNull();
+    expect(
+      options.beforeSend(
+        error("Object captured as promise rejection with keys: message, code"),
+        {},
+      ),
+    ).toBeNull();
+    const kept = { ...error("Failed to fetch"), extra: { step: "connect" } };
+    expect(options.beforeSend(kept, {})).toBe(kept);
+    expect(
+      options.beforeSend(
+        { ...at("http://localhost/"), extra: { step: "connect" } },
+        {},
+      ),
+    ).toBeNull();
+  });
+
   it("exposes the noise check on its own", () => {
     expect(isBrowserNoise(error("load failed"))).toBe(true);
     expect(isBrowserNoise(error("real bug"))).toBe(false);
