@@ -1,4 +1,5 @@
 [
+  {"repo": "123shoot", "dir": "scripts/doc-refs"},
   {"repo": "calvin", "dir": "scripts/doc-refs"},
   {"repo": "coral", "dir": "scripts/doc-refs"},
   {"repo": "flock", "dir": "scripts/doc-refs"},

@@ -1,6 +1,6 @@
 # doc-refs
 
-The shared checker that keeps agent docs pointing at things that exist. It is vendored into calvin, coral, flock, glyphbots, musegod, sitewise, terrakin, wompworld and x.
+The shared checker that keeps agent docs pointing at things that exist. It is vendored into 123shoot, calvin, coral, flock, glyphbots, musegod, sitewise, terrakin, wompworld and x.
 
 Each repo gets a copy at `scripts/doc-refs/doc-refs.mjs` and runs it as `npm run check:doc-refs`, chained into that repo's gate. Vendoring rather than a package dependency means CI, a worktree or a cloud session in that repo needs no access to this one.
 
