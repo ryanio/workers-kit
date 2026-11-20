@@ -14,8 +14,15 @@ export {
   parseAccessConfig,
   verifyAccessToken,
 } from "./access.js";
-export type { EdgeCacheOptions } from "./cache.js";
+export type {
+  CachedEntry,
+  CachedKv,
+  CachedOptions,
+  EdgeCacheOptions,
+} from "./cache.js";
 export {
+  cached,
+  cachedEntry,
   sharedMaxAge,
   withEdgeCache,
   withoutBrowserMaxAge,

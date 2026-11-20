@@ -1,5 +1,7 @@
 # workers-jobs
 
+[![npm](https://img.shields.io/npm/v/workers-jobs?color=f38020&label=npm)](https://www.npmjs.com/package/workers-jobs) [![downloads](https://img.shields.io/npm/dm/workers-jobs?color=f38020)](https://www.npmjs.com/package/workers-jobs) [![CI](https://github.com/ryanio/workers-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/ryanio/workers-kit/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/ryanio/workers-kit/blob/main/LICENSE)
+
 Background jobs for Cloudflare Workers, on Cron Triggers and Workflows.
 
 You write each job as a typed handler with steps. The package starts one Workflow instance per job per event or cron slot, with an id that makes a repeat a no-op. It runs the handler with explicit retries and records every run in a ledger table on D1 or Postgres. It also starts cron slots that a dead trigger missed. A job that needs no Workflow can run inline instead, in the cron handler or wherever the app delivers it.

@@ -1,6 +1,8 @@
 # workers-start
 
-The parts every TanStack Start app on Cloudflare Workers ends up writing by hand.
+[![npm](https://img.shields.io/npm/v/workers-start?color=f38020&label=npm)](https://www.npmjs.com/package/workers-start) [![downloads](https://img.shields.io/npm/dm/workers-start?color=f38020)](https://www.npmjs.com/package/workers-start) [![CI](https://github.com/ryanio/workers-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/ryanio/workers-kit/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/ryanio/workers-kit/blob/main/LICENSE)
+
+The parts every app on Cloudflare Workers ends up writing by hand, TanStack Start apps most of all.
 
 It has no runtime dependencies. Each piece is its own entry point, so an app takes only what it uses.
 
@@ -13,7 +15,7 @@ Check this list before writing a helper in an app. Anything generic to TanStack 
 | `workers-start/entry`          | `createEntry`, `withHeaders`, `wantsMarkdown`, `acceptsHtml`                                                                      | The Worker entry: Markdown for agents, Accept fixes, 405s, headers on every response            |
 | `workers-start/head`           | `createPageHead`, `jsonLdScript`                                                                                                  | Per-route head tags and escaped JSON-LD                                                         |
 | `workers-start/scripts`        | `themeScript`, `analyticsScript`, `tagManagerScript`, `gaEvent`, `inlineJson`                                                     | Inline bootstraps, analytics events, JSON safe inside a script tag                              |
-| `workers-start/cache`          | `withEdgeCache`, `sharedMaxAge`, `withoutBrowserMaxAge`                                                                           | Rendered pages kept in the Workers Cache API                                                    |
+| `workers-start/cache`          | `withEdgeCache`, `sharedMaxAge`, `withoutBrowserMaxAge`, `cached`, `cachedEntry`                                                  | Rendered pages and computed values kept in the Workers Cache API                                |
 | `workers-start/workers`        | `getBinding`, `getEnvString`, `afterResponse`, `isKvNamespace`                                                                    | Bindings and `waitUntil` without a static `cloudflare:workers` import                           |
 | `workers-start/access`         | `verifyAccessToken`, `createAccessVerifier`, `parseAccessConfig`, `accessToken`                                                   | Cloudflare Access sign-ins checked in the Worker, failing closed                                |
 | `workers-start/access/testing` | `createTestAccessTeam`                                                                                                            | A fake Access team for tests: keys, certs and signed tokens                                     |
@@ -184,6 +186,26 @@ return withEdgeCache(request, () => handler.fetch(request), {
 ```
 
 A cache hit has its browser `max-age` removed (the zone adds one, and a browser holding page HTML that long outlives the next deploy's assets). The store runs after the response through `afterResponse`; pass `waitUntil` or `cache` to override, as tests do. Outside workerd every request renders.
+
+### Cached values
+
+`cached(key, compute, options)` keeps a computed value (an upstream API's answer, an aggregate from the database) in the Cache API, with stale-while-revalidate and stale-if-error:
+
+```ts
+import { cached } from "workers-start/cache";
+
+const gas = await cached("gas", () => fetchGasSnapshot(env), {
+  freshSeconds: 15,
+  staleSeconds: 600,
+  onError: (error) => console.error("gas refresh failed", error),
+});
+```
+
+- Within `freshSeconds` the stored value is returned as is.
+- Within `staleSeconds` after that it is returned too, and recomputed after the response, one refresh per key per isolate at a time.
+- Older or missing, it is recomputed before answering. If that fails and an earlier value is still stored, the earlier value is returned and the error goes to `onError`; with nothing stored, the error is thrown.
+- Values live in each location's Cache API, which has no write limit or cost. Pass `kv` to share them across locations too, for an upstream too slow or rate limited to call once per location; a location then warms its own cache from KV.
+- `version` is added to every key, so a deploy that changes the value's shape starts fresh. Values must be JSON. `cachedEntry` returns `{ value, at, stale }` instead of the value, for a page that shows how old its numbers are.
 
 ## Cloudflare Access
 

@@ -1,5 +1,7 @@
 # workers-api
 
+[![npm](https://img.shields.io/npm/v/workers-api?color=f38020&label=npm)](https://www.npmjs.com/package/workers-api) [![downloads](https://img.shields.io/npm/dm/workers-api?color=f38020)](https://www.npmjs.com/package/workers-api) [![CI](https://github.com/ryanio/workers-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/ryanio/workers-kit/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/ryanio/workers-kit/blob/main/LICENSE)
+
 The API setup every Hono app on Cloudflare Workers ends up writing by hand, on [`@hono/zod-openapi`](https://github.com/honojs/middleware/tree/main/packages/zod-openapi).
 
 It has no runtime dependencies. `hono`, `@hono/zod-openapi` and `zod` are peers, and `workers-start` is a peer for `workers-api/access`.

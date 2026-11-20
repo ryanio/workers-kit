@@ -93,3 +93,164 @@ export async function withEdgeCache(
   }
   return response;
 }
+
+/** A KV namespace, structurally. */
+export interface CachedKv {
+  get(key: string): Promise<string | null>;
+  put(
+    key: string,
+    value: string,
+    options?: { expirationTtl?: number },
+  ): Promise<void>;
+}
+
+export interface CachedOptions {
+  /** Served as is for this long after it was computed. */
+  freshSeconds: number;
+  /**
+   * After that, served for this much longer while one refresh runs after the
+   * response. Default 0: a value past fresh is recomputed before answering.
+   */
+  staleSeconds?: number;
+  /**
+   * A KV namespace to share values across locations, for upstreams too slow
+   * or rate limited to call once per location. Without it, values live in
+   * each location's Cache API, which has no write limit or cost.
+   */
+  kv?: CachedKv;
+  /** Added to every key, so a deploy that changes the value's shape starts fresh. */
+  version?: string;
+  /** The Cache to use. Default `caches.default`; none outside workerd. */
+  cache?: Pick<Cache, "match" | "put">;
+  /** Schedules background refreshes and stores. Default `afterResponse`. */
+  waitUntil?: (work: Promise<unknown>) => void;
+  /** Hears a failed compute that was answered with a stale value instead, or a failed store. */
+  onError?: (error: unknown) => void;
+  /** Milliseconds since the epoch. */
+  now?: () => number;
+}
+
+export interface CachedEntry<T> {
+  value: T;
+  /** When the value was computed, in milliseconds since the epoch. */
+  at: number;
+  /** True when the value is past `freshSeconds`. */
+  stale: boolean;
+}
+
+interface Envelope<T> {
+  at: number;
+  value: T;
+}
+
+const refreshing = new Map<string, Promise<unknown>>();
+
+/**
+ * A value computed at most once per `freshSeconds`, kept in the Cache API
+ * (and in KV, when given), with stale-while-revalidate and stale-if-error:
+ *
+ * - fresh: returned as is;
+ * - within `staleSeconds` after that: returned, and recomputed after the
+ *   response (one refresh per key per isolate at a time);
+ * - older, or missing: recomputed before answering. If that fails and any
+ *   earlier value is still stored, the earlier value is returned (with
+ *   `stale: true`) and the error goes to `onError`; with nothing stored, the
+ *   error is thrown.
+ *
+ * Values must be JSON. Keys are any string.
+ */
+export async function cachedEntry<T>(
+  key: string,
+  compute: () => Promise<T>,
+  options: CachedOptions,
+): Promise<CachedEntry<T>> {
+  const now = options.now ?? Date.now;
+  const freshMs = options.freshSeconds * 1000;
+  const staleMs = (options.staleSeconds ?? 0) * 1000;
+  const keepSeconds = Math.max(
+    60,
+    Math.ceil(options.freshSeconds + (options.staleSeconds ?? 0)) * 4,
+  );
+  const fullKey = options.version ? `${options.version}:${key}` : key;
+  const cache = options.cache ?? defaultCache();
+  const cacheKey = new Request(
+    `https://workers-start.cache/${encodeURIComponent(fullKey)}`,
+  );
+  const later = (work: Promise<unknown>) => {
+    const guarded = work.catch((error) => options.onError?.(error));
+    if (options.waitUntil) options.waitUntil(guarded);
+    else void afterResponse(guarded);
+  };
+
+  const read = async (): Promise<Envelope<T> | null> => {
+    const hit = cache ? await cache.match(cacheKey) : undefined;
+    if (hit) return (await hit.json()) as Envelope<T>;
+    if (!options.kv) return null;
+    const raw = await options.kv.get(fullKey);
+    if (!raw) return null;
+    const envelope = JSON.parse(raw) as Envelope<T>;
+    if (cache) later(cache.put(cacheKey, toResponse(envelope, keepSeconds)));
+    return envelope;
+  };
+
+  const store = async (envelope: Envelope<T>) => {
+    const text = JSON.stringify(envelope);
+    await Promise.all([
+      cache?.put(cacheKey, toResponse(envelope, keepSeconds)),
+      options.kv?.put(fullKey, text, { expirationTtl: keepSeconds }),
+    ]);
+  };
+
+  const refresh = (): Promise<Envelope<T>> => {
+    const running = refreshing.get(fullKey) as Promise<Envelope<T>> | undefined;
+    if (running) return running;
+    const next = (async () => {
+      const envelope = { at: now(), value: await compute() };
+      later(store(envelope));
+      return envelope;
+    })().finally(() => refreshing.delete(fullKey));
+    refreshing.set(fullKey, next);
+    return next;
+  };
+
+  let current: Envelope<T> | null = null;
+  try {
+    current = await read();
+  } catch (error) {
+    options.onError?.(error);
+  }
+  const age = current ? now() - current.at : Number.POSITIVE_INFINITY;
+  if (current && age <= freshMs) {
+    return { value: current.value, at: current.at, stale: false };
+  }
+  if (current && age <= freshMs + staleMs) {
+    later(refresh());
+    return { value: current.value, at: current.at, stale: true };
+  }
+  try {
+    const fresh = await refresh();
+    return { value: fresh.value, at: fresh.at, stale: false };
+  } catch (error) {
+    if (!current) throw error;
+    options.onError?.(error);
+    return { value: current.value, at: current.at, stale: true };
+  }
+}
+
+/** `cachedEntry`, returning only the value. */
+export async function cached<T>(
+  key: string,
+  compute: () => Promise<T>,
+  options: CachedOptions,
+): Promise<T> {
+  return (await cachedEntry(key, compute, options)).value;
+}
+
+function toResponse(envelope: Envelope<unknown>, seconds: number): Response {
+  return new Response(JSON.stringify(envelope), {
+    headers: {
+      "content-type": "application/json",
+      "cache-control": `public, s-maxage=${seconds}, max-age=${seconds}`,
+    },
+  });
+}

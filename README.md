@@ -1,12 +1,30 @@
 # workers-kit
 
-Libraries for apps on Cloudflare Workers. Each one is a separate npm package with its own version and changelog, so an app installs only what it uses.
+[![CI](https://github.com/ryanio/workers-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/ryanio/workers-kit/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-| Package                                  | npm                                                            | For                                                                                                                                                                                                                     |
-| ---------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`workers-start`](packages/start#readme) | [`workers-start`](https://www.npmjs.com/package/workers-start) | TanStack Start on Workers: Markdown for agents on the same URL, per-page head tags, lazy bindings, an edge page cache, Cloudflare Access checks and a check that no local secret ships in the build.                    |
-| [`workers-jobs`](packages/jobs#readme)   | [`workers-jobs`](https://www.npmjs.com/package/workers-jobs)   | Background jobs on Cron Triggers and Workflows: typed jobs, deduplicated instance ids, a backstop for dead triggers and a run ledger for D1 or Postgres.                                                                |
-| [`workers-api`](packages/api#readme)     | [`workers-api`](https://www.npmjs.com/package/workers-api)     | Hono APIs on Workers: RFC 9457 problem responses, a validation hook, opaque cursors, a Cloudflare Access guard, spec and openapi-fetch types generated with a drift check, and a test that the spec matches the routes. |
+Libraries for apps on Cloudflare Workers. Each is its own npm package with its own version and changelog, so an app installs only what it uses.
+
+## Packages
+
+### [workers-start](packages/start#readme)
+
+[![npm](https://img.shields.io/npm/v/workers-start?color=f38020&label=npm)](https://www.npmjs.com/package/workers-start) [![downloads](https://img.shields.io/npm/dm/workers-start?color=f38020)](https://www.npmjs.com/package/workers-start)
+
+The parts every Worker app ends up writing, with no dependencies: the TanStack Start entry with Markdown for agents, head tags, bindings and `waitUntil`, an edge page cache and a stale-while-revalidate value cache, Cloudflare Access checks, Google service-account calls (GA4, Search Console), Sentry options, mail over Email Sending or Resend, rate limiting, and a check that no local secret ships in the build.
+
+### [workers-jobs](packages/jobs#readme)
+
+[![npm](https://img.shields.io/npm/v/workers-jobs?color=f38020&label=npm)](https://www.npmjs.com/package/workers-jobs) [![downloads](https://img.shields.io/npm/dm/workers-jobs?color=f38020)](https://www.npmjs.com/package/workers-jobs)
+
+Background jobs on Cron Triggers and Workflows: typed jobs, deduplicated instance ids, a backstop for dead triggers, a run ledger for D1 or Postgres, and a D1 stand-in on `node:sqlite` for tests.
+
+### [workers-api](packages/api#readme)
+
+[![npm](https://img.shields.io/npm/v/workers-api?color=f38020&label=npm)](https://www.npmjs.com/package/workers-api) [![downloads](https://img.shields.io/npm/dm/workers-api?color=f38020)](https://www.npmjs.com/package/workers-api)
+
+Hono APIs on `@hono/zod-openapi`: RFC 9457 problem responses, request validation that names every field, opaque cursors, a Cloudflare Access guard, the OpenAPI spec and openapi-fetch types generated with a drift check, and a test that the spec matches the routes.
+
+## Install
 
 ```bash
 npm install workers-start

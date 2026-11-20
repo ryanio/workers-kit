@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.13.0 (2026-11-20)
+
+- `workers-start/cache`: `cached(key, compute, { freshSeconds, staleSeconds, kv, version, onError })` and `cachedEntry` keep computed values in the Cache API with stale-while-revalidate (one background refresh per key per isolate) and stale-if-error, with KV as an optional second tier shared across locations.
+- READMEs carry npm, downloads, CI and license badges.
+
 ## 0.12.0 (2026-11-20)
 
 - `workers-start/rate-limit`: `rateLimit(request, binding, policy, options)` on the Workers rate limiting binding. It counts by a salted hash of the client IP (`clientKey`) or a key the app names, fails open with a once-per-isolate `onUnbound` report, can let verified bots through, and answers a 429 problem with `Retry-After`, `RateLimit-Policy`, `RateLimit` and `no-store` (`tooManyRequests`, `rateLimitHeaders`).
