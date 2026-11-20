@@ -1,0 +1,26 @@
+{
+  "name": "workers-kit",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "check": "npm run check:doc-refs && npm run check:lockfile && npm run lint && npm run check --workspaces && npm run deadcode",
+    "lint": "biome check",
+    "format": "biome check --write",
+    "test": "npm test --workspaces",
+    "build": "npm run build --workspaces",
+    "deadcode": "knip",
+    "check:doc-refs": "node scripts/doc-refs/doc-refs.mjs",
+    "check:lockfile": "node scripts/check-lockfile-platforms.mjs",
+    "prepare": "git config core.hooksPath .githooks || true"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.8",
+    "knip": "^6.47.0"
+  }
+}

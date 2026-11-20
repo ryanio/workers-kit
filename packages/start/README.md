@@ -228,7 +228,7 @@ The same check is exported from `workers-start/check-bundle` as `checkBundle(env
 
 ## Related
 
-[`workers-jobs`](https://github.com/ryanio/workers-jobs) runs background jobs on Cron Triggers and Workflows, with dedup, explicit retries, a run ledger and a backstop for missed cron slots.
+[`workers-jobs`](https://github.com/ryanio/workers-kit/tree/main/packages/jobs) runs background jobs on Cron Triggers and Workflows, with dedup, explicit retries, a run ledger and a backstop for missed cron slots.
 
 ## License
 

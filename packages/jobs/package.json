@@ -6,7 +6,12 @@
   "author": "Ryan Ghods",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ryanio/workers-jobs.git"
+    "url": "git+https://github.com/ryanio/workers-kit.git",
+    "directory": "packages/jobs"
+  },
+  "homepage": "https://github.com/ryanio/workers-kit/tree/main/packages/jobs#readme",
+  "bugs": {
+    "url": "https://github.com/ryanio/workers-kit/issues"
   },
   "keywords": [
     "cloudflare",
@@ -46,16 +51,12 @@
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "lint": "biome check",
-    "format": "biome check --write",
     "test": "vitest run --project unit",
     "test:workerd": "vitest run --project workerd",
-    "check": "npm run lint && npm run typecheck && npm run build && vitest run",
-    "prepack": "npm run build",
-    "prepare": "git config core.hooksPath .githooks || true"
+    "check": "npm run typecheck && npm run build && vitest run",
+    "prepack": "npm run build"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.6.8",
     "@cloudflare/vitest-plugin": "^1.8.3",
     "@cloudflare/workers-types": "^5.20261117.1",
     "@electric-sql/pglite": "^0.5.14",

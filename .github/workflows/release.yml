@@ -1,0 +1,71 @@
+name: Release
+
+# A push to main that changes a package's package.json releases each package
+# whose version is not on npm yet: the gate runs, npm publishes that package
+# through trusted publishing (OIDC, no token, with a provenance statement), and
+# the workflow tags the commit `<name>@<version>` and opens a GitHub release
+# from that version's section of the package's CHANGELOG. A version already on
+# npm is skipped, so nothing is ever republished.
+
+on:
+  push:
+    branches: [main]
+    paths: ["packages/*/package.json"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: npm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - name: Which versions are new?
+        id: versions
+        run: |
+          new=""
+          for manifest in packages/*/package.json; do
+            dir=$(dirname "$manifest")
+            name=$(node -p "require('./$manifest').name")
+            version=$(node -p "require('./$manifest').version")
+            if npm view "$name@$version" version --prefer-online >/dev/null 2>&1; then
+              echo "$name@$version is already on npm"
+            else
+              echo "$name@$version is new"
+              new="$new $dir"
+            fi
+          done
+          echo "dirs=${new# }" >> "$GITHUB_OUTPUT"
+      - if: steps.versions.outputs.dirs != ''
+        run: npm ci
+      - if: steps.versions.outputs.dirs != ''
+        run: npm run check
+      - name: Publish, tag and GitHub release
+        if: steps.versions.outputs.dirs != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIRS: ${{ steps.versions.outputs.dirs }}
+        run: |
+          for dir in $DIRS; do
+            name=$(node -p "require('./$dir/package.json').name")
+            version=$(node -p "require('./$dir/package.json').version")
+            tag="$name@$version"
+            npm publish --workspace "$dir" --provenance
+            awk -v v="$version" '$0 ~ "^## "v" " {on=1; next} /^## / {on=0} on' "$dir/CHANGELOG.md" > notes.md
+            git tag "$tag" "$GITHUB_SHA"
+            git push origin "$tag"
+            gh release create "$tag" --title "$tag" --notes-file notes.md --verify-tag
+          done

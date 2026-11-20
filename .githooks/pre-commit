@@ -1,0 +1,36 @@
+#!/bin/bash
+# Pre-commit: Biome checks the staged files, then vitest runs, in each package
+# with a staged source, the tests that source can reach through its imports.
+# A staged vitest config runs that package's full suite, and a staged
+# package-lock.json runs every package's full suite.
+# Typecheck, the build and the full gate stay with `npm run check` and CI.
+
+ROOT=$(git rev-parse --show-toplevel)
+LOG_FILE="/tmp/$(basename "$ROOT")-pre-commit-output.txt"
+exec > >(tee "$LOG_FILE") 2>&1
+cd "$ROOT" || exit 1
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$STAGED" ] && exit 0
+
+fail() {
+  echo ""
+  echo ">>> Pre-commit $1 failed. Full output saved to $LOG_FILE"
+  exit 1
+}
+
+npx biome check --staged --no-errors-on-unmatched || fail "biome"
+
+LOCK=$(echo "$STAGED" | grep -qx 'package-lock.json' && echo 1)
+
+for dir in packages/*/; do
+  pkg=${dir%/}
+  if [ -n "$LOCK" ] || echo "$STAGED" | grep -qE "^$pkg/vitest\.config\.[cm]?[jt]s$"; then
+    (cd "$pkg" && npx vitest run) || fail "tests in $pkg"
+    continue
+  fi
+  SOURCES=()
+  while IFS= read -r f; do SOURCES+=("${f#"$pkg"/}"); done < <(echo "$STAGED" | grep -E "^$pkg/.*\.(ts|tsx|js|mjs|cjs)$")
+  [ ${#SOURCES[@]} -eq 0 ] && continue
+  (cd "$pkg" && npx vitest related --run --passWithNoTests "${SOURCES[@]}") || fail "tests in $pkg"
+done

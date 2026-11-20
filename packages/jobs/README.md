@@ -506,7 +506,7 @@ const ledger = d1Ledger(db);
 
 ## Related
 
-[`workers-start`](https://github.com/ryanio/workers-start) has the helpers for TanStack Start apps on Workers: Markdown for agents on the same URL, per-page head tags, lazy bindings and a check that no local secret ships in the build.
+[`workers-start`](https://github.com/ryanio/workers-kit/tree/main/packages/start) has the helpers for TanStack Start apps on Workers: Markdown for agents on the same URL, per-page head tags, lazy bindings and a check that no local secret ships in the build.
 
 ## License
 
