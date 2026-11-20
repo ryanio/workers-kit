@@ -52,9 +52,9 @@ describe("workerSentryOptions", () => {
     expect(options).toMatchObject({
       dsn: DSN,
       enabled: true,
-      tracesSampleRate: 0,
       initialScope: { tags: { runtime: "worker" } },
     });
+    expect(options).not.toHaveProperty("tracesSampleRate");
     expect(options).not.toHaveProperty("release");
     expect(options).not.toHaveProperty("environment");
     expect(options.beforeSend(at("http://localhost/"), {})).toBeNull();

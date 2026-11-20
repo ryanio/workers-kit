@@ -97,7 +97,7 @@ function chain(...steps: (BeforeSend | undefined)[]): BeforeSend {
 interface CommonOptions {
   /** Overrides the DSN read from the env. */
   dsn?: string | undefined;
-  /** Default 0: no tracing. */
+  /** Left unset by default: an unset rate means no tracing at all, where 0 still creates unsampled spans. */
   tracesSampleRate?: number;
   /** Runs after the built-in filters. */
   beforeSend?: BeforeSend;
@@ -110,7 +110,7 @@ interface CommonOptions {
 export interface WorkerSentryOptions {
   dsn: string | undefined;
   enabled: boolean;
-  tracesSampleRate: number;
+  tracesSampleRate?: number;
   beforeSend: BeforeSend;
   beforeSendTransaction: BeforeSend;
   initialScope?: { tags: Record<string, string> };
@@ -131,10 +131,11 @@ export function workerSentryOptions(
   const out: WorkerSentryOptions = {
     dsn,
     enabled: dsn !== undefined,
-    tracesSampleRate: options.tracesSampleRate ?? 0,
     beforeSend: chain(dropLocalEvents, options.beforeSend),
     beforeSendTransaction: dropLocalEvents,
   };
+  if (options.tracesSampleRate !== undefined)
+    out.tracesSampleRate = options.tracesSampleRate;
   if (options.tags) out.initialScope = { tags: options.tags };
   if (options.release) out.release = options.release;
   if (options.environment) out.environment = options.environment;
@@ -164,7 +165,6 @@ export function browserSentryOptions(
   const out: BrowserSentryOptions = {
     dsn,
     enabled: dsn !== undefined && options.enabled !== false,
-    tracesSampleRate: options.tracesSampleRate ?? 0,
     denyUrls: [...BROWSER_DENY_URLS, ...(options.denyUrls ?? [])],
     beforeSend: chain(
       (event) =>
@@ -173,6 +173,8 @@ export function browserSentryOptions(
     ),
     beforeSendTransaction: dropLocalEvents,
   };
+  if (options.tracesSampleRate !== undefined)
+    out.tracesSampleRate = options.tracesSampleRate;
   if (options.tags) out.initialScope = { tags: options.tags };
   if (options.release) out.release = options.release;
   if (options.environment) out.environment = options.environment;
