@@ -205,7 +205,7 @@ const gas = await cached("gas", () => fetchGasSnapshot(env), {
 - Within `staleSeconds` after that it is returned too, and recomputed after the response, one refresh per key per isolate at a time.
 - Older or missing, it is recomputed before answering. If that fails and an earlier value is still stored, the earlier value is returned and the error goes to `onError`; with nothing stored, the error is thrown.
 - Values live in each location's Cache API, which has no write limit or cost. Pass `kv` to share them across locations too, for an upstream too slow or rate limited to call once per location; a location then warms its own cache from KV.
-- `version` is added to every key, so a deploy that changes the value's shape starts fresh. Values must be JSON. `cachedEntry` returns `{ value, at, stale }` instead of the value, for a page that shows how old its numbers are.
+- `version` is added to every key, so a deploy that changes the value's shape starts fresh. Values must be JSON. `cachedEntry` returns `{ value, at, stale }` instead of the value, for a page that shows how old its numbers are, and `peekCached` reads what is stored without computing anything.
 
 ## Cloudflare Access
 
@@ -388,7 +388,7 @@ if (limited) return limited;
 - `allowVerifiedBots: true` lets Cloudflare-verified crawlers (`cf.verifiedBotCategory` or `cf.botManagement.verifiedBot`) through uncounted.
 - The binding counts per location over 10 or 60 seconds. Quotas over hours or days (a plan's daily allowance) are product rules; keep those in the app's database.
 
-`checkRateLimit(binding, key)` is the bare check, and `tooManyRequests(policy)` the bare response, for code that builds its own flow.
+`checkRateLimit(binding, key, { name })` is the bare check, `tooManyRequests(policy)` the bare response, and `rateLimitProblem(policy)` its body as an object, for code that builds its own flow. The header and response helpers take any window, so a daily cap counted in the app's database answers the same way.
 
 ## Sitemap and robots.txt
 

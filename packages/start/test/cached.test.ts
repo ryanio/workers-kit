@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type CachedKv, cachedEntry } from "../src/cache.js";
+import { type CachedKv, cachedEntry, peekCached } from "../src/cache.js";
 
 /** A Cache API stand-in: one map, keyed by URL. */
 function memoryCache() {
@@ -145,6 +145,19 @@ describe("cachedEntry", () => {
     expect(there.value).toEqual({ n: 1 });
     await s.settle();
     expect(elsewhere.store.size).toBe(1);
+    expect(s.calls()).toBe(1);
+  });
+
+  it("peeks without computing", async () => {
+    const s = setup();
+    expect(await peekCached("gas", s.options)).toBeNull();
+    await cachedEntry("gas", s.compute, s.options);
+    await s.settle();
+    s.tick(120);
+    expect(await peekCached("gas", s.options)).toMatchObject({
+      value: { n: 1 },
+      stale: true,
+    });
     expect(s.calls()).toBe(1);
   });
 

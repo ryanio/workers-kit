@@ -254,3 +254,36 @@ function toResponse(envelope: Envelope<unknown>, seconds: number): Response {
     },
   });
 }
+
+/**
+ * The stored entry for `key`, without computing or refreshing anything: null
+ * when nothing is stored. `stale` is judged by `freshSeconds`. Takes the same
+ * options as `cachedEntry`, so the same key and version are read.
+ */
+export async function peekCached<T>(
+  key: string,
+  options: CachedOptions,
+): Promise<CachedEntry<T> | null> {
+  const fullKey = options.version ? `${options.version}:${key}` : key;
+  const cache = options.cache ?? defaultCache();
+  const hit = cache
+    ? await cache.match(
+        new Request(
+          `https://workers-start.cache/${encodeURIComponent(fullKey)}`,
+        ),
+      )
+    : undefined;
+  let envelope: Envelope<T> | null = null;
+  if (hit) envelope = (await hit.json()) as Envelope<T>;
+  else if (options.kv) {
+    const raw = await options.kv.get(fullKey);
+    if (raw) envelope = JSON.parse(raw) as Envelope<T>;
+  }
+  if (!envelope) return null;
+  const now = options.now ?? Date.now;
+  return {
+    value: envelope.value,
+    at: envelope.at,
+    stale: now() - envelope.at > options.freshSeconds * 1000,
+  };
+}

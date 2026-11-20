@@ -5,6 +5,7 @@ import {
   type RateLimitBinding,
   rateLimit,
   rateLimitHeaders,
+  rateLimitProblem,
   tooManyRequests,
 } from "../src/rate-limit.js";
 
@@ -130,6 +131,10 @@ describe("checkRateLimit", () => {
     expect(await checkRateLimit(broken, "k", { onUnbound })).toBe(true);
     expect(seen).toHaveLength(2);
     expect(seen[1]).toBeInstanceOf(Error);
+    expect(
+      await checkRateLimit(undefined, "k", { onUnbound, name: "other" }),
+    ).toBe(true);
+    expect(seen).toHaveLength(3);
   });
 });
 
@@ -143,5 +148,17 @@ describe("headers", () => {
       ratelimit: '"join";r=0;t=10',
     });
     expect(tooManyRequests(POLICY).headers.get("retry-after")).toBe("60");
+    expect(
+      rateLimitHeaders({ name: "daily", limit: 10, periodSeconds: 86400 }),
+    ).toMatchObject({
+      "retry-after": "86400",
+    });
+    expect(rateLimitProblem(POLICY, "Slow down.")).toEqual({
+      type: "about:blank",
+      title: "Too Many Requests",
+      status: 429,
+      code: "rate_limited",
+      detail: "Slow down.",
+    });
   });
 });

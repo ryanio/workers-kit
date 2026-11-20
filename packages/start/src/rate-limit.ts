@@ -16,12 +16,18 @@ export interface RateLimitBinding {
   limit(options: { key: string }): Promise<{ success: boolean }>;
 }
 
-export interface RateLimitPolicy {
+/** A limit as the headers and the 429 describe it, over any window. */
+export interface RateLimitWindow {
   /** Names the limit in the headers, such as `api` or `join`. */
   name: string;
-  /** Requests allowed per period. Must match the binding's wrangler config. */
+  /** Requests allowed per period. */
   limit: number;
-  /** The binding's period: 10 or 60 seconds. */
+  periodSeconds: number;
+}
+
+/** A limit counted by the binding, which supports 10 or 60 second periods. */
+export interface RateLimitPolicy extends RateLimitWindow {
+  /** Must match the binding's wrangler config. */
   periodSeconds: 10 | 60;
 }
 
@@ -47,8 +53,7 @@ export async function clientKey(
     .join("");
 }
 
-const reported = new WeakSet<object>();
-let reportedUnbound = false;
+const reported = new Set<string>();
 
 /**
  * Whether the request may go ahead. A missing binding allows it (failing
@@ -58,29 +63,36 @@ let reportedUnbound = false;
 export async function checkRateLimit(
   binding: RateLimitBinding | undefined | null,
   key: string,
-  { onUnbound }: { onUnbound?: (error?: unknown) => void } = {},
+  {
+    onUnbound,
+    name = "default",
+  }: {
+    onUnbound?: (error?: unknown) => void;
+    /** Which limit this is, so each missing binding is reported once. */
+    name?: string;
+  } = {},
 ): Promise<boolean> {
+  const report = (error?: unknown) => {
+    const id = `${name}:${error === undefined ? "unbound" : "failing"}`;
+    if (reported.has(id)) return;
+    reported.add(id);
+    onUnbound?.(error);
+  };
   if (!binding) {
-    if (!reportedUnbound) {
-      reportedUnbound = true;
-      onUnbound?.();
-    }
+    report();
     return true;
   }
   try {
     return (await binding.limit({ key })).success;
   } catch (error) {
-    if (!reported.has(binding)) {
-      reported.add(binding);
-      onUnbound?.(error);
-    }
+    report(error);
     return true;
   }
 }
 
 /** The IETF rate limit headers for a limited response, with `Retry-After`. */
 export function rateLimitHeaders(
-  policy: RateLimitPolicy,
+  policy: RateLimitWindow,
 ): Record<string, string> {
   const name = JSON.stringify(policy.name);
   return {
@@ -91,8 +103,21 @@ export function rateLimitHeaders(
 }
 
 /** The 429 problem for `policy`. `detail` replaces the default sentence. */
+/** The 429 problem body for `policy`, as a plain object (for OpenAPI examples). */
+export function rateLimitProblem(policy: RateLimitWindow, detail?: string) {
+  return {
+    type: "about:blank",
+    title: "Too Many Requests",
+    status: 429 as const,
+    code: "rate_limited" as const,
+    detail:
+      detail ??
+      `Too many requests. Try again in ${policy.periodSeconds} seconds.`,
+  };
+}
+
 export function tooManyRequests(
-  policy: RateLimitPolicy,
+  policy: RateLimitWindow,
   { detail, text }: { detail?: string; text?: boolean } = {},
 ): Response {
   const sentence =
@@ -108,13 +133,7 @@ export function tooManyRequests(
       },
     });
   }
-  const body = {
-    type: "about:blank",
-    title: "Too Many Requests",
-    status: 429,
-    code: "rate_limited",
-    detail: sentence,
-  };
+  const body = rateLimitProblem(policy, sentence);
   return new Response(JSON.stringify(body), {
     status: 429,
     headers: {
@@ -167,11 +186,10 @@ export async function rateLimit(
   const key =
     options.key ??
     (await clientKey(request, options.salt ? { salt: options.salt } : {}));
-  const allowed = await checkRateLimit(
-    binding,
-    `${policy.name}:${key}`,
-    options.onUnbound ? { onUnbound: options.onUnbound } : {},
-  );
+  const allowed = await checkRateLimit(binding, `${policy.name}:${key}`, {
+    name: policy.name,
+    ...(options.onUnbound ? { onUnbound: options.onUnbound } : {}),
+  });
   return allowed
     ? null
     : tooManyRequests(policy, {

@@ -23,6 +23,7 @@ export type {
 export {
   cached,
   cachedEntry,
+  peekCached,
   sharedMaxAge,
   withEdgeCache,
   withoutBrowserMaxAge,
@@ -112,12 +113,14 @@ export type {
   RateLimitBinding,
   RateLimitOptions,
   RateLimitPolicy,
+  RateLimitWindow,
 } from "./rate-limit.js";
 export {
   checkRateLimit,
   clientKey,
   rateLimit,
   rateLimitHeaders,
+  rateLimitProblem,
   tooManyRequests,
 } from "./rate-limit.js";
 export type {
