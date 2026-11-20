@@ -96,6 +96,9 @@ describe("browserSentryOptions", () => {
         re.test("chrome-extension://abc/inpage.js"),
       ),
     ).toBe(true);
+    expect(
+      options.denyUrls.some((re) => re.test("webkit-masked-url://hidden/")),
+    ).toBe(true);
   });
 
   it("stays off for a dev build even with a DSN", () => {

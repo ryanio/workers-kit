@@ -62,6 +62,8 @@ export const BROWSER_DENY_URLS: readonly RegExp[] = [
   /chrome-extension:\/\//i,
   /moz-extension:\/\//i,
   /safari-(web-)?extension:\/\//i,
+  /ms-browser-extension:\/\//i,
+  /webkit-masked-url:/i,
 ];
 
 /** Whether a browser event is noise that is not the app's to fix. `extra` adds patterns matched against the message. */

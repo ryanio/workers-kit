@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `BROWSER_DENY_URLS` also covers `ms-browser-extension://` and Safari's `webkit-masked-url:` frames.
 - `inListFilter(field, values, { caseSensitive })` passes GA4's `caseSensitive` flag, for hostname filters.
 
 ## 0.10.0 (2026-11-20)
