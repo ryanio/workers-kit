@@ -13,6 +13,7 @@
 
 ## Rules
 
+- Consumers: 123shoot, calvin, coral, flock, guild, sitewise and wompworld (all in `~/dev`). Before adding a feature, search them for hand-rolled versions of it; after a release, move them onto it.
 - No runtime dependencies. `node:async_hooks` is the only import outside `src/`, apart from `node:sqlite` in `src/sqlite.ts`, which nothing else in `src/` imports. Nothing in `src/` imports `cloudflare:workers`, so the package runs under Node in tests.
 - Apps already have instances asleep that replay by step name. Never change:
   - the shape of `JobParams` (only add optional fields);
