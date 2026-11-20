@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.0 (2026-11-20)
+
+- `workers-start/access`: `verifyAccessToken(token, config)` checks a Cloudflare Access JWT (RS256 against the team's certs, issuer, audience, `exp`, `nbf`, then an email or service token allowlist) and returns a result with a `code` of `unconfigured`, `unauthenticated`, `forbidden` or `unavailable` instead of throwing. `parseAccessConfig`, `accessToken` (header, then cookie) and `createAccessVerifier` for a verifier with its own key cache and clock.
+- `workers-start/access/testing`: `createTestAccessTeam()` makes a key pair, serves its certs and signs tokens, for tests of code that checks Access.
+
 ## 0.7.1 (2026-11-20)
 
 - Package metadata (`repository`, `homepage`, `bugs`) points at [ryanio/workers-kit](https://github.com/ryanio/workers-kit), where the package now lives. The first release published from there.

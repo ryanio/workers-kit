@@ -1,5 +1,19 @@
 export type { MediaRange } from "./accept.js";
 export { parseAccept, quality } from "./accept.js";
+export type {
+  AccessConfig,
+  AccessEnv,
+  AccessFailure,
+  AccessResult,
+  AccessVerifier,
+  AccessVerifierOptions,
+} from "./access.js";
+export {
+  accessToken,
+  createAccessVerifier,
+  parseAccessConfig,
+  verifyAccessToken,
+} from "./access.js";
 export type { EdgeCacheOptions } from "./cache.js";
 export {
   sharedMaxAge,

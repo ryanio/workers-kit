@@ -8,16 +8,18 @@ It has no runtime dependencies. Each piece is its own entry point, so an app tak
 
 Check this list before writing a helper in an app. Anything generic to TanStack Start on Workers that is missing belongs here, with a test, rather than in one app.
 
-| Entry point                  | Exports                                                                       | For                                                                                  |
-| ---------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `workers-start/entry`        | `createEntry`, `withHeaders`, `wantsMarkdown`, `acceptsHtml`                  | The Worker entry: Markdown for agents, Accept fixes, 405s, headers on every response |
-| `workers-start/head`         | `createPageHead`, `jsonLdScript`                                              | Per-route head tags and escaped JSON-LD                                              |
-| `workers-start/scripts`      | `themeScript`, `analyticsScript`, `tagManagerScript`, `gaEvent`, `inlineJson` | Inline bootstraps, analytics events, JSON safe inside a script tag                   |
-| `workers-start/cache`        | `withEdgeCache`, `sharedMaxAge`, `withoutBrowserMaxAge`                       | Rendered pages kept in the Workers Cache API                                         |
-| `workers-start/workers`      | `getBinding`, `getEnvString`, `afterResponse`, `isKvNamespace`                | Bindings and `waitUntil` without a static `cloudflare:workers` import                |
-| `workers-start/seo`          | `sitemapXml`, `robotsTxt`, `escapeXml`                                        | `/sitemap.xml` and `/robots.txt` bodies                                              |
-| `workers-start/accept`       | `parseAccept`, `quality`                                                      | Accept header parsing                                                                |
-| `workers-start/check-bundle` | `workers-start-check-bundle` (bin)                                            | Fails a build that would ship a local secret                                         |
+| Entry point                    | Exports                                                                         | For                                                                                  |
+| ------------------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `workers-start/entry`          | `createEntry`, `withHeaders`, `wantsMarkdown`, `acceptsHtml`                    | The Worker entry: Markdown for agents, Accept fixes, 405s, headers on every response |
+| `workers-start/head`           | `createPageHead`, `jsonLdScript`                                                | Per-route head tags and escaped JSON-LD                                              |
+| `workers-start/scripts`        | `themeScript`, `analyticsScript`, `tagManagerScript`, `gaEvent`, `inlineJson`   | Inline bootstraps, analytics events, JSON safe inside a script tag                   |
+| `workers-start/cache`          | `withEdgeCache`, `sharedMaxAge`, `withoutBrowserMaxAge`                         | Rendered pages kept in the Workers Cache API                                         |
+| `workers-start/workers`        | `getBinding`, `getEnvString`, `afterResponse`, `isKvNamespace`                  | Bindings and `waitUntil` without a static `cloudflare:workers` import                |
+| `workers-start/access`         | `verifyAccessToken`, `createAccessVerifier`, `parseAccessConfig`, `accessToken` | Cloudflare Access sign-ins checked in the Worker, failing closed                     |
+| `workers-start/access/testing` | `createTestAccessTeam`                                                          | A fake Access team for tests: keys, certs and signed tokens                          |
+| `workers-start/seo`            | `sitemapXml`, `robotsTxt`, `escapeXml`                                          | `/sitemap.xml` and `/robots.txt` bodies                                              |
+| `workers-start/accept`         | `parseAccept`, `quality`                                                        | Accept header parsing                                                                |
+| `workers-start/check-bundle`   | `workers-start-check-bundle` (bin)                                              | Fails a build that would ship a local secret                                         |
 
 ## Why
 
@@ -178,6 +180,59 @@ return withEdgeCache(request, () => handler.fetch(request), {
 ```
 
 A cache hit has its browser `max-age` removed (the zone adds one, and a browser holding page HTML that long outlives the next deploy's assets). The store runs after the response through `afterResponse`; pass `waitUntil` or `cache` to override, as tests do. Outside workerd every request renders.
+
+## Cloudflare Access
+
+Access adds a signed JWT to every request it lets through, as the `Cf-Access-Jwt-Assertion` header and the `CF_Authorization` cookie. The header alone proves nothing: anyone can send it to the Worker's `workers.dev` or other hostnames, and paths Access does not cover (such as `/_serverFn`) never get one. `workers-start/access` checks the token itself, on WebCrypto with no dependencies: the RS256 signature against the team's published keys, the issuer, the audience, `exp` and `nbf` (60 seconds of leeway), then the email against an allowlist.
+
+```ts
+import {
+  accessToken,
+  parseAccessConfig,
+  verifyAccessToken,
+} from "workers-start/access";
+
+const config = parseAccessConfig({
+  teamDomain: env.ACCESS_TEAM_DOMAIN, // myteam.cloudflareaccess.com
+  aud: env.ACCESS_AUD,
+  emails: env.ADMIN_EMAILS, // comma or space separated
+});
+
+const result = await verifyAccessToken(accessToken(request), config);
+if (!result.ok) {
+  return Response.json({ error: { code: result.code, message: result.reason } }, {
+    status: result.status,
+  });
+}
+// result.email is the signed-in address, lowercased.
+```
+
+Every failure is a result, never a throw:
+
+| `code`            | `status` | When                                                                    |
+| ----------------- | -------- | ----------------------------------------------------------------------- |
+| `unconfigured`    | 503      | `parseAccessConfig` returned null: a value is missing                   |
+| `unauthenticated` | 401      | No token, a malformed one, or a bad signature, issuer, audience or time |
+| `forbidden`       | 403      | A valid token for an address or service token not on the list           |
+| `unavailable`     | 503      | The team's certs could not be fetched and no keys are cached            |
+
+`parseAccessConfig` returns null unless it has a team domain, an audience and at least one allowed email or service token, so a missing secret refuses everyone instead of letting everyone in.
+
+`verifyAccessToken` keeps the team's keys for an hour in the isolate. A token that names a key id it has not seen (Access rotates keys) refetches the certs, at most once a minute, so made-up key ids cannot hammer the certs URL. A failed fetch keeps the keys it already has. `createAccessVerifier({ fetch, now, ttlMs, refreshMs, timeoutMs, leewaySeconds })` makes a verifier with its own cache and clock, for tests or for a custom `fetch`.
+
+Access service tokens carry no email. List their client ids in `serviceTokens` to let them in; a match returns `{ ok: true, service: clientId }`. Only a token Access issued for a service (`type: "app"`, empty `sub`, no email) counts, so a client certificate with the same name does not.
+
+In tests, `workers-start/access/testing` stands in for the team:
+
+```ts
+import { createAccessVerifier } from "workers-start/access";
+import { createTestAccessTeam } from "workers-start/access/testing";
+
+const team = await createTestAccessTeam({ emails: ["admin@example.com"] });
+const verify = createAccessVerifier({ fetch: team.fetch });
+const result = await verify(await team.token("admin@example.com"), team.config);
+// { ok: true, email: "admin@example.com" }
+```
 
 ## Sitemap and robots.txt
 
