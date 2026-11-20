@@ -38,6 +38,35 @@ export {
   withHeaders,
 } from "./entry.js";
 export type {
+  Ga4DateRange,
+  Ga4FilterExpression,
+  Ga4Report,
+  Ga4ReportRequest,
+  Ga4RowObject,
+  GoogleAuthOptions,
+  GoogleCallOptions,
+  GoogleTokenSource,
+  SearchAnalyticsQuery,
+  SearchAnalyticsRow,
+  ServiceAccount,
+} from "./google.js";
+export {
+  createGoogleAuth,
+  GA4_SCOPE,
+  GOOGLE_TOKEN_URL,
+  GoogleApiError,
+  ga4BatchRunReports,
+  ga4Rows,
+  ga4RunReport,
+  googleAccessToken,
+  importServiceAccountKey,
+  inListFilter,
+  parseServiceAccount,
+  SEARCH_CONSOLE_SCOPE,
+  searchConsoleQuery,
+  serviceAccountJwt,
+} from "./google.js";
+export type {
   HeadLink,
   HeadScript,
   HeadTags,

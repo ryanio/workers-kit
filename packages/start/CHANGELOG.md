@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.0 (2026-11-20)
+
+- `workers-start/google`: Google APIs as a service account on WebCrypto. `googleAccessToken(account, scopes)` signs the JWT and caches the access token per account and scope (shared exchanges, failures not cached), `parseServiceAccount` reads the key file JSON, and `importServiceAccountKey` names a PKCS#1 or non-PEM key. `ga4RunReport`, `ga4BatchRunReports`, `ga4Rows` and `inListFilter` for the GA4 Data API, and `searchConsoleQuery` (with `all: true` paging) for Search Console. Errors throw `GoogleApiError` with Google's status and message.
+
 ## 0.8.0 (2026-11-20)
 
 - `workers-start/access`: `verifyAccessToken(token, config)` checks a Cloudflare Access JWT (RS256 against the team's certs, issuer, audience, `exp`, `nbf`, then an email or service token allowlist) and returns a result with a `code` of `unconfigured`, `unauthenticated`, `forbidden` or `unavailable` instead of throwing. `parseAccessConfig`, `accessToken` (header, then cookie) and `createAccessVerifier` for a verifier with its own key cache and clock.

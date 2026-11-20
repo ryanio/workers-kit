@@ -1,6 +1,6 @@
 {
   "name": "workers-start",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "The parts every TanStack Start app on Cloudflare Workers ends up writing: Markdown for agents on the same URL, a head helper that stops share cards leaking between pages, lazy Workers bindings, and a check that no local secret ships in the build.",
   "license": "MIT",
   "author": "Ryan Ghods",
@@ -21,7 +21,9 @@
     "vite",
     "seo",
     "markdown",
-    "llms"
+    "llms",
+    "google-analytics",
+    "search-console"
   ],
   "type": "module",
   "sideEffects": false,
@@ -80,6 +82,11 @@
       "types": "./dist/access-testing.d.ts",
       "import": "./dist/access-testing.js",
       "default": "./dist/access-testing.js"
+    },
+    "./google": {
+      "types": "./dist/google.d.ts",
+      "import": "./dist/google.js",
+      "default": "./dist/google.js"
     },
     "./package.json": "./package.json"
   },

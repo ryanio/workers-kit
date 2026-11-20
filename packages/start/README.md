@@ -8,18 +8,19 @@ It has no runtime dependencies. Each piece is its own entry point, so an app tak
 
 Check this list before writing a helper in an app. Anything generic to TanStack Start on Workers that is missing belongs here, with a test, rather than in one app.
 
-| Entry point                    | Exports                                                                         | For                                                                                  |
-| ------------------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `workers-start/entry`          | `createEntry`, `withHeaders`, `wantsMarkdown`, `acceptsHtml`                    | The Worker entry: Markdown for agents, Accept fixes, 405s, headers on every response |
-| `workers-start/head`           | `createPageHead`, `jsonLdScript`                                                | Per-route head tags and escaped JSON-LD                                              |
-| `workers-start/scripts`        | `themeScript`, `analyticsScript`, `tagManagerScript`, `gaEvent`, `inlineJson`   | Inline bootstraps, analytics events, JSON safe inside a script tag                   |
-| `workers-start/cache`          | `withEdgeCache`, `sharedMaxAge`, `withoutBrowserMaxAge`                         | Rendered pages kept in the Workers Cache API                                         |
-| `workers-start/workers`        | `getBinding`, `getEnvString`, `afterResponse`, `isKvNamespace`                  | Bindings and `waitUntil` without a static `cloudflare:workers` import                |
-| `workers-start/access`         | `verifyAccessToken`, `createAccessVerifier`, `parseAccessConfig`, `accessToken` | Cloudflare Access sign-ins checked in the Worker, failing closed                     |
-| `workers-start/access/testing` | `createTestAccessTeam`                                                          | A fake Access team for tests: keys, certs and signed tokens                          |
-| `workers-start/seo`            | `sitemapXml`, `robotsTxt`, `escapeXml`                                          | `/sitemap.xml` and `/robots.txt` bodies                                              |
-| `workers-start/accept`         | `parseAccept`, `quality`                                                        | Accept header parsing                                                                |
-| `workers-start/check-bundle`   | `workers-start-check-bundle` (bin)                                              | Fails a build that would ship a local secret                                         |
+| Entry point                    | Exports                                                                                                                           | For                                                                                  |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `workers-start/entry`          | `createEntry`, `withHeaders`, `wantsMarkdown`, `acceptsHtml`                                                                      | The Worker entry: Markdown for agents, Accept fixes, 405s, headers on every response |
+| `workers-start/head`           | `createPageHead`, `jsonLdScript`                                                                                                  | Per-route head tags and escaped JSON-LD                                              |
+| `workers-start/scripts`        | `themeScript`, `analyticsScript`, `tagManagerScript`, `gaEvent`, `inlineJson`                                                     | Inline bootstraps, analytics events, JSON safe inside a script tag                   |
+| `workers-start/cache`          | `withEdgeCache`, `sharedMaxAge`, `withoutBrowserMaxAge`                                                                           | Rendered pages kept in the Workers Cache API                                         |
+| `workers-start/workers`        | `getBinding`, `getEnvString`, `afterResponse`, `isKvNamespace`                                                                    | Bindings and `waitUntil` without a static `cloudflare:workers` import                |
+| `workers-start/access`         | `verifyAccessToken`, `createAccessVerifier`, `parseAccessConfig`, `accessToken`                                                   | Cloudflare Access sign-ins checked in the Worker, failing closed                     |
+| `workers-start/access/testing` | `createTestAccessTeam`                                                                                                            | A fake Access team for tests: keys, certs and signed tokens                          |
+| `workers-start/google`         | `googleAccessToken`, `parseServiceAccount`, `ga4RunReport`, `ga4BatchRunReports`, `ga4Rows`, `inListFilter`, `searchConsoleQuery` | Google APIs as a service account: cached tokens, GA4 reports, Search Console         |
+| `workers-start/seo`            | `sitemapXml`, `robotsTxt`, `escapeXml`                                                                                            | `/sitemap.xml` and `/robots.txt` bodies                                              |
+| `workers-start/accept`         | `parseAccept`, `quality`                                                                                                          | Accept header parsing                                                                |
+| `workers-start/check-bundle`   | `workers-start-check-bundle` (bin)                                                                                                | Fails a build that would ship a local secret                                         |
 
 ## Why
 
@@ -233,6 +234,51 @@ const verify = createAccessVerifier({ fetch: team.fetch });
 const result = await verify(await team.token("admin@example.com"), team.config);
 // { ok: true, email: "admin@example.com" }
 ```
+
+## Google APIs
+
+`workers-start/google` calls Google as a service account with WebCrypto and `fetch`, so it runs in a Worker as well as in Node scripts. It covers the parts apps keep rewriting: the signed JWT exchanged for an access token, the GA4 Data API and Search Console.
+
+```ts
+import {
+  GA4_SCOPE,
+  ga4Rows,
+  ga4RunReport,
+  googleAccessToken,
+  parseServiceAccount,
+  SEARCH_CONSOLE_SCOPE,
+  searchConsoleQuery,
+} from "workers-start/google";
+
+const account = parseServiceAccount(env.GA_SA_JSON); // the key file JSON
+if (!account) throw new Error("GA_SA_JSON is not a service account key");
+const token = await googleAccessToken(account, [
+  GA4_SCOPE,
+  SEARCH_CONSOLE_SCOPE,
+]);
+
+const report = await ga4RunReport(token, env.GA_PROPERTY_ID, {
+  dimensions: [{ name: "pagePath" }],
+  metrics: [{ name: "screenPageViews" }],
+  dateRanges: [{ startDate: "28daysAgo", endDate: "today" }],
+  orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }],
+  limit: 10,
+});
+const pages = ga4Rows(report); // [{ pagePath: "/", screenPageViews: 120 }, ...]
+
+const queries = await searchConsoleQuery(token, "sc-domain:example.com", {
+  startDate: "2026-10-20",
+  endDate: "2026-11-17",
+  dimensions: ["query"],
+});
+```
+
+- An account comes from the key file JSON with `parseServiceAccount`, or from separate vars as `{ clientEmail, privateKey }`. Escaped `\n` in the key is fine. A PKCS#1 key (`BEGIN RSA PRIVATE KEY`) or a value that is not a PEM fails with an error that says so.
+- `googleAccessToken` caches tokens in the isolate per account and scope until five minutes before they expire. Concurrent calls share one exchange, and a failed exchange is not cached. `createGoogleAuth({ fetch, now, marginSeconds })` makes a token source with its own cache, for tests.
+- The API helpers take a token, not an account, so a token from anywhere (such as gcloud impersonation in a script) works too. Each takes `{ fetch, timeoutMs }` (10 seconds by default).
+- `ga4Rows(report)` keys each row by header name, dimensions as strings and metrics as numbers; `{ totals: true }` reads the totals rows. `ga4BatchRunReports` sends up to five reports in one call. `inListFilter(field, values)` builds the common dimension filter.
+- `searchConsoleQuery` fills missing fields with zeros and treats a reply with no `rows` as no rows. `{ all: true }` pages with `startRow` until a short page.
+- A Google error status throws `GoogleApiError` with `status`, Google's message and its JSON `body`.
 
 ## Sitemap and robots.txt
 

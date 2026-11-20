@@ -11,6 +11,7 @@
 - `src/scripts.ts`: inline theme and analytics bootstraps, and `gaEvent`.
 - `src/cache.ts`: `withEdgeCache`, the edge page cache on the Workers Cache API.
 - `src/seo.ts`: sitemap and robots.txt bodies.
+- `src/google.ts`: Google service account tokens, GA4 Data API and Search Console calls.
 - `src/access.ts`: Cloudflare Access JWT checks and the key cache. `src/access-testing.ts`: the `workers-start/access/testing` entry, a fake Access team for tests.
 - `src/check-bundle.ts`, `src/check-bundle-cli.ts`: the secret check and its `workers-start-check-bundle` bin.
 - `test/`: Node tests. The CLI and package tests run the built `dist/`, so `npm test` builds first.
