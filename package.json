@@ -9,7 +9,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "check": "npm run check:doc-refs && npm run check:lockfile && npm run lint && npm run check --workspaces && npm run deadcode",
+    "check": "npm run check:doc-refs && npm run check:lockfile && npm run lint && npm run build -w packages/start && npm run check --workspaces && npm run deadcode",
     "lint": "biome check",
     "format": "biome check --write",
     "test": "npm test --workspaces",
