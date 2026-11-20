@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `workers-start/http`: `fetchJson(url, options)` with a per-attempt timeout, full-jitter retries of 408, 425, 429, 5xx, timeouts and network errors for idempotent methods, `Retry-After` (header or JSON `retry_after`) up to a cap, and an overall budget; `withRetry`, `transient`, `HttpError` and `retryAfterSeconds` on their own.
+
 ## 0.13.0 (2026-11-20)
 
 - `workers-start/cache`: `cached(key, compute, { freshSeconds, staleSeconds, kv, version, onError })` and `cachedEntry` keep computed values in the Cache API with stale-while-revalidate (one background refresh per key per isolate) and stale-if-error, with KV as an optional second tier shared across locations.

@@ -83,6 +83,14 @@ export type {
   SiteHead,
 } from "./head.js";
 export { createPageHead, jsonLdScript } from "./head.js";
+export type { FetchJsonOptions, RetryOptions } from "./http.js";
+export {
+  fetchJson,
+  HttpError,
+  retryAfterSeconds,
+  transient,
+  withRetry,
+} from "./http.js";
 export type {
   MailAddress,
   MailAttachment,
