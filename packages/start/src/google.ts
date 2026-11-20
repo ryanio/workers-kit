@@ -344,12 +344,15 @@ export function ga4Rows(
   });
 }
 
-/** A filter matching a dimension against a list of values. */
+/** A filter matching a dimension against a list of values. Google matches case-sensitively unless `caseSensitive: false`. */
 export function inListFilter(
   fieldName: string,
   values: readonly string[],
+  { caseSensitive }: { caseSensitive?: boolean } = {},
 ): Ga4FilterExpression {
-  return { filter: { fieldName, inListFilter: { values: [...values] } } };
+  const inList: Record<string, unknown> = { values: [...values] };
+  if (caseSensitive !== undefined) inList.caseSensitive = caseSensitive;
+  return { filter: { fieldName, inListFilter: inList } };
 }
 
 // Search Console

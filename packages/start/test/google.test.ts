@@ -244,6 +244,14 @@ describe("GA4", () => {
       screenPageViews: 30,
     });
     expect(ga4Rows({})).toEqual([]);
+    expect(
+      inListFilter("hostName", ["Example.com"], { caseSensitive: false }),
+    ).toEqual({
+      filter: {
+        fieldName: "hostName",
+        inListFilter: { values: ["Example.com"], caseSensitive: false },
+      },
+    });
   });
 
   it("batches up to five reports and refuses more", async () => {

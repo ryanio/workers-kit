@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `inListFilter(field, values, { caseSensitive })` passes GA4's `caseSensitive` flag, for hostname filters.
+
 ## 0.10.0 (2026-11-20)
 
 - `workers-start/sentry`: `workerSentryOptions(env, options)` and `browserSentryOptions(options)` build Sentry options without importing an SDK. No usable DSN turns Sentry off, events from local servers are dropped, and the browser options also drop network, extension, wallet and user-rejection noise (`isBrowserNoise`, `BROWSER_DENY_URLS`). Release and environment are left to `@sentry/cloudflare`'s own env reading unless given.
