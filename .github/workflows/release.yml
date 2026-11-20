@@ -5,7 +5,8 @@ name: Release
 # through trusted publishing (OIDC, no token, with a provenance statement), and
 # the workflow tags the commit `<name>@<version>` and opens a GitHub release
 # from that version's section of the package's CHANGELOG. A version already on
-# npm is skipped, so nothing is ever republished.
+# npm is skipped, so nothing is ever republished, and so is a package marked
+# private (one whose npm name has no trusted publisher yet).
 
 on:
   push:
@@ -41,6 +42,10 @@ jobs:
             dir=$(dirname "$manifest")
             name=$(node -p "require('./$manifest').name")
             version=$(node -p "require('./$manifest').version")
+            if [ "$(node -p "require('./$manifest').private === true")" = "true" ]; then
+              echo "$name is private, skipped"
+              continue
+            fi
             if npm view "$name@$version" version --prefer-online >/dev/null 2>&1; then
               echo "$name@$version is already on npm"
             else

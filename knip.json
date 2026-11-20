@@ -11,6 +11,10 @@
     "packages/jobs": {
       "entry": ["src/{index,testing,sqlite}.ts", "test/**/*.ts"],
       "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "packages/api": {
+      "entry": ["src/{index,access,generate,testing}.ts", "test/**/*.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     }
   }
 }

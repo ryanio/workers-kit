@@ -4,6 +4,7 @@
 
 - [`packages/start`](packages/start/AGENTS.md): `workers-start`, helpers for TanStack Start apps on Workers.
 - [`packages/jobs`](packages/jobs/AGENTS.md): `workers-jobs`, background jobs on Cron Triggers and Workflows.
+- [`packages/api`](packages/api/AGENTS.md): `workers-api`, Hono APIs with problem responses, an Access guard, spec and types generation and spec checks.
 
 Read the package's AGENTS.md before changing it. This file has what every package shares.
 
@@ -42,5 +43,7 @@ A release is a version bump on main. `.github/workflows/release.yml` runs on eve
 
 1. Bump `version` in the package's `package.json` and add a dated `## <version> (YYYY-MM-DD)` section to its `CHANGELOG.md`, renaming `## Unreleased` if it is there. A change that waits for the next release goes under `## Unreleased`.
 2. Run `npm run check`, commit both and push to main.
+
+A new package starts with `"private": true`, which the workflow skips. npm can only attach a trusted publisher to a name that exists, so the owner publishes a placeholder `0.0.0` of the name once, adds the trusted publisher (`npm trust github <name> --repo ryanio/workers-kit --file release.yml --env npm --allow-publish --allow-stage-publish`), and then the package drops `private` and releases from CI like the others.
 
 Never tag by hand or run `npm publish` locally. The npm page shows the README of the published version, so a README-only fix reaches it at the next release; a commit that changes only docs carries `[skip ci]` in its title.

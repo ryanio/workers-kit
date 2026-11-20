@@ -1,0 +1,92 @@
+{
+  "name": "workers-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The API setup every Hono app on Cloudflare Workers rebuilds: RFC 9457 problem responses, a validation hook, opaque cursors, a Cloudflare Access guard, a spec and client types generator with a drift check, and a test that the spec matches the routes.",
+  "license": "MIT",
+  "author": "Ryan Ghods",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ryanio/workers-kit.git",
+    "directory": "packages/api"
+  },
+  "homepage": "https://github.com/ryanio/workers-kit/tree/main/packages/api#readme",
+  "bugs": {
+    "url": "https://github.com/ryanio/workers-kit/issues"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "hono",
+    "openapi",
+    "zod",
+    "rfc9457",
+    "problem-details"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./access": {
+      "types": "./dist/access.d.ts",
+      "import": "./dist/access.js",
+      "default": "./dist/access.js"
+    },
+    "./generate": {
+      "types": "./dist/generate.d.ts",
+      "import": "./dist/generate.js",
+      "default": "./dist/generate.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js",
+      "default": "./dist/testing.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run build && vitest run",
+    "prepack": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@hono/zod-openapi": "^1.4.0",
+    "hono": "^4.9.0",
+    "workers-start": "^0.8.0",
+    "zod": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "workers-start": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@hono/zod-openapi": "^1.6.3",
+    "@types/node": "^24.19.2",
+    "hono": "^4.13.19",
+    "openapi-fetch": "^0.13.8",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0",
+    "workers-start": "^0.8.0",
+    "zod": "^4.6.6"
+  }
+}
