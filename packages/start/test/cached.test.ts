@@ -161,6 +161,48 @@ describe("cachedEntry", () => {
     expect(s.calls()).toBe(1);
   });
 
+  it("reads a newer KV value before recomputing a stale local copy", async () => {
+    const s = setup();
+    const kv = memoryKv();
+    await cachedEntry("gas", s.compute, { ...s.options, kv, staleSeconds: 0 });
+    await s.settle();
+    s.tick(120);
+    kv.data.set(
+      "gas",
+      JSON.stringify({
+        at: Date.UTC(2026, 10, 20, 12) + 110_000,
+        value: { n: 99 },
+      }),
+    );
+    const entry = await cachedEntry("gas", s.compute, {
+      ...s.options,
+      kv,
+      staleSeconds: 0,
+    });
+    expect(entry).toMatchObject({ value: { n: 99 }, stale: false });
+    expect(s.calls()).toBe(1);
+  });
+
+  it("can skip the Cache API, keep KV values without expiry, and says when it served after an error", async () => {
+    const s = setup();
+    const kv = memoryKv();
+    const options = {
+      ...s.options,
+      kv,
+      cache: false as const,
+      kvTtlSeconds: null,
+    };
+    await cachedEntry("gas", s.compute, options);
+    await s.settle();
+    expect(s.cache.store.size).toBe(0);
+    expect(kv.ttls).toEqual([0]);
+    s.tick(400);
+    s.fail(true);
+    const entry = await cachedEntry("gas", s.compute, options);
+    expect(entry.error).toBeInstanceOf(Error);
+    expect(entry.stale).toBe(true);
+  });
+
   it("keeps versions apart", async () => {
     const s = setup();
     await cachedEntry("gas", s.compute, { ...s.options, version: "v1" });

@@ -118,10 +118,16 @@ export interface CachedOptions {
    * each location's Cache API, which has no write limit or cost.
    */
   kv?: CachedKv;
+  /**
+   * How long KV keeps a value, in seconds. Default four times
+   * `freshSeconds + staleSeconds`, at least 60. Null keeps it until it is
+   * overwritten, for values another process (an indexer, a cron) writes.
+   */
+  kvTtlSeconds?: number | null;
   /** Added to every key, so a deploy that changes the value's shape starts fresh. */
   version?: string;
-  /** The Cache to use. Default `caches.default`; none outside workerd. */
-  cache?: Pick<Cache, "match" | "put">;
+  /** The Cache to use. Default `caches.default`; none outside workerd. False skips the Cache API tier. */
+  cache?: Pick<Cache, "match" | "put"> | false;
   /** Schedules background refreshes and stores. Default `afterResponse`. */
   waitUntil?: (work: Promise<unknown>) => void;
   /** Hears a failed compute that was answered with a stale value instead, or a failed store. */
@@ -136,6 +142,8 @@ export interface CachedEntry<T> {
   at: number;
   /** True when the value is past `freshSeconds`. */
   stale: boolean;
+  /** Set when the value was served because a recompute failed. */
+  error?: unknown;
 }
 
 interface Envelope<T> {
@@ -172,7 +180,12 @@ export async function cachedEntry<T>(
     Math.ceil(options.freshSeconds + (options.staleSeconds ?? 0)) * 4,
   );
   const fullKey = options.version ? `${options.version}:${key}` : key;
-  const cache = options.cache ?? defaultCache();
+  const cache =
+    options.cache === false ? undefined : (options.cache ?? defaultCache());
+  const kvTtl =
+    options.kvTtlSeconds === null
+      ? undefined
+      : Math.max(60, options.kvTtlSeconds ?? keepSeconds);
   const cacheKey = new Request(
     `https://workers-start.cache/${encodeURIComponent(fullKey)}`,
   );
@@ -184,20 +197,27 @@ export async function cachedEntry<T>(
 
   const read = async (): Promise<Envelope<T> | null> => {
     const hit = cache ? await cache.match(cacheKey) : undefined;
-    if (hit) return (await hit.json()) as Envelope<T>;
-    if (!options.kv) return null;
+    const local = hit ? ((await hit.json()) as Envelope<T>) : null;
+    // A local copy past fresh may be older than KV, which other locations
+    // and other processes write; check before recomputing.
+    if (local && now() - local.at <= freshMs) return local;
+    if (!options.kv) return local;
     const raw = await options.kv.get(fullKey);
-    if (!raw) return null;
-    const envelope = JSON.parse(raw) as Envelope<T>;
-    if (cache) later(cache.put(cacheKey, toResponse(envelope, keepSeconds)));
-    return envelope;
+    const shared = raw ? (JSON.parse(raw) as Envelope<T>) : null;
+    if (!shared || (local && local.at >= shared.at)) return local;
+    if (cache) later(cache.put(cacheKey, toResponse(shared, keepSeconds)));
+    return shared;
   };
 
   const store = async (envelope: Envelope<T>) => {
     const text = JSON.stringify(envelope);
     await Promise.all([
       cache?.put(cacheKey, toResponse(envelope, keepSeconds)),
-      options.kv?.put(fullKey, text, { expirationTtl: keepSeconds }),
+      options.kv?.put(
+        fullKey,
+        text,
+        kvTtl === undefined ? {} : { expirationTtl: kvTtl },
+      ),
     ]);
   };
 
@@ -233,7 +253,7 @@ export async function cachedEntry<T>(
   } catch (error) {
     if (!current) throw error;
     options.onError?.(error);
-    return { value: current.value, at: current.at, stale: true };
+    return { value: current.value, at: current.at, stale: true, error };
   }
 }
 
@@ -265,7 +285,8 @@ export async function peekCached<T>(
   options: CachedOptions,
 ): Promise<CachedEntry<T> | null> {
   const fullKey = options.version ? `${options.version}:${key}` : key;
-  const cache = options.cache ?? defaultCache();
+  const cache =
+    options.cache === false ? undefined : (options.cache ?? defaultCache());
   const hit = cache
     ? await cache.match(
         new Request(

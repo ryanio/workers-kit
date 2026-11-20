@@ -203,8 +203,9 @@ const gas = await cached("gas", () => fetchGasSnapshot(env), {
 
 - Within `freshSeconds` the stored value is returned as is.
 - Within `staleSeconds` after that it is returned too, and recomputed after the response, one refresh per key per isolate at a time.
-- Older or missing, it is recomputed before answering. If that fails and an earlier value is still stored, the earlier value is returned and the error goes to `onError`; with nothing stored, the error is thrown.
+- Older or missing, it is recomputed before answering. If that fails and an earlier value is still stored, the earlier value is returned (with the `error` on the entry) and the error goes to `onError`; with nothing stored, the error is thrown.
 - Values live in each location's Cache API, which has no write limit or cost. Pass `kv` to share them across locations too, for an upstream too slow or rate limited to call once per location; a location then warms its own cache from KV.
+- With `kv`, a location whose own copy is past fresh reads KV before recomputing, so values written elsewhere (another location, an indexer, a cron) are used. `kvTtlSeconds` sets how long KV keeps them (default four times fresh plus stale; null until overwritten), and `cache: false` skips the Cache API tier when KV alone should answer.
 - `version` is added to every key, so a deploy that changes the value's shape starts fresh. Values must be JSON. `cachedEntry` returns `{ value, at, stale }` instead of the value, for a page that shows how old its numbers are, and `peekCached` reads what is stored without computing anything.
 
 ## Cloudflare Access
@@ -386,6 +387,7 @@ if (limited) return limited;
 - A limited request gets a 429 problem (`application/problem+json`, `code: "rate_limited"`) with `Retry-After`, `RateLimit-Policy` and `RateLimit` (the IETF rate limit headers) and `cache-control: no-store`. `detail` replaces the sentence, and `text: true` answers plain text with the same headers, for pages people read.
 - A missing binding, or one that throws, lets the request through and calls `onUnbound` once per isolate: failing closed would take a site down over a config slip, and staying quiet would hide it.
 - `allowVerifiedBots: true` lets Cloudflare-verified crawlers (`cf.verifiedBotCategory` or `cf.botManagement.verifiedBot`) through uncounted.
+- Pages Functions cannot use the rate limiting binding; a Pages project reaches it through a Worker on a service binding.
 - The binding counts per location over 10 or 60 seconds. Quotas over hours or days (a plan's daily allowance) are product rules; keep those in the app's database.
 
 `checkRateLimit(binding, key, { name })` is the bare check, `tooManyRequests(policy)` the bare response, and `rateLimitProblem(policy)` its body as an object, for code that builds its own flow. The header and response helpers take any window, so a daily cap counted in the app's database answers the same way.

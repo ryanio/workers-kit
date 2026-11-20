@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `cachedEntry` checks KV before recomputing when the local copy is past fresh, so values another location or process wrote are used. `cache: false` skips the Cache API tier, `kvTtlSeconds` sets KV's expiry (null keeps values until overwritten), and an entry served after a failed recompute carries the `error`.
+- The rate limiting README notes that Pages Functions cannot use the binding.
 - `peekCached(key, options)` reads a cached entry without computing or refreshing.
 - `rateLimitHeaders`, `rateLimitProblem` and `tooManyRequests` take any window (`RateLimitWindow`), for limits counted outside the binding such as a daily cap. `rateLimitProblem(policy, detail)` returns the 429 body as a plain object, for OpenAPI examples.
 - `checkRateLimit` reports each missing or failing binding once per isolate by `name` (`rateLimit` passes the policy name), not only the first.
