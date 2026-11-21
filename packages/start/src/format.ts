@@ -275,6 +275,8 @@ export interface TimeAgoOptions {
   absoluteAfterMs?: number | undefined;
   /** The month in the fallback date: "9 March 2026" (`long`, default) or "9 Mar 2026" (`short`). */
   month?: DateOptions["month"];
+  /** The zone the fallback date is read in, as `fullDate` takes it. */
+  timeZone?: DateOptions["timeZone"];
 }
 
 /**
@@ -304,7 +306,7 @@ export function timeAgo(
   if (elapsed < (options.absoluteAfterMs ?? 30 * DAY_MS)) {
     return `${Math.floor(elapsed / DAY_MS)}d ago`;
   }
-  return fullDate(then, { month: options.month });
+  return fullDate(then, { month: options.month, timeZone: options.timeZone });
 }
 
 /** "2026-11-20", in UTC. */
@@ -324,9 +326,85 @@ export function utcStamp(value: DateLike | null | undefined): string {
 export interface DateOptions {
   /** "November" (`long`, default) or "Nov" (`short`). */
   month?: "long" | "short" | undefined;
+  /**
+   * The zone the date is read in: an IANA name such as `"America/New_York"`,
+   * `"local"` for the runtime's own zone (the visitor's, in a browser), or
+   * `"UTC"`, the default. Anything a person reads should be in their zone:
+   * `visitorTimeZone(request)` gives it on the server, `"local"` in the
+   * browser. An unknown name falls back to UTC.
+   */
+  timeZone?: string | undefined;
 }
 
-/** "20 November 2026", or "20 Nov 2026" with `month: "short"`, in UTC. */
+interface ZonedParts {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+}
+
+const zoneFormats = new Map<string, Intl.DateTimeFormat | null>();
+
+/** A cached formatter for the zone, or null for one the runtime does not know. */
+function zoneFormat(timeZone: string | undefined): Intl.DateTimeFormat | null {
+  const key = timeZone ?? "local";
+  if (zoneFormats.has(key)) return zoneFormats.get(key) ?? null;
+  let format: Intl.DateTimeFormat | null;
+  try {
+    format = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      hourCycle: "h23",
+    });
+  } catch {
+    format = null;
+  }
+  zoneFormats.set(key, format);
+  return format;
+}
+
+/** Whether the runtime knows this IANA zone. */
+export function isTimeZone(name: string | null | undefined): boolean {
+  return !!name && name !== "local" && zoneFormat(name) !== null;
+}
+
+function zoned(ms: number, timeZone: string | undefined): ZonedParts {
+  const zone = timeZone === "local" ? undefined : (timeZone ?? "UTC");
+  const format = zone === "UTC" ? null : zoneFormat(zone);
+  if (!format) {
+    const d = new Date(ms);
+    return {
+      year: d.getUTCFullYear(),
+      month: d.getUTCMonth() + 1,
+      day: d.getUTCDate(),
+      hour: d.getUTCHours(),
+      minute: d.getUTCMinutes(),
+    };
+  }
+  const parts: Record<string, number> = {};
+  for (const part of format.formatToParts(ms)) {
+    if (part.type !== "literal") parts[part.type] = Number(part.value);
+  }
+  return {
+    year: parts.year ?? 0,
+    month: parts.month ?? 1,
+    day: parts.day ?? 1,
+    hour: (parts.hour ?? 0) % 24,
+    minute: parts.minute ?? 0,
+  };
+}
+
+function monthName(month: number, style: DateOptions["month"]): string {
+  const name = MONTHS[month - 1] ?? "";
+  return style === "short" ? name.slice(0, 3) : name;
+}
+
+/** "20 November 2026", or "20 Nov 2026" with `month: "short"`, in UTC unless `timeZone` says otherwise. */
 export function fullDate(
   value: DateLike | null | undefined,
   options: DateOptions = {},
@@ -335,10 +413,69 @@ export function fullDate(
   if (ms === null) {
     return "";
   }
-  const date = new Date(ms);
-  const name = MONTHS[date.getUTCMonth()] ?? "";
-  const month = options.month === "short" ? name.slice(0, 3) : name;
-  return `${date.getUTCDate()} ${month} ${date.getUTCFullYear()}`;
+  const { year, month, day } = zoned(ms, options.timeZone);
+  return `${day} ${monthName(month, options.month)} ${year}`;
+}
+
+export interface DateTimeOptions extends DateOptions {
+  /** "2:03 PM" (`12h`) or "14:03" (`24h`, default). */
+  clock?: "12h" | "24h" | undefined;
+  /** Add the zone's short name ("EST", "GMT+1", "UTC"). Default true. */
+  zoneName?: boolean | undefined;
+}
+
+/**
+ * A date and time for people: "20 Nov 2026, 14:03 EST". Short month by
+ * default. Read in `timeZone` (UTC by default; pass the visitor's).
+ */
+export function dateTime(
+  value: DateLike | null | undefined,
+  options: DateTimeOptions = {},
+): string {
+  const ms = toMillis(value);
+  if (ms === null) {
+    return "";
+  }
+  const { year, month, day, hour, minute } = zoned(ms, options.timeZone);
+  const mm = String(minute).padStart(2, "0");
+  const time =
+    options.clock === "12h"
+      ? `${hour % 12 || 12}:${mm} ${hour < 12 ? "AM" : "PM"}`
+      : `${String(hour).padStart(2, "0")}:${mm}`;
+  const date = `${day} ${monthName(month, options.month ?? "short")} ${year}`;
+  if (options.zoneName === false) return `${date}, ${time}`;
+  return `${date}, ${time} ${zoneLabel(ms, options.timeZone)}`;
+}
+
+function zoneLabel(ms: number, timeZone: string | undefined): string {
+  const zone = timeZone === "local" ? undefined : (timeZone ?? "UTC");
+  if (zone === "UTC" || (zone !== undefined && !isTimeZone(zone))) return "UTC";
+  try {
+    const name = new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      timeZoneName: "short",
+    })
+      .formatToParts(ms)
+      .find((part) => part.type === "timeZoneName")?.value;
+    return name ?? "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
+/**
+ * The visitor's IANA time zone, from Cloudflare's `request.cf.timezone`, or
+ * `fallback` (default "UTC") when there is none or the runtime does not know
+ * it: a request from a test, a service binding, or a client Cloudflare could
+ * not place. Pass it as `timeZone` to the date helpers on a server-rendered
+ * page.
+ */
+export function visitorTimeZone(
+  request: { cf?: unknown } | null | undefined,
+  fallback = "UTC",
+): string {
+  const zone = (request?.cf as { timezone?: unknown } | undefined)?.timezone;
+  return typeof zone === "string" && isTimeZone(zone) ? zone : fallback;
 }
 
 /**

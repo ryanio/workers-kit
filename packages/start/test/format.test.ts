@@ -5,10 +5,12 @@ import {
   compactCount,
   counted,
   DAY_MS,
+  dateTime,
   fitWords,
   formatBytes,
   formatCount,
   fullDate,
+  isTimeZone,
   listOf,
   numberWord,
   ordinal,
@@ -22,6 +24,7 @@ import {
   utcDate,
   utcDay,
   utcStamp,
+  visitorTimeZone,
   w3cDate,
   wrapWords,
 } from "../src/format.js";
@@ -432,5 +435,54 @@ describe("formatBytes", () => {
   it("is empty for a size that is not one", () => {
     expect(formatBytes(-1)).toBe("");
     expect(formatBytes(Number.NaN)).toBe("");
+  });
+});
+
+describe("time zones", () => {
+  // 03:30 UTC on 21 November is still 20 November in New York (UTC-5).
+  const late = Date.parse("2026-11-21T03:30:00Z");
+
+  it("reads the date in the zone it is given, UTC by default", () => {
+    expect(fullDate(late)).toBe("21 November 2026");
+    expect(fullDate(late, { timeZone: "America/New_York" })).toBe(
+      "20 November 2026",
+    );
+    expect(fullDate(late, { timeZone: "Asia/Tokyo", month: "short" })).toBe(
+      "21 Nov 2026",
+    );
+    expect(fullDate(late, { timeZone: "Not/AZone" })).toBe("21 November 2026");
+  });
+
+  it("writes a date and time with the zone's name", () => {
+    expect(dateTime(late, { timeZone: "America/New_York" })).toBe(
+      "20 Nov 2026, 22:30 EST",
+    );
+    expect(dateTime(late, { timeZone: "America/New_York", clock: "12h" })).toBe(
+      "20 Nov 2026, 10:30 PM EST",
+    );
+    expect(dateTime(late)).toBe("21 Nov 2026, 03:30 UTC");
+    expect(dateTime(late, { zoneName: false, timeZone: "UTC" })).toBe(
+      "21 Nov 2026, 03:30",
+    );
+  });
+
+  it("gives timeAgo's fallback date in the zone", () => {
+    const now = late + 40 * 86_400_000;
+    expect(
+      timeAgo(late, { now, timeZone: "America/New_York", month: "short" }),
+    ).toBe("20 Nov 2026");
+  });
+
+  it("reads the visitor's zone from request.cf, with a fallback", () => {
+    expect(visitorTimeZone({ cf: { timezone: "Europe/Berlin" } })).toBe(
+      "Europe/Berlin",
+    );
+    expect(visitorTimeZone({ cf: { timezone: "Mars/Olympus" } })).toBe("UTC");
+    expect(visitorTimeZone({})).toBe("UTC");
+    expect(visitorTimeZone(null, "America/Los_Angeles")).toBe(
+      "America/Los_Angeles",
+    );
+    expect(isTimeZone("Asia/Kolkata")).toBe(true);
+    expect(isTimeZone("local")).toBe(false);
   });
 });

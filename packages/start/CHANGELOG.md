@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.25.0 (2026-11-21)
+
+- `fullDate` and `timeAgo` take `timeZone` (an IANA name, `"local"`, or `"UTC"`, the default), so a date a person reads can be in their zone. An unknown zone falls back to UTC.
+- `dateTime(value, { timeZone, clock, zoneName })`: "20 Nov 2026, 22:30 EST".
+- `visitorTimeZone(request, fallback)` reads Cloudflare's `request.cf.timezone`; `isTimeZone(name)` checks a zone name.
+
 ## 0.24.0 (2026-11-21)
 
 - `withEdgeCache`'s `storedCacheControl` writes its own Cache-Control on the stored copy and decides storability by it, so a `no-store` page can still be kept at the edge. A copy `shouldStore` refuses is released.

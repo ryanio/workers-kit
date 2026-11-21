@@ -35,7 +35,7 @@ Check this list before writing a helper in an app. Anything generic to TanStack 
 | `workers-start/bytes`           | `toHex`, `fromHex`, `toBase64`, `fromBase64`, `toBase64Url`, `fromBase64Url`, `utf8`, `fromUtf8`, `randomBytes`, `randomHex`, `randomId`, `sha256`, `sha256Hex`, `sha256Base64Url`, `hmacSha256`, `timingSafeEqual` | Hex, base64 and base64url that refuse bad input instead of throwing, digests and HMACs                   |
 | `workers-start/cookies`         | `readCookie`, `parseCookies`, `serializeCookie`, `clearCookie`, `appendCookie`                                                                                                                                      | Cookies on plain `Request` and `Response` objects, and a clear a browser will honour                     |
 | `workers-start/tokens`          | `signValue`, `verifyValue`, `signatureOf`, `verifySignature`, `sessionCookie`                                                                                                                                       | Signed payloads a stranger can hold, and a session cookie with a sliding expiry                          |
-| `workers-start/format`          | `plural`, `counted`, `compactCount`, `formatBytes`, `timeAgo`, `utcStamp`, `usd`, `slugify`, `truncate`, `wrapWords` and the rest                                                                                   | Counts, plurals, relative times, UTC stamps, money, slugs and word wrapping                              |
+| `workers-start/format`          | `plural`, `counted`, `compactCount`, `formatBytes`, `timeAgo`, `dateTime`, `visitorTimeZone`, `utcStamp`, `usd`, `slugify`, `truncate`, `wrapWords` and the rest                                                    | Counts, plurals, relative times, UTC stamps, money, slugs and word wrapping                              |
 | `workers-start/discord/gateway` | `discordGateway`, the intent constants                                                                                                                                                                              | One Discord gateway websocket from a Durable Object: identify, heartbeat, resume, back off               |
 | `workers-start/accept`          | `parseAccept`, `quality`                                                                                                                                                                                            | Accept header parsing                                                                                    |
 | `workers-start/check-bundle`    | `workers-start-check-bundle` (bin)                                                                                                                                                                                  | Fails a build that would ship a local secret                                                             |
@@ -860,13 +860,29 @@ utcStamp(row.created_at); // "2026-11-20 14:03 UTC"
 usd(120_450, { cents: true }); // "$1,204.50"
 ```
 
-Everything here is pure and locale-free on purpose: these strings end up in a Worker's response, an OG card, a Discord message and a test assertion, none of which has a visitor's locale or timezone to hand. A page that wants the visitor's own locale formats in the browser.
+Everything here is pure and locale-free: the same input gives the same string in a Worker, an OG card, a Discord message and a test. Dates are read in UTC unless you say otherwise, which is right for keys, logs and anything stored. Anything a person reads should be in their own time zone: pass `timeZone`, with `visitorTimeZone(request)` on a server-rendered page (Cloudflare's `request.cf.timezone`) or `"local"` in the browser.
+
+```ts
+import {
+  dateTime,
+  fullDate,
+  timeAgo,
+  visitorTimeZone,
+} from "workers-start/format";
+
+const timeZone = visitorTimeZone(request); // "America/New_York", or "UTC" when unknown
+fullDate(row.created_at, { timeZone }); // "20 November 2026"
+dateTime(row.created_at, { timeZone }); // "20 Nov 2026, 22:30 EST"
+timeAgo(row.created_at, { timeZone }); // "3h ago", or the date in their zone past 30 days
+// in the browser: { timeZone: "local" }
+```
 
 - A date argument is an ISO string, epoch milliseconds or a `Date`. Anything unparseable gives an empty string rather than `Invalid Date`, so a bad row leaves a gap in the page instead of a mark across it.
 - `toMillis` reads a timestamp with no zone as UTC. `Date.parse` already does that for `2026-11-20`, but not for `2026-11-20 14:03:00`, which SQLite's `datetime()` returns and which otherwise reads hours out on a fresh row.
 - `formatBytes(bytes, { decimals, si })` steps by 1024 with KB and MB (what operating systems and browsers show), or by 1000 with kB and MB with `si`, drops trailing zeros, rounds up into the next unit rather than writing "1024 KB", and gives "" for a negative or non-finite size.
 - `compactCount` groups in full below its threshold (10,000): "9.9k" hides whether a number crossed ten thousand and "9,934" does not.
 - `fullDate(value, { month: "short" })` writes "9 Mar 2026" in place of "9 March 2026", and `timeAgo` takes the same `month` for its fallback date past 30 days.
+- `fullDate`, `dateTime` and `timeAgo` take `timeZone`: an IANA name, `"local"` for the runtime's own zone, or `"UTC"` (the default). An unknown name falls back to UTC rather than throwing. `dateTime(value, { timeZone, clock: "12h", zoneName })` writes "20 Nov 2026, 10:30 PM EST". `visitorTimeZone(request, fallback)` reads `request.cf.timezone` and checks the runtime knows it; `isTimeZone(name)` is that check. `utcDate`, `utcStamp` and `utcDay` stay UTC by name, for keys and machine-read stamps.
 - `timeAgo` reads anything in the future as "just now". A visitor's clock a little ahead of the server is the ordinary cause, and "in 2s" only looks broken.
 - `wrapWords(text, width, { measure, breakWords })` breaks on spaces, and between the characters of Chinese and Japanese, which use none; a line never starts with closing punctuation such as `。`. It keeps the line breaks already in the text, a blank or whitespace-only line stays blank, and a word too wide for a line gets its own line rather than hyphenating an address. `breakWords: true` splits that word between characters instead, for a page or a PDF where it would run off the paper. `measure` lets a card renderer wrap in pixels rather than characters.
 - `fitWords(text, width, { maxLines, measure })` is the other half: it answers `null` rather than overflowing or truncating, for a label drawn at a size you control. Try the largest size, and on `null` try the next one down. An ellipsis is the wrong answer for a title on a card or a name on a device screen, where the room is yours to give.
