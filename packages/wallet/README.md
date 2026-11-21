@@ -41,7 +41,7 @@ if (!signed) return new Response("Not your wallet", { status: 403 });
 The signature is first recovered locally. If it recovers to `address`, the answer is `true` and the client is never called. Otherwise the client's `verifyMessage` checks the address on the chain, which covers both ERC-1271 and ERC-6492.
 
 - `client` is optional. Without one, only a plain account can pass, and anything else is `false`.
-- `timeoutMs` (default 5000) bounds the chain check. Past it, or when the RPC throws, the answer is `undefined`.
+- `timeoutMs` (default 5000) bounds the chain check. Past it, or when the RPC throws, the answer is `undefined`. viem's `verifyMessage` reports a failed RPC call as `false`, so a `false` is checked against `client.getChainId()` (a viem `PublicClient` has it): a chain that does not answer makes the result `undefined`.
 - An address that is not an address, or a signature that is not hex, is `false` without a call.
 - `message` is a string or `{ raw }`, as in viem.
 

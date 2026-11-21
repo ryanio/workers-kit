@@ -127,6 +127,32 @@ describe("verifyWalletSignature, smart wallets", () => {
     ).resolves.toBe(false);
   });
 
+  it("is undefined when viem says false because the RPC is down", async () => {
+    const down = {
+      verifyMessage: async () => false,
+      getChainId: async () => {
+        throw new Error("fetch failed");
+      },
+    };
+    await expect(
+      verifyWalletSignature({
+        client: down,
+        address: wallet,
+        message,
+        signature: smartSignature,
+      }),
+    ).resolves.toBeUndefined();
+    const up = { verifyMessage: async () => false, getChainId: async () => 1 };
+    await expect(
+      verifyWalletSignature({
+        client: up,
+        address: wallet,
+        message,
+        signature: smartSignature,
+      }),
+    ).resolves.toBe(false);
+  });
+
   it("is undefined when the client throws", async () => {
     const client = fakeClient(async () => {
       throw new Error("HTTP request failed");

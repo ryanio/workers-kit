@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 (2026-11-21)
+
+- `verifyWalletSignature` answers undefined, not false, when the RPC is down: viem's `verifyMessage` reports a failed call as false, so a false is checked against `client.getChainId()` (a viem `PublicClient` has it) and an unanswered chain means the check did not happen.
+
 ## 0.1.0 (2026-11-20)
 
 - `verifyWalletSignature({ client?, address, message, signature, timeoutMs? })`: `true` when the signature recovers to the address (no network), otherwise the client's ERC-1271 or ERC-6492 answer, and `undefined` when the RPC throws or takes longer than `timeoutMs` (default 5000).

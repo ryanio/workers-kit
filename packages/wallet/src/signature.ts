@@ -18,6 +18,11 @@ export interface SignatureClient {
     message: SignableMessage;
     signature: Hex;
   }): Promise<boolean>;
+  /**
+   * Used to tell a refused signature from an RPC that is down: viem's `verifyMessage` reports a
+   * failed RPC call as false. A viem `PublicClient` has it.
+   */
+  getChainId?(): Promise<number>;
 }
 
 export interface VerifyWalletSignatureOptions {
@@ -41,6 +46,9 @@ const TIMED_OUT = Symbol("timed out");
  *
  * True or false is the answer. Undefined means the chain check could not finish (the RPC failed or
  * took longer than `timeoutMs`), so the caller can answer "try again" rather than "not yours".
+ * viem reports a failed RPC call inside `verifyMessage` as false, so when the client has
+ * `getChainId` (a viem `PublicClient` does), a false is checked against a trivial read: if the chain
+ * does not answer that either, the result is undefined.
  */
 export async function verifyWalletSignature({
   client,
@@ -66,7 +74,18 @@ export async function verifyWalletSignature({
       client.verifyMessage({ address, message, signature }),
       timeout,
     ]);
-    return result === TIMED_OUT ? undefined : result;
+    if (result === TIMED_OUT) return undefined;
+    if (result || !client.getChainId) return result;
+    // viem answers false both for a signature the wallet refused and for an RPC call that failed.
+    // If the chain does not answer a trivial read either, the check did not really happen.
+    const alive = await Promise.race([
+      client.getChainId().then(
+        () => true,
+        () => false,
+      ),
+      timeout.then(() => false),
+    ]);
+    return alive ? false : undefined;
   } catch {
     return undefined;
   } finally {
