@@ -52,11 +52,20 @@ export type SatoriLike = (
   },
 ) => Promise<string>;
 
+/**
+ * The options the renderer passes to resvg. Typed as exactly what is sent, so
+ * resvg's own class, whose options type is wider, is accepted as it is.
+ */
+export interface ResvgOptions {
+  fitTo: { mode: "width"; value: number };
+  font: { loadSystemFonts: false };
+}
+
 /** The part of resvg's class this uses. */
 export interface ResvgLike {
   new (
     svg: string,
-    options?: unknown,
+    options: ResvgOptions,
   ): {
     render(): { asPng(): Uint8Array; free(): void };
     free(): void;

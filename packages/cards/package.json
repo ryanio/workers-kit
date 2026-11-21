@@ -1,6 +1,6 @@
 {
   "name": "workers-cards",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Link preview and social cards drawn in a Cloudflare Worker: a JSX-free element builder for satori, the once-per-isolate wasm boot, WebP pictures decoded for resvg, and the mask stripping that halves a card's render time. No dependencies.",
   "license": "MIT",
   "author": "Ryan Ghods",
@@ -55,7 +55,9 @@
     "access": "public"
   },
   "devDependencies": {
+    "@resvg/resvg-wasm": "^2.6.2",
     "@types/node": "^24.19.2",
+    "satori": "^0.32.0",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"
   }

@@ -7,6 +7,7 @@ export type {
   CardSize,
   RenderedCard,
   ResvgLike,
+  ResvgOptions,
   SatoriLike,
 } from "./render.js";
 export { createRenderer, decodeWebpPictures, unmask } from "./render.js";
