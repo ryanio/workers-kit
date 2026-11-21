@@ -174,20 +174,33 @@ describe("withRetry", () => {
     expect(calls).toBeLessThan(10);
   });
 
-  it("caps a long Retry-After", async () => {
-    const waits: number[] = [];
-    let first = true;
-    await withRetry(
+  it("gives up when asked to wait longer than the cap, instead of retrying early", async () => {
+    let calls = 0;
+    const err = await withRetry(
       async () => {
-        if (first) {
-          first = false;
-          throw new HttpError(429, "https://a.test/", null, 3600);
-        }
-        return 1;
+        calls++;
+        throw new HttpError(429, "https://a.test/", null, 3600);
       },
-      { capMs: 5000, ...noSleep, onRetry: (_e, _a, w) => waits.push(w) },
+      { capMs: 5000, ...noSleep },
+    ).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(HttpError);
+    expect(calls).toBe(1);
+  });
+
+  it("names the upstream's reason in the message", () => {
+    expect(
+      new HttpError(402, "https://api.x.com/2/tweets", {
+        title: "CreditsDepleted",
+        detail: "Out of credits.",
+      }).message,
+    ).toBe("api.x.com answered 402: Out of credits.");
+    expect(
+      new HttpError(400, "https://a.test/", { error: { message: "bad dim" } })
+        .message,
+    ).toBe("a.test answered 400: bad dim");
+    expect(new HttpError(500, "https://a.test/", null).message).toBe(
+      "a.test answered 500",
     );
-    expect(waits).toEqual([5000]);
   });
 });
 

@@ -420,8 +420,8 @@ const price = await fetchJson<{ usd: number }>(
 
 - Each attempt times out (default 8 seconds) and the request is aborted, not left running.
 - 408, 425, 429, 5xx, timeouts and network errors are retried for idempotent methods (GET, HEAD, OPTIONS, PUT, DELETE), three attempts by default, with full-jitter backoff. A POST or PATCH is tried once unless `idempotent: true` (it carries an idempotency key, say). `retry: false` turns retries off; `retry: { attempts, baseMs, capMs, budgetMs }` tunes them.
-- `Retry-After` (seconds or a date) and a JSON `retry_after` (Discord's) set the wait, capped at `capMs`.
-- The body is parsed: JSON when the response says so, else text, else null when empty. A status outside 2xx throws `HttpError` with `status`, `url`, the parsed `body` and `retryAfter`.
+- `Retry-After` (seconds or a date) and a JSON `retry_after` (Discord's) set the wait. An upstream that asks for longer than `capMs` (default 10 seconds) is not retried: the `HttpError` is thrown with its `retryAfter`, so the caller can queue the work instead of asking again too early.
+- The body is parsed: JSON when the response says so, else text, else null when empty. A status outside 2xx throws `HttpError` with `status`, `url`, the parsed `body` and `retryAfter`; its message names the upstream's reason (`api.x.com answered 402: Out of credits.`) when the body carries one.
 - `maxBytes` refuses a response body past that size with `ResponseTooLarge`, for upstreams the app does not trust.
 - `withRetry(fn, options)` retries any async work the same way, and `transient(err)` says whether an error is worth retrying.
 
@@ -453,7 +453,7 @@ export default {
 - The defaults: `Strict-Transport-Security: max-age=63072000; includeSubDomains`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, a `Permissions-Policy` that turns off camera, microphone, geolocation, payment and usb, and `Cross-Origin-Opener-Policy: same-origin`. The deprecated `X-XSS-Protection` is never sent.
 - `hsts`, `referrerPolicy`, `permissionsPolicy` and `crossOriginOpenerPolicy` change one header, and `false` drops it. `permissionsPolicy: { camera: ["self"] }` merges over the defaults; a string replaces the header. Wallet and OAuth popups need `crossOriginOpenerPolicy: "same-origin-allow-popups"`.
 - `frame: "sameorigin"` sends `SAMEORIGIN` and puts `frame-ancestors 'self'` in the CSP; the default puts `frame-ancestors 'none'`. A policy that already names `frame-ancestors` keeps it.
-- No CSP is sent unless `csp` is given, as a header value or as options for `contentSecurityPolicy`. `reportOnly: true` (on the options or on `csp`) sends it as `Content-Security-Policy-Report-Only`, for a rollout.
+- No CSP is sent unless `csp` is given, as a header value or as options for `contentSecurityPolicy`. `reportOnly: true` (on the options, or on `csp` when `csp` is options) sends it as `Content-Security-Policy-Report-Only`, for a rollout. A `csp` passed as a string is a header value and carries no flag, so pass the top-level `reportOnly` with it.
 - `withSecurityHeaders` never overwrites a header the response already set, so a route with its own CSP or framing rule keeps it. `securityHeaders(options)` returns the plain object, for `withHeaders` or a `headers` init.
 
 `contentSecurityPolicy({ directives, presets, reportOnly, reportUri, nonce })` returns the header value. It starts from `default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: https:; upgrade-insecure-requests`.

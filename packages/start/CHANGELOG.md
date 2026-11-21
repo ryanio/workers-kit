@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.0 (2026-11-21)
+
+- `withRetry` and `fetchJson` give up when an upstream asks to wait longer than `capMs`, instead of clamping the wait and asking again too early. The `HttpError` carries `retryAfter` for the caller to queue the work.
+- `HttpError`'s message names the upstream's reason from its error body (`detail`, `message`, `error.message`, `error` or `title`), so a logged message keeps it.
+
 ## 0.15.0 (2026-11-21)
 
 - `withHeaders`, and so `withSecurityHeaders` and `cors().apply`, return a 101 response untouched. Rebuilding it dropped the WebSocket in workerd.

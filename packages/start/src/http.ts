@@ -19,8 +19,26 @@ export class HttpError extends Error {
     /** Seconds the upstream asked to wait, from `Retry-After` or a JSON `retry_after`. */
     readonly retryAfter?: number,
   ) {
-    super(`${new URL(url).host} answered ${status}`);
+    super(`${new URL(url).host} answered ${status}${reasonOf(body)}`);
   }
+}
+
+/** The upstream's own reason from a JSON or text error body, if short enough to log. */
+function reasonOf(body: unknown): string {
+  let reason: unknown;
+  if (typeof body === "string") reason = body;
+  else if (typeof body === "object" && body !== null) {
+    const b = body as Record<string, unknown>;
+    const nested =
+      typeof b.error === "object" && b.error !== null
+        ? (b.error as Record<string, unknown>).message
+        : undefined;
+    reason = b.detail ?? b.message ?? nested ?? b.error ?? b.title;
+  }
+  if (typeof reason !== "string") return "";
+  const line = reason.trim().split("\n")[0] ?? "";
+  if (!line) return "";
+  return `: ${line.length > 200 ? `${line.slice(0, 200)}...` : line}`;
 }
 
 const isAbort = (err: unknown) =>
@@ -98,8 +116,11 @@ export async function withRetry<T>(
         err instanceof HttpError && err.retryAfter !== undefined
           ? err.retryAfter * 1000
           : undefined;
+      // An upstream that asks for a longer wait than the cap would only be
+      // asked again too early; give up and let the caller decide.
+      if (asked !== undefined && asked > capMs) throw err;
       const backoff = Math.min(capMs, baseMs * 2 ** (attempt - 1));
-      const wait = Math.min(capMs, asked ?? Math.floor(random() * backoff));
+      const wait = asked ?? Math.floor(random() * backoff);
       if (budgetMs !== undefined && now() - started + wait > budgetMs)
         throw err;
       onRetry?.(err, attempt, wait);
