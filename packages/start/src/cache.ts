@@ -94,6 +94,48 @@ export async function withEdgeCache(
   return response;
 }
 
+/** The part of a Hono context `edgeCacheMiddleware` reads. */
+export interface EdgeCacheContext {
+  req: { raw: Request };
+  res: Response;
+  /** Hono's getter throws outside a Worker, so it is read inside a try. */
+  readonly executionCtx?: { waitUntil(promise: Promise<unknown>): void };
+}
+
+/**
+ * `withEdgeCache` as a Hono middleware: a hit is answered without running the
+ * route, and a miss runs it and stores the response when its Cache-Control
+ * allows.
+ *
+ *     app.use("/feed/*", edgeCacheMiddleware({ version: BUILD_ID }));
+ *
+ * Typed structurally, so this package does not depend on Hono. The store uses
+ * the context's `waitUntil` unless `options.waitUntil` is given.
+ */
+export function edgeCacheMiddleware(
+  options: EdgeCacheOptions = {},
+): (c: EdgeCacheContext, next: () => Promise<void>) => Promise<Response> {
+  return async (c, next) => {
+    let waitUntil = options.waitUntil;
+    if (!waitUntil) {
+      try {
+        const ctx = c.executionCtx;
+        if (ctx) waitUntil = (work) => ctx.waitUntil(work);
+      } catch {
+        // No execution context (a test or Node): afterResponse decides.
+      }
+    }
+    return withEdgeCache(
+      c.req.raw,
+      async () => {
+        await next();
+        return c.res;
+      },
+      waitUntil ? { ...options, waitUntil } : options,
+    );
+  };
+}
+
 /** A KV namespace, structurally. */
 export interface CachedKv {
   get(key: string): Promise<string | null>;

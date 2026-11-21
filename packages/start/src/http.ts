@@ -100,8 +100,41 @@ export interface RetryOptions {
   now?: () => number;
 }
 
-const defaultSleep = (ms: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, ms));
+/**
+ * Waits `ms` milliseconds. With a `signal`, the wait ends early when it aborts
+ * and the promise rejects with the signal's reason.
+ */
+export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal?.reason);
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+/**
+ * Waits `baseMs` plus a random time up to `jitterMs`, so callers that started
+ * together do not all wake together.
+ */
+export function sleepWithJitter(
+  baseMs: number,
+  jitterMs = 0,
+  signal?: AbortSignal,
+): Promise<void> {
+  return sleep(baseMs + Math.random() * jitterMs, signal);
+}
+
+const defaultSleep = (ms: number) => sleep(ms);
 
 /**
  * Runs `fn` until it succeeds, a non-retryable error is thrown, or attempts

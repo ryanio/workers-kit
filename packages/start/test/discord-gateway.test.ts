@@ -551,6 +551,28 @@ describe("discordGateway", () => {
     expect((await link.status()).socket).toBe(true);
   });
 
+  it("gives the default upgrade a timeout and logs a refused one as an error", async () => {
+    const errors: unknown[][] = [];
+    const calls: { url: string; init: RequestInit | undefined }[] = [];
+    build({
+      open: undefined,
+      openTimeoutMs: 5000,
+      log: {
+        info: () => {},
+        warn: () => {},
+        error: (...a: unknown[]) => errors.push(a),
+      },
+      fetch: async (url: string, init?: RequestInit) => {
+        calls.push({ url, init });
+        return new Response("no", { status: 403 });
+      },
+    });
+    await link.tick(true);
+    expect(calls[0]?.init?.signal).toBeInstanceOf(AbortSignal);
+    expect(errors[0]?.[0]).toBe("discord gateway: upgrade refused");
+    expect(errors[0]?.[1]).toEqual({ status: 403 });
+  });
+
   it("keeps the bot's own user id from READY across a resume", async () => {
     await link.tick(true);
     socket.deliver(hello());

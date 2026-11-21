@@ -236,6 +236,8 @@ export interface TimeAgoOptions {
    * days. Default 30 days. `Infinity` keeps counting days forever.
    */
   absoluteAfterMs?: number | undefined;
+  /** The month in the fallback date: "9 March 2026" (`long`, default) or "9 Mar 2026" (`short`). */
+  month?: DateOptions["month"];
 }
 
 /**
@@ -265,7 +267,7 @@ export function timeAgo(
   if (elapsed < (options.absoluteAfterMs ?? 30 * DAY_MS)) {
     return `${Math.floor(elapsed / DAY_MS)}d ago`;
   }
-  return fullDate(then);
+  return fullDate(then, { month: options.month });
 }
 
 /** "2026-11-20", in UTC. */
@@ -282,14 +284,24 @@ export function utcStamp(value: DateLike | null | undefined): string {
     : `${new Date(ms).toISOString().slice(0, 16).replace("T", " ")} UTC`;
 }
 
-/** "20 November 2026", in UTC. */
-export function fullDate(value: DateLike | null | undefined): string {
+export interface DateOptions {
+  /** "November" (`long`, default) or "Nov" (`short`). */
+  month?: "long" | "short" | undefined;
+}
+
+/** "20 November 2026", or "20 Nov 2026" with `month: "short"`, in UTC. */
+export function fullDate(
+  value: DateLike | null | undefined,
+  options: DateOptions = {},
+): string {
   const ms = toMillis(value);
   if (ms === null) {
     return "";
   }
   const date = new Date(ms);
-  return `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+  const name = MONTHS[date.getUTCMonth()] ?? "";
+  const month = options.month === "short" ? name.slice(0, 3) : name;
+  return `${date.getUTCDate()} ${month} ${date.getUTCFullYear()}`;
 }
 
 /**
@@ -440,15 +452,91 @@ export interface WrapWordsOptions {
   measure?: ((text: string) => number) | undefined;
   /** Stop after this many lines and put an ellipsis on the last one. */
   maxLines?: number | undefined;
+  /**
+   * Split a word wider than the line across lines, between characters, rather
+   * than giving it a line of its own that overflows. For a page or a PDF,
+   * where overflowing text runs off the paper. Default false.
+   */
+  breakWords?: boolean | undefined;
+}
+
+/** Scripts written without spaces, which a line may break between any two characters of. */
+const BREAKS_AROUND =
+  /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\u3000-\u303f\uff00-\uffef]/u;
+
+/**
+ * What a line may not start with (the basic kinsoku set), so "。" and "、" stay
+ * on the line they close.
+ */
+const NO_BREAK_BEFORE =
+  /[、。，．：；！？）」』】〉》〕ー々ぁぃぅぇぉっゃゅょァィゥェォッャュョ)\]}.,:;!?%]/u;
+
+const segmenter =
+  typeof Intl !== "undefined" && "Segmenter" in Intl
+    ? new Intl.Segmenter("en", { granularity: "grapheme" })
+    : undefined;
+
+/** `text` as user-perceived characters, so an emoji or a flag is never split. */
+function graphemes(text: string): string[] {
+  return segmenter
+    ? Array.from(segmenter.segment(text), (part) => part.segment)
+    : Array.from(text);
 }
 
 /**
- * `text` broken into lines no wider than `width`, on spaces. A single word too
- * wide for a line gets its own line rather than being cut, since hyphenating
- * an address or a handle makes it unreadable; a caller that cannot overflow
- * should `truncate` each line afterwards.
+ * A space-free word as the pieces a line may break between: the whole word
+ * for Latin, Arabic or Korean, one piece per character for Chinese and
+ * Japanese, with closing punctuation kept on the piece before it.
+ */
+function breakPieces(word: string): string[] {
+  if (!BREAKS_AROUND.test(word)) {
+    return [word];
+  }
+  const pieces: string[] = [];
+  let previous = "";
+  for (const char of graphemes(word)) {
+    const last = pieces.length - 1;
+    const canBreak =
+      last >= 0 &&
+      (BREAKS_AROUND.test(char) || BREAKS_AROUND.test(previous)) &&
+      !NO_BREAK_BEFORE.test(char);
+    if (canBreak || last < 0) {
+      pieces.push(char);
+    } else {
+      pieces[last] += char;
+    }
+    previous = char;
+  }
+  return pieces;
+}
+
+/** Each paragraph's pieces, each with the text that joins it to the one before. */
+function* paragraphs(text: string): Generator<[string, string][]> {
+  for (const paragraph of text.split(/\r?\n/)) {
+    const pieces: [string, string][] = [];
+    for (const word of paragraph.split(/\s+/)) {
+      if (word === "") {
+        continue;
+      }
+      breakPieces(word).forEach((piece, index) => {
+        pieces.push([index === 0 ? " " : "", piece]);
+      });
+    }
+    yield pieces;
+  }
+}
+
+/**
+ * `text` broken into lines no wider than `width`, on spaces, and between the
+ * characters of Chinese and Japanese, which use none. A line never starts with
+ * closing punctuation such as "。".
  *
- * Existing line breaks in `text` are kept.
+ * A single word too wide for a line gets its own line rather than being cut,
+ * since hyphenating an address or a handle makes it unreadable; a caller that
+ * cannot overflow sets `breakWords`, or should `truncate` each line afterwards.
+ *
+ * Existing line breaks in `text` are kept, and a blank or whitespace-only line
+ * stays a blank line.
  */
 export function wrapWords(
   text: string,
@@ -457,15 +545,28 @@ export function wrapWords(
 ): string[] {
   const measure = options.measure ?? ((line: string) => line.length);
   const lines: string[] = [];
-  for (const paragraph of text.split("\n")) {
+  for (const pieces of paragraphs(text)) {
     let line = "";
-    for (const word of paragraph.split(/\s+/).filter((w) => w !== "")) {
-      const candidate = line === "" ? word : `${line} ${word}`;
-      if (line !== "" && measure(candidate) > width) {
-        lines.push(line);
-        line = word;
-      } else {
+    for (const [joiner, piece] of pieces) {
+      const candidate = line === "" ? piece : `${line}${joiner}${piece}`;
+      if (line === "" || measure(candidate) <= width) {
         line = candidate;
+      } else {
+        lines.push(line);
+        line = piece;
+      }
+      if (options.breakWords && measure(line) > width) {
+        // Only a piece that is alone on its line can still be too wide.
+        let chunk = "";
+        for (const char of graphemes(line)) {
+          if (chunk !== "" && measure(chunk + char) > width) {
+            lines.push(chunk);
+            chunk = char;
+          } else {
+            chunk += char;
+          }
+        }
+        line = chunk;
       }
     }
     lines.push(line);
@@ -507,10 +608,10 @@ export function fitWords(
 ): string[] | null {
   const measure = options.measure ?? ((line: string) => line.length);
   const lines: string[] = [];
-  for (const paragraph of text.split("\n")) {
+  for (const pieces of paragraphs(text)) {
     let line = "";
-    for (const word of paragraph.split(/\s+/).filter((w) => w !== "")) {
-      const candidate = line === "" ? word : `${line} ${word}`;
+    for (const [joiner, word] of pieces) {
+      const candidate = line === "" ? word : `${line}${joiner}${word}`;
       if (measure(candidate) <= width) {
         line = candidate;
         continue;

@@ -44,11 +44,13 @@ export type {
   CachedEntry,
   CachedKv,
   CachedOptions,
+  EdgeCacheContext,
   EdgeCacheOptions,
 } from "./cache.js";
 export {
   cached,
   cachedEntry,
+  edgeCacheMiddleware,
   peekCached,
   sharedMaxAge,
   withEdgeCache,
@@ -117,6 +119,7 @@ export type {
   CompactCountOptions,
   CountedOptions,
   DateLike,
+  DateOptions,
   FitWordsOptions,
   ListOfOptions,
   SlugifyOptions,
@@ -203,6 +206,8 @@ export {
   HttpError,
   ResponseTooLarge,
   retryAfterSeconds,
+  sleep,
+  sleepWithJitter,
   transient,
   withRetry,
 } from "./http.js";
@@ -212,8 +217,15 @@ export type {
   Logger,
   LoggerOptions,
   LogLevel,
+  LogThreshold,
 } from "./log.js";
-export { createLogger, DEFAULT_REDACT, requestId } from "./log.js";
+export {
+  consoleSink,
+  createLogger,
+  DEFAULT_REDACT,
+  noopLogger,
+  requestId,
+} from "./log.js";
 export type {
   MailAddress,
   MailAttachment,
@@ -227,6 +239,7 @@ export {
   checkMessage,
   cloudflareMailer,
   escapeHtml,
+  escapeText,
   MailError,
   recordingMailer,
   resendMailer,
@@ -275,6 +288,7 @@ export {
   contentSecurityPolicy,
   DEFAULT_PERMISSIONS,
   securityHeaders,
+  securityHeadersMiddleware,
   withSecurityHeaders,
 } from "./security.js";
 export type {
@@ -297,7 +311,10 @@ export {
   workerSentryOptions,
 } from "./sentry.js";
 export type {
+  LlmsBlock,
+  LlmsItem,
   LlmsLink,
+  LlmsList,
   LlmsOptions,
   LlmsSection,
   RobotsOptions,

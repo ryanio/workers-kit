@@ -148,10 +148,36 @@ export interface LlmsLink {
   notes?: string;
 }
 
+/** One item of an `llms.txt` list: plain text, a link, or either with lines under it. */
+export type LlmsItem =
+  | string
+  | LlmsLink
+  | {
+      /** The item's own line. */
+      text: string | LlmsLink;
+      /**
+       * Lines under the item, indented to its text, in order: a string is a
+       * line of its own, a list is a nested list.
+       */
+      lines?: readonly (string | LlmsList)[];
+    };
+
+/** A bulleted list, or a numbered one with `ordered`. */
+export interface LlmsList {
+  list: readonly LlmsItem[];
+  ordered?: boolean;
+}
+
+/** A paragraph, or a list. Blocks are written in the order given, a blank line apart. */
+export type LlmsBlock = string | LlmsList;
+
 export interface LlmsSection {
   heading: string;
-  /** Paragraphs under the heading, before any list. */
-  body?: string | readonly string[];
+  /**
+   * What comes under the heading, before `items` and `links`: paragraphs, and
+   * lists in among them, in the order given.
+   */
+  body?: string | readonly LlmsBlock[];
   /** Plain bullets, for a list that is not links: limits, steps, what fits. */
   items?: readonly string[];
   links?: readonly LlmsLink[];
@@ -162,8 +188,8 @@ export interface LlmsOptions {
   title: string;
   /** The blockquote under the title: one sentence on what this is. */
   summary?: string;
-  /** Paragraphs between the summary and the first section. */
-  details?: string | readonly string[];
+  /** Paragraphs and lists between the summary and the first section. */
+  details?: string | readonly LlmsBlock[];
   /**
    * `## heading`, then its paragraphs, bullets and links in that order. A
    * section with none of the three is left out, so an empty query writes no
@@ -186,33 +212,61 @@ export function llmsTxt(options: LlmsOptions): string {
   if (options.summary) {
     blocks.push(`> ${options.summary}`);
   }
-  for (const paragraph of list(options.details)) {
-    if (paragraph !== "") {
-      blocks.push(paragraph);
-    }
-  }
+  blocks.push(...written(list(options.details)));
   for (const section of list(options.sections)) {
-    const paragraphs = list(section.body).filter((line) => line !== "");
+    const body = written(list(section.body));
     const items = section.items ?? [];
     const links = section.links ?? [];
-    if (paragraphs.length === 0 && items.length === 0 && links.length === 0) {
+    if (body.length === 0 && items.length === 0 && links.length === 0) {
       continue;
     }
     blocks.push(`## ${section.heading}`);
-    for (const paragraph of paragraphs) {
-      blocks.push(paragraph);
-    }
+    blocks.push(...body);
     const bullets = [
       ...items.map((item) => `- ${item}`),
-      ...links.map((link) =>
-        link.notes
-          ? `- [${link.title}](${link.url}): ${link.notes}`
-          : `- [${link.title}](${link.url})`,
-      ),
+      ...links.map((link) => `- ${linkLine(link)}`),
     ];
     if (bullets.length > 0) {
       blocks.push(bullets.join("\n"));
     }
   }
   return `${blocks.join("\n\n")}\n`;
+}
+
+function linkLine(link: LlmsLink): string {
+  return link.notes
+    ? `[${link.title}](${link.url}): ${link.notes}`
+    : `[${link.title}](${link.url})`;
+}
+
+/** Each block as text, leaving out empty paragraphs and empty lists. */
+function written(blocks: readonly LlmsBlock[]): string[] {
+  const out: string[] = [];
+  for (const block of blocks) {
+    if (typeof block === "string") {
+      if (block !== "") out.push(block);
+    } else if (block.list.length > 0) {
+      out.push(listLines(block, "").join("\n"));
+    }
+  }
+  return out;
+}
+
+function listLines(block: LlmsList, indent: string): string[] {
+  const lines: string[] = [];
+  block.list.forEach((item, index) => {
+    const marker = block.ordered ? `${index + 1}. ` : "- ";
+    const own = typeof item === "string" || "url" in item ? item : item.text;
+    lines.push(
+      `${indent}${marker}${typeof own === "string" ? own : linkLine(own)}`,
+    );
+    if (typeof item === "object" && "text" in item && item.lines) {
+      const under = indent + " ".repeat(marker.length);
+      for (const line of item.lines) {
+        if (typeof line === "string") lines.push(`${under}${line}`);
+        else lines.push(...listLines(line, under));
+      }
+    }
+  });
+  return lines;
 }

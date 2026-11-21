@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.21.0 (2026-11-21)
+
+- `fullDate(value, { month: "short" })` writes "9 Mar 2026"; `timeAgo` takes the same `month` for its fallback past 30 days.
+- `wrapWords` and `fitWords` break Chinese and Japanese between characters, and never start a line with closing punctuation such as `。`. Before, a run of either script was one word that overflowed its line, so a card or page with such text wraps differently now. `wrapWords` also takes `breakWords: true` to split a word wider than the line, splits by grapheme, and reads `\r\n` as a line break.
+- `escapeText` in `workers-start/mail` escapes only `& < >`, for text nodes and Telegram.
+- `sleep(ms, signal?)` and `sleepWithJitter(baseMs, jitterMs, signal?)` in `workers-start/http`.
+- `securityHeadersMiddleware(options)` and `edgeCacheMiddleware(options)`: the security headers and the edge page cache as Hono middleware, typed structurally so the package still has no dependency.
+- `workers-start/log`: `level: "silent"`, `noopLogger`, and the default console writer exported as `consoleSink`. The README shows the one-factory pattern for an app's logger options.
+- `llmsTxt`: `body` and `details` take lists among their paragraphs, ordered or not, with nested lists and lines under an item, written in the order given.
+- `discordGateway`: the default `open` times out after `openTimeoutMs` (10 seconds), and a refused upgrade is logged with `log.error` and its status.
+
 ## 0.20.0 (2026-11-21)
 
 - Security: `verifyDiscord`, `verifySvix` and `verifyHmac` read the body through the capped reader, so a large unsigned body is refused without being buffered. `maxBytes` defaults to 1 MiB for Discord and Svix and 25 MiB for HMAC senders.

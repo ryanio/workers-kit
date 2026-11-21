@@ -1,8 +1,10 @@
+import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import {
   applySecurityHeaders,
   contentSecurityPolicy,
   securityHeaders,
+  securityHeadersMiddleware,
   withSecurityHeaders,
 } from "../src/security.js";
 
@@ -313,5 +315,46 @@ describe("withSecurityHeaders", () => {
       "default-src 'none'; frame-ancestors 'none'",
     );
     expect(out.headers.has("x-xss-protection")).toBe(false);
+  });
+});
+
+describe("securityHeadersMiddleware", () => {
+  it("adds the headers to every Hono response, keeping a route's own", async () => {
+    const app = new Hono();
+    app.use("*", securityHeadersMiddleware());
+    app.get("/", (c) => c.text("hi"));
+    app.get("/framed", (c) => {
+      c.header("X-Frame-Options", "SAMEORIGIN");
+      return c.text("framed");
+    });
+    app.get("/upstream", () => {
+      const upstream = new Response("up");
+      // What fetch() hands back: headers that throw on set.
+      Object.defineProperty(upstream, "headers", {
+        value: new Proxy(new Headers(), {
+          get(target, key) {
+            if (key === "set") {
+              return () => {
+                throw new TypeError("immutable");
+              };
+            }
+            const value = Reflect.get(target, key);
+            return typeof value === "function" ? value.bind(target) : value;
+          },
+        }),
+      });
+      return upstream;
+    });
+    const plain = await app.request("/");
+    expect(plain.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(plain.headers.get("x-frame-options")).toBe("DENY");
+    expect(await plain.text()).toBe("hi");
+    const framed = await app.request("/framed");
+    expect(framed.headers.get("x-frame-options")).toBe("SAMEORIGIN");
+    const upstream = await app.request("/upstream");
+    expect(upstream.headers.get("x-frame-options")).toBe("DENY");
+    const missing = await app.request("/nope");
+    expect(missing.status).toBe(404);
+    expect(missing.headers.get("x-content-type-options")).toBe("nosniff");
   });
 });

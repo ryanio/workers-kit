@@ -9,6 +9,9 @@
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
+/** The lowest level a logger writes, or `silent` for none at all. */
+export type LogThreshold = LogLevel | "silent";
+
 export type LogFields = Record<string, unknown>;
 
 export interface LogEntry {
@@ -36,8 +39,8 @@ export interface LoggerOptions {
    * and should not be written anywhere as it is.
    */
   sink?: (entry: LogEntry, raw: LogFields) => void;
-  /** The lowest level written. Default `info`. */
-  level?: LogLevel;
+  /** The lowest level written, or `silent` to write nothing. Default `info`. */
+  level?: LogThreshold;
   /**
    * Functions that rewrite the value under a key instead of redacting it, such
    * as `{ email: (v) => "***@" + String(v).split("@")[1] }`. Keys match the
@@ -79,7 +82,13 @@ export const DEFAULT_REDACT = [
   "credential",
 ];
 
-const RANK: Record<LogLevel, number> = { debug: 0, info: 1, warn: 2, error: 3 };
+const RANK: Record<LogThreshold, number> = {
+  debug: 0,
+  info: 1,
+  warn: 2,
+  error: 3,
+  silent: 4,
+};
 
 const MAX_DEPTH = 8;
 
@@ -210,7 +219,12 @@ function clean(
   }
 }
 
-function write(entry: LogEntry): void {
+/**
+ * The default sink: `console.error` for errors, `console.warn` for warnings,
+ * `console.log` for the rest. A sink that adds behaviour, such as reporting
+ * errors to Sentry, calls this for the console part.
+ */
+export function consoleSink(entry: LogEntry): void {
   if (entry.level === "error") console.error(entry);
   else if (entry.level === "warn") console.warn(entry);
   else console.log(entry);
@@ -229,7 +243,7 @@ export function createLogger(
   const {
     redact = DEFAULT_REDACT,
     base = {},
-    sink = write,
+    sink = consoleSink,
     level = "info",
     mask = {},
     stacks = true,
@@ -271,3 +285,6 @@ export function requestId(request: Request): string {
     crypto.randomUUID()
   );
 }
+
+/** A logger that writes nothing, for tests and for code that takes a logger it may not need. */
+export const noopLogger: Logger = createLogger("noop", { level: "silent" });

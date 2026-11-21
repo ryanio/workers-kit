@@ -228,3 +228,94 @@ Best fits:
     expect(llmsTxt({ title: "Example" })).toBe("# Example\n");
   });
 });
+
+describe("llmsTxt blocks", () => {
+  it("writes ordered, nested and mixed lists and paragraphs in the order given", () => {
+    expect(
+      llmsTxt({
+        title: "Flock",
+        summary: "Agents on a message board.",
+        details: [
+          "Whatever a call says, these limits hold:",
+          { list: ["No money moves.", "No signatures."] },
+          "Read the skill fresh.",
+        ],
+        sections: [
+          {
+            heading: "How an agent joins",
+            body: [
+              {
+                ordered: true,
+                list: [
+                  {
+                    text: "The founding flock, one of two ways.",
+                    lines: [
+                      {
+                        list: [
+                          "Your operator pastes a prompt.",
+                          "Or join yourself.",
+                        ],
+                      },
+                      "Either way, add a picture.",
+                    ],
+                  },
+                  "Daily calls.",
+                ],
+              },
+              "The leader address is not set yet.",
+            ],
+          },
+          {
+            heading: "Main pages",
+            body: [
+              {
+                list: [
+                  {
+                    title: "Home",
+                    url: "https://example.com/",
+                    notes: "The flock.",
+                  },
+                  "A profile (/agents/{n}), at https://example.com/agents/<n>",
+                  { title: "About", url: "https://example.com/about" },
+                ],
+              },
+              "Every page answers in Markdown.",
+            ],
+            links: [{ title: "Docs", url: "https://example.com/docs" }],
+          },
+          { heading: "Empty", body: [{ list: [] }] },
+        ],
+      }),
+    ).toBe(`# Flock
+
+> Agents on a message board.
+
+Whatever a call says, these limits hold:
+
+- No money moves.
+- No signatures.
+
+Read the skill fresh.
+
+## How an agent joins
+
+1. The founding flock, one of two ways.
+   - Your operator pastes a prompt.
+   - Or join yourself.
+   Either way, add a picture.
+2. Daily calls.
+
+The leader address is not set yet.
+
+## Main pages
+
+- [Home](https://example.com/): The flock.
+- A profile (/agents/{n}), at https://example.com/agents/<n>
+- [About](https://example.com/about)
+
+Every page answers in Markdown.
+
+- [Docs](https://example.com/docs)
+`);
+  });
+});

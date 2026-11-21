@@ -339,3 +339,72 @@ describe("fitWords", () => {
     expect(fitWords("one two", 6, { maxLines: 1 })).toBeNull();
   });
 });
+
+describe("short month dates", () => {
+  const now = Date.parse("2026-11-20T12:00:00Z");
+
+  it("writes a three-letter month when asked", () => {
+    expect(fullDate("2026-03-09T10:00:00Z", { month: "short" })).toBe(
+      "9 Mar 2026",
+    );
+    expect(fullDate("2026-09-02", { month: "short" })).toBe("2 Sep 2026");
+    expect(fullDate("2026-09-02", { month: "long" })).toBe("2 September 2026");
+  });
+
+  it("falls back to the short form from timeAgo too", () => {
+    expect(timeAgo(now - 40 * DAY_MS, { now, month: "short" })).toBe(
+      "11 Oct 2026",
+    );
+    expect(timeAgo(now - 40 * DAY_MS, { now })).toBe("11 October 2026");
+  });
+});
+
+describe("wrapWords for Chinese, Japanese and long words", () => {
+  it("breaks Chinese and Japanese between characters without adding spaces", () => {
+    expect(wrapWords("西立面幕墙安装进度约六成", 5)).toEqual([
+      "西立面幕墙",
+      "安装进度约",
+      "六成",
+    ]);
+    expect(wrapWords("これはテストです", 4)).toEqual(["これはテ", "ストです"]);
+  });
+
+  it("never starts a line with closing punctuation", () => {
+    expect(wrapWords("西立面幕墙。安装", 5)).toEqual(["西立面幕", "墙。安装"]);
+  });
+
+  it("still breaks Latin only at spaces, even beside Chinese", () => {
+    expect(wrapWords("GHX-1882 crane", 10)).toEqual(["GHX-1882", "crane"]);
+    expect(wrapWords("crane 西立面", 8)).toEqual(["crane 西立", "面"]);
+  });
+
+  it("splits a word wider than the line when breakWords is set", () => {
+    expect(
+      wrapWords("a supercalifragilistic b", 6, { breakWords: true }),
+    ).toEqual(["a", "superc", "alifra", "gilist", "ic b"]);
+    // Without it the word keeps its own line, as before.
+    expect(wrapWords("a supercalifragilistic b", 6)).toEqual([
+      "a",
+      "supercalifragilistic",
+      "b",
+    ]);
+  });
+
+  it("splits by grapheme, so an emoji is never cut in half", () => {
+    expect(
+      wrapWords("👍👍👍", 2, {
+        breakWords: true,
+        measure: (t) => [...t].length,
+      }),
+    ).toEqual(["👍👍", "👍"]);
+  });
+
+  it("keeps a blank or whitespace-only line as a blank", () => {
+    expect(wrapWords("one\n   \ntwo\r\nthree", 20)).toEqual([
+      "one",
+      "",
+      "two",
+      "three",
+    ]);
+  });
+});

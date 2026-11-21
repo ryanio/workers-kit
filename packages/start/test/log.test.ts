@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createLogger, type LogEntry, requestId } from "../src/log.js";
+import {
+  consoleSink,
+  createLogger,
+  type LogEntry,
+  noopLogger,
+  requestId,
+} from "../src/log.js";
 
 function capture() {
   const entries: LogEntry[] = [];
@@ -243,5 +249,40 @@ describe("requestId", () => {
     expect(requestId(req({}))).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
+  });
+});
+
+describe("quiet loggers and the console writer", () => {
+  it("writes nothing at level silent, error included", () => {
+    const { entries, sink } = capture();
+    const log = createLogger("a", { sink, level: "silent" });
+    log.error("boom");
+    log.child({ a: 1 }).warn("hm");
+    expect(entries).toEqual([]);
+  });
+
+  it("has a noopLogger that never reaches the console", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const out = vi.spyOn(console, "log").mockImplementation(() => {});
+    noopLogger.error("boom");
+    noopLogger.child({ a: 1 }).info("hi");
+    expect(error).not.toHaveBeenCalled();
+    expect(out).not.toHaveBeenCalled();
+  });
+
+  it("exports the default console writer, by level", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const out = vi.spyOn(console, "log").mockImplementation(() => {});
+    consoleSink({ level: "error", scope: "a", msg: "x" });
+    consoleSink({ level: "warn", scope: "a", msg: "y" });
+    consoleSink({ level: "debug", scope: "a", msg: "z" });
+    expect(error).toHaveBeenCalledWith({
+      level: "error",
+      scope: "a",
+      msg: "x",
+    });
+    expect(warn).toHaveBeenCalledOnce();
+    expect(out).toHaveBeenCalledOnce();
   });
 });

@@ -1,5 +1,7 @@
+import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import {
+  edgeCacheMiddleware,
   sharedMaxAge,
   withEdgeCache,
   withoutBrowserMaxAge,
@@ -131,5 +133,44 @@ describe("cache headers", () => {
     ).toBe("public, s-maxage=60");
     const untouched = page("public, s-maxage=60");
     expect(withoutBrowserMaxAge(untouched)).toBe(untouched);
+  });
+});
+
+describe("edgeCacheMiddleware", () => {
+  it("answers a Hono GET from the cache once a cacheable page is stored", async () => {
+    const { cache, store } = memoryCache();
+    const pending: Promise<unknown>[] = [];
+    let renders = 0;
+    const app = new Hono();
+    app.use(
+      "*",
+      edgeCacheMiddleware({
+        cache,
+        waitUntil: (p: Promise<unknown>) => pending.push(p),
+      }),
+    );
+    app.get("/a", (c) => {
+      renders++;
+      c.header("Cache-Control", "public, s-maxage=60");
+      return c.html("<html>");
+    });
+    app.get("/private", (c) => {
+      renders++;
+      c.header("Cache-Control", "no-store");
+      return c.text("mine");
+    });
+
+    expect(await (await app.request("https://example.com/a")).text()).toBe(
+      "<html>",
+    );
+    await Promise.all(pending);
+    expect(store.size).toBe(1);
+    const second = await app.request("https://example.com/a");
+    expect(await second.text()).toBe("<html>");
+    expect(renders).toBe(1);
+
+    await app.request("https://example.com/private");
+    await app.request("https://example.com/private");
+    expect(renders).toBe(3);
   });
 });

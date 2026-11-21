@@ -178,6 +178,8 @@ export interface DiscordGatewayOptions {
    * `fetch` refuses the `wss:` scheme.
    */
   open?: ((url: string) => Promise<GatewaySocket | null>) | undefined;
+  /** How long the default `open` waits for the upgrade. Default 10 seconds. */
+  openTimeoutMs?: number | undefined;
   /** Default `console`. Pass a `createLogger` logger to get the fields into Workers Logs. */
   log?: GatewayLog | undefined;
   /** The waits between reconnects, milliseconds. The last one repeats. */
@@ -407,12 +409,18 @@ export function discordGateway(options: DiscordGatewayOptions): DiscordGateway {
     }
     const response = await doFetch(upgradeUrl(url), {
       headers: { upgrade: "websocket" },
+      signal: AbortSignal.timeout(options.openTimeoutMs ?? 10_000),
     });
     const opened = (response as { webSocket?: unknown }).webSocket as
       | (GatewaySocket & { accept(): void })
       | null
       | undefined;
     if (!opened) {
+      // An error, not a warning, so a logger that reports errors to a tracker
+      // hears about a gateway that refuses every upgrade.
+      log.error?.("discord gateway: upgrade refused", {
+        status: response.status,
+      });
       return null;
     }
     opened.accept();

@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   fetchJson,
   HttpError,
   ResponseTooLarge,
   retryAfterSeconds,
+  sleep,
+  sleepWithJitter,
   transient,
   withRetry,
 } from "../src/http.js";
@@ -313,5 +315,50 @@ describe("response caps", () => {
     expect(
       await fetchJson("https://api.test/big", { fetch, maxBytes: 4000 }),
     ).toBe(big);
+  });
+});
+
+describe("sleep", () => {
+  it("waits the time it is given", async () => {
+    vi.useFakeTimers();
+    try {
+      let done = false;
+      const wait = sleep(500).then(() => {
+        done = true;
+      });
+      await vi.advanceTimersByTimeAsync(499);
+      expect(done).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await wait;
+      expect(done).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("adds up to jitterMs on top of the base, at random", async () => {
+    vi.useFakeTimers();
+    const random = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    try {
+      let done = false;
+      const wait = sleepWithJitter(100, 50).then(() => {
+        done = true;
+      });
+      await vi.advanceTimersByTimeAsync(124);
+      expect(done).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await wait;
+      expect(done).toBe(true);
+    } finally {
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("ends early with the signal's reason when it aborts", async () => {
+    const controller = new AbortController();
+    const wait = sleep(60_000, controller.signal);
+    controller.abort(new Error("stop"));
+    await expect(wait).rejects.toThrow("stop");
   });
 });

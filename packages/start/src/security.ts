@@ -350,3 +350,33 @@ export function withSecurityHeaders(
 ): Response {
   return withHeaders(response, securityHeaders(options), { overwrite: false });
 }
+
+/**
+ * A Hono middleware (or any framework whose context holds `res`) that adds the
+ * security headers to every response, errors and 404s included:
+ *
+ *     app.use("*", securityHeadersMiddleware({ csp: { preset: "strict" } }));
+ *
+ * Typed structurally, so this package does not depend on Hono. Headers are set
+ * in place and never overwrite one the route set; a switching protocols (101)
+ * response is left alone.
+ */
+export function securityHeadersMiddleware(
+  options: SecurityHeadersOptions = {},
+): (c: { res: Response }, next: () => Promise<void>) => Promise<void> {
+  const headers = securityHeaders(options);
+  return async (c, next) => {
+    await next();
+    if (c.res.status === 101) return;
+    try {
+      // In place, because Hono copies the old response's headers over a
+      // reassigned one.
+      for (const [name, value] of Object.entries(headers)) {
+        if (!c.res.headers.has(name)) c.res.headers.set(name, value);
+      }
+    } catch {
+      // A response straight from fetch() has immutable headers.
+      c.res = withHeaders(c.res, headers, { overwrite: false });
+    }
+  };
+}

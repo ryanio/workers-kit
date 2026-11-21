@@ -15,22 +15,22 @@ Check this list before writing a helper in an app. Anything generic to TanStack 
 | `workers-start/entry`           | `createEntry`, `withHeaders`, `wantsMarkdown`, `acceptsHtml`                                                                                                                                                        | The Worker entry: Markdown for agents, Accept fixes, 405s, headers on every response                     |
 | `workers-start/head`            | `createPageHead`, `jsonLdScript`                                                                                                                                                                                    | Per-route head tags and escaped JSON-LD                                                                  |
 | `workers-start/scripts`         | `themeScript`, `analyticsScript`, `tagManagerScript`, `gaEvent`, `inlineJson`                                                                                                                                       | Inline bootstraps, analytics events, JSON safe inside a script tag                                       |
-| `workers-start/cache`           | `withEdgeCache`, `sharedMaxAge`, `withoutBrowserMaxAge`, `cached`, `cachedEntry`                                                                                                                                    | Rendered pages and computed values kept in the Workers Cache API                                         |
+| `workers-start/cache`           | `withEdgeCache`, `edgeCacheMiddleware`, `sharedMaxAge`, `withoutBrowserMaxAge`, `cached`, `cachedEntry`                                                                                                             | Rendered pages and computed values kept in the Workers Cache API                                         |
 | `workers-start/workers`         | `getBinding`, `getEnvString`, `afterResponse`, `isKvNamespace`                                                                                                                                                      | Bindings and `waitUntil` without a static `cloudflare:workers` import                                    |
 | `workers-start/access`          | `verifyAccessToken`, `createAccessVerifier`, `parseAccessConfig`, `accessToken`                                                                                                                                     | Cloudflare Access sign-ins checked in the Worker, failing closed                                         |
 | `workers-start/access/testing`  | `createTestAccessTeam`                                                                                                                                                                                              | A fake Access team for tests: keys, certs and signed tokens                                              |
 | `workers-start/google`          | `googleAccessToken`, `parseServiceAccount`, `ga4RunReport`, `ga4BatchRunReports`, `ga4Rows`, `inListFilter`, `searchConsoleQuery`                                                                                   | Google APIs as a service account: cached tokens, GA4 reports, Search Console                             |
 | `workers-start/sentry`          | `workerSentryOptions`, `browserSentryOptions`, `dropLocalEvents`, `isBrowserNoise`, `BROWSER_DENY_URLS`, `sentryReportUri`, `sentryConnectSource`                                                                   | Sentry options for a Worker and its pages: off without a DSN, no local events, no browser noise          |
-| `workers-start/mail`            | `cloudflareMailer`, `resendMailer`, `recordingMailer`, `MailError`, `escapeHtml`                                                                                                                                    | One `send` over Email Sending or Resend, text and HTML always, and a fake for tests                      |
+| `workers-start/mail`            | `cloudflareMailer`, `resendMailer`, `recordingMailer`, `MailError`, `escapeHtml`, `escapeText`                                                                                                                      | One `send` over Email Sending or Resend, text and HTML always, and a fake for tests                      |
 | `workers-start/rate-limit`      | `rateLimit`, `clientKey`, `clientIp`, `ipNetwork`, `checkRateLimit`, `tooManyRequests`, `rateLimitHeaders`                                                                                                          | The rate limiting binding with hashed client keys, fail-open reporting and one 429 answer                |
 | `workers-start/body`            | `bodyProblem`, `isJsonType`, `readJson`, `readText`                                                                                                                                                                 | Request bodies read under a byte cap, JSON type checked, schema run, failures as problems                |
-| `workers-start/log`             | `createLogger`, `requestId`                                                                                                                                                                                         | Structured logs for Workers Logs, with redaction and request ids                                         |
+| `workers-start/log`             | `createLogger`, `noopLogger`, `consoleSink`, `requestId`                                                                                                                                                            | Structured logs for Workers Logs, with redaction and request ids                                         |
 | `workers-start/webhooks`        | `timingSafeEqual`, `verifyDiscord`, `verifyHmac`, `verifySvix`                                                                                                                                                      | Webhook signatures (Discord, HMAC senders, Svix and Resend) checked in constant time with replay windows |
-| `workers-start/security`        | `contentSecurityPolicy`, `securityHeaders`, `withSecurityHeaders`, `applySecurityHeaders`                                                                                                                           | Security headers and a Content-Security-Policy builder with presets                                      |
+| `workers-start/security`        | `contentSecurityPolicy`, `securityHeaders`, `withSecurityHeaders`, `applySecurityHeaders`, `securityHeadersMiddleware`                                                                                              | Security headers and a Content-Security-Policy builder with presets                                      |
 | `workers-start/cors`            | `cors`                                                                                                                                                                                                              | CORS with an origin allowlist, preflights and `Vary: Origin`                                             |
 | `workers-start/discord`         | `deferred`, `discordRest`, `interactionResponse`, `InteractionResponseType`, `MessageFlags`, `pong`                                                                                                                 | A Discord REST client that waits out 429s and times out, plus interaction responses                      |
 | `workers-start/x`               | `oauth1Header`, `percentEncode`, `xClient`                                                                                                                                                                          | OAuth 1.0a signing on WebCrypto and an X API v2 client that waits out rate limits                        |
-| `workers-start/http`            | `fetchJson`, `withRetry`, `HttpError`, `transient`, `retryAfterSeconds`, `ResponseTooLarge`                                                                                                                         | Outbound calls with timeouts, jittered retries, Retry-After and an optional size cap                     |
+| `workers-start/http`            | `fetchJson`, `withRetry`, `HttpError`, `transient`, `retryAfterSeconds`, `ResponseTooLarge`, `sleep`, `sleepWithJitter`                                                                                             | Outbound calls with timeouts, jittered retries, Retry-After and an optional size cap                     |
 | `workers-start/seo`             | `sitemapXml`, `sitemapIndexXml`, `robotsTxt`, `llmsTxt`, `escapeXml`                                                                                                                                                | `/sitemap.xml`, `/robots.txt` and `/llms.txt` bodies                                                     |
 | `workers-start/bytes`           | `toHex`, `fromHex`, `toBase64`, `fromBase64`, `toBase64Url`, `fromBase64Url`, `utf8`, `fromUtf8`, `randomBytes`, `randomHex`, `randomId`, `sha256`, `sha256Hex`, `sha256Base64Url`, `hmacSha256`, `timingSafeEqual` | Hex, base64 and base64url that refuse bad input instead of throwing, digests and HMACs                   |
 | `workers-start/cookies`         | `readCookie`, `parseCookies`, `serializeCookie`, `clearCookie`, `appendCookie`                                                                                                                                      | Cookies on plain `Request` and `Response` objects, and a clear a browser will honour                     |
@@ -198,6 +198,8 @@ return withEdgeCache(request, () => handler.fetch(request), {
   version: BUILD_ID, // a new deploy never serves the previous build's HTML
 });
 ```
+
+In a Hono app, `app.use("*", edgeCacheMiddleware({ version: BUILD_ID }))` does the same: a hit is answered without running the route, and the store uses the context's `waitUntil`.
 
 A cache hit has its browser `max-age` removed (the zone adds one, and a browser holding page HTML that long outlives the next deploy's assets). The store runs after the response through `afterResponse`; pass `waitUntil` or `cache` to override, as tests do. Outside workerd every request renders.
 
@@ -381,7 +383,7 @@ await mail.send({
 - A `{ name, email }` address whose name holds `<`, `,`, `@` or another address special is sent with the name quoted, so a user-chosen name cannot add recipients or a reply address.
 - A failure throws `MailError` with Resend's `status` and a `permanent` flag (a 4xx other than 409 and 429), so a job step can retry only what might succeed.
 - `listUnsubscribeUrl` adds `List-Unsubscribe` and the one-click `List-Unsubscribe-Post` header. `headers` adds any others, such as `In-Reply-To`.
-- `recordingMailer()` applies the same checks and keeps every message in `sent`, for tests. `escapeHtml` escapes text for an HTML body.
+- `recordingMailer()` applies the same checks and keeps every message in `sent`, for tests. `escapeHtml` escapes text for an HTML body or attribute (`& < > " '`). `escapeText` escapes only `& < >`, for a text node or for Telegram's HTML mode, and must never go inside an attribute.
 
 ## Rate limiting
 
@@ -433,6 +435,7 @@ const price = await fetchJson<{ usd: number }>(
 - `maxBytes` refuses a response body past that size with `ResponseTooLarge`, for upstreams the app does not trust.
 - A request that carries an `authorization` header does not follow redirects (`redirect: "manual"`), so the credential never reaches wherever a 3xx points; the 3xx comes back as an `HttpError`. Pass `redirect: "follow"` to follow one anyway.
 - `withRetry(fn, options)` retries any async work the same way, and `transient(err)` says whether an error is worth retrying.
+- `sleep(ms, signal?)` waits, and rejects with the signal's reason if it aborts first. `sleepWithJitter(baseMs, jitterMs, signal?)` adds a random wait up to `jitterMs`, so callers that started together do not wake together.
 
 ## Security headers
 
@@ -466,7 +469,9 @@ export default {
 - `withSecurityHeaders` never overwrites a header the response already set, so a route with its own CSP or framing rule keeps it. `securityHeaders(options)` returns the plain object, for `withHeaders` or a `headers` init.
 - `applySecurityHeaders(headers, options)` sets the same headers on an existing `Headers` in place, skipping any it already has. It acts on headers only, so the caller skips a 101 response.
 
-A Hono app mutates `c.res.headers` with `applySecurityHeaders` (and `cors().applyTo`) instead of reassigning `c.res`. Hono copies the old response's headers over a reassigned one, which undoes the never-overwrite rule:
+A Hono app with nothing else to do in the middleware uses `app.use("*", securityHeadersMiddleware(options))`, which sets the headers in place, skips a 101 and copies a response whose headers are immutable.
+
+A Hono app that writes its own middleware mutates `c.res.headers` with `applySecurityHeaders` (and `cors().applyTo`) instead of reassigning `c.res`. Hono copies the old response's headers over a reassigned one, which undoes the never-overwrite rule:
 
 A response from workerd's `fetch()` has immutable headers, so a handler that returns an upstream response as is must copy it first (`new Response(res.body, res)`) before anything sets headers on it in place.
 
@@ -624,8 +629,26 @@ try {
 - Values under sensitive keys become `"[redacted]"` at any depth, arrays included. A key matches when its last words are an entry's words, ignoring case and separators, so `token` covers `accessToken` and `x-auth-token` but not `tokenCount`. Plurals match too (`cookies`, `secrets`). The default list is `email`, `ip`, `ipAddress`, `token`, `authorization`, `password`, `secret`, `cookie`, `apiKey`, `privateKey`, `secretKey`, `secretAccessKey`, `jwt`, `assertion` (Access's `cf-access-jwt-assertion`), `session`, `sessionId`, `signature` and `credential`; `redact` replaces it. A `Headers` or `Map` is logged as an object and redacted by key, and a `[name, value]` pair (what `[...request.headers]` gives) is redacted by its name.
 - `mask` keeps part of a value instead of redacting all of it: `mask: { email: (v) => "***@" + String(v).split("@")[1], userId: (v) => String(v).slice(0, 8) }`. Its keys match the way `redact` entries do, and a mask wins over redaction for its key. A mask that throws writes `"[redacted]"`.
 - An `Error` becomes `{ name, message, stack }`, with its `cause` serialised the same way. `stacks: false` leaves `stack` out of every Error and cause, for logs that should stay small. Dates become ISO strings, bigints strings, and a cycle `"[circular]"`. Nesting past 8 levels is cut off as `"[truncated]"`.
-- `level` (default `info`) drops anything below it. `log.child(fields)` returns a logger that adds `fields` to every entry and keeps the level, redaction and sink.
-- `sink` receives each entry instead of the console, for tests or another transport. Its second argument is the fields as passed, before redaction and Error serialising, so a sink can hand the original Error to an error tracker: `sink: (entry, raw) => { console.log(entry); if (entry.level === "error" && raw.error instanceof Error) Sentry.captureException(raw.error) }`. Never write `raw` out as it is.
+- `level` (default `info`) drops anything below it, and `silent` drops everything. `noopLogger` is a logger at `silent`, for tests and for code that takes a logger it may not need. `log.child(fields)` returns a logger that adds `fields` to every entry and keeps the level, redaction and sink.
+- `sink` receives each entry instead of the console, for tests or another transport. Its second argument is the fields as passed, before redaction and Error serialising, so a sink can hand the original Error to an error tracker: `sink: (entry, raw) => { console.log(entry); if (entry.level === "error" && raw.error instanceof Error) Sentry.captureException(raw.error) }`. Never write `raw` out as it is. `consoleSink` is the default writer, so a sink that adds behaviour calls it for the console part instead of rewriting it.
+
+An app with one set of options (its redaction, mask and sink) builds them into one factory and calls that everywhere, instead of spreading the options at every call site:
+
+```ts
+import * as Sentry from "@sentry/cloudflare";
+import { consoleSink, createLogger, type LogFields } from "workers-start/log";
+
+const options = {
+  sink: (entry, raw) => {
+    consoleSink(entry);
+    if (entry.level === "error" && raw.error instanceof Error)
+      Sentry.captureException(raw.error);
+  },
+} satisfies Parameters<typeof createLogger>[1];
+
+export const appLogger = (scope: string, base?: LogFields) =>
+  createLogger(scope, base ? { ...options, base } : options);
+```
 
 `requestId(request)` returns the `cf-ray` header, else `x-request-id`, else a new UUID, so one id ties together every line of a request.
 
@@ -726,6 +749,7 @@ export const Route = createFileRoute("/sitemap.xml")({
 - `robotsTxt({ rules, host, sitemap })` writes each rule group as `User-Agent`, `Allow` and `Disallow` lines, separated by blank lines, then `Host` and one `Sitemap` line per URL. Every rule field takes a string or an array. With no `rules`, it allows everything to every agent.
 - `sitemapIndexXml(entries)` writes a `<sitemapindex>` for a site past the 50,000 URL or 50 MB limit of one sitemap, or one that splits its sitemaps by kind. Point `robotsTxt`'s `sitemap` at the index once there is more than one.
 - `llmsTxt({ title, summary, details, sections })` writes the agent-facing index of a site, as [llmstxt.org](https://llmstxt.org) lays it out: one H1, a blockquote summary, free paragraphs, then `##` sections. A section holds `body` paragraphs, plain `items` bullets and `links`, in that order, so it can carry the limits an agent has to follow and not only a list of URLs. One with none of the three is left out, so an empty query writes no heading. Serve it at `/llms.txt` as `text/plain`.
+- `body` and `details` also take lists among their paragraphs, written in the order given: `{ list: [...] }` for bullets, `{ list, ordered: true }` for a numbered list. An item is a string, a link (`{ title, url, notes }`), or `{ text, lines }`, where `lines` are written under the item at its indent: a string as a line of its own, a list as a nested list. So a file with bullets before its first section, steps with sub-steps, and linked and plain bullets mixed in one order fits without hand-joining strings.
 
 ```ts
 llmsTxt({
@@ -831,8 +855,9 @@ Everything here is pure and locale-free on purpose: these strings end up in a Wo
 - A date argument is an ISO string, epoch milliseconds or a `Date`. Anything unparseable gives an empty string rather than `Invalid Date`, so a bad row leaves a gap in the page instead of a mark across it.
 - `toMillis` reads a timestamp with no zone as UTC. `Date.parse` already does that for `2026-11-20`, but not for `2026-11-20 14:03:00`, which SQLite's `datetime()` returns and which otherwise reads hours out on a fresh row.
 - `compactCount` groups in full below its threshold (10,000): "9.9k" hides whether a number crossed ten thousand and "9,934" does not.
+- `fullDate(value, { month: "short" })` writes "9 Mar 2026" in place of "9 March 2026", and `timeAgo` takes the same `month` for its fallback date past 30 days.
 - `timeAgo` reads anything in the future as "just now". A visitor's clock a little ahead of the server is the ordinary cause, and "in 2s" only looks broken.
-- `wrapWords(text, width, { measure })` breaks on spaces, keeps the line breaks already in the text, and gives a word too wide for a line its own line rather than hyphenating an address. `measure` lets a card renderer wrap in pixels rather than characters.
+- `wrapWords(text, width, { measure, breakWords })` breaks on spaces, and between the characters of Chinese and Japanese, which use none; a line never starts with closing punctuation such as `。`. It keeps the line breaks already in the text, a blank or whitespace-only line stays blank, and a word too wide for a line gets its own line rather than hyphenating an address. `breakWords: true` splits that word between characters instead, for a page or a PDF where it would run off the paper. `measure` lets a card renderer wrap in pixels rather than characters.
 - `fitWords(text, width, { maxLines, measure })` is the other half: it answers `null` rather than overflowing or truncating, for a label drawn at a size you control. Try the largest size, and on `null` try the next one down. An ellipsis is the wrong answer for a title on a card or a name on a device screen, where the room is yours to give.
 
 ## Discord gateway
@@ -877,7 +902,7 @@ export class GatewayObject extends DurableObject<Env> {
 - `onChange(status)` runs after every phase change, for an alert or a metric. `status.attempt` counts closes in a row, so `attempt >= 3` is three failed reconnects. A handler that throws is logged and ignored.
 - `saveSeq: "heartbeat"` keeps the sequence number in memory and writes it with the heartbeat, which saves a storage write per event on a busy bot. The cost is that a resume after an eviction starts from the last heartbeat and Discord replays the events since, so handlers have to tolerate a repeat. The default, `"dispatch"`, writes on every event.
 - `GUILDS`, `GUILD_MEMBERS`, `GUILD_MESSAGES`, `GUILD_MESSAGE_REACTIONS`, `DIRECT_MESSAGES` and `MESSAGE_CONTENT` are the intent bits, to combine with `|`.
-- `discover` and `open` default to `fetch`, and either can be replaced for a test. The default `discover` sends Discord's `DiscordBot (url, version)` user agent and gives up after 10 seconds; the default `open` makes the upgrade over `https://`, since a Worker's `fetch` refuses `wss://`.
+- `discover` and `open` default to `fetch`, and either can be replaced for a test. The default `discover` sends Discord's `DiscordBot (url, version)` user agent and gives up after 10 seconds; the default `open` makes the upgrade over `https://`, since a Worker's `fetch` refuses `wss://`, gives up after `openTimeoutMs` (10 seconds), and logs a refused upgrade with `log.error`, so a logger that reports errors hears of it.
 
 ## Secret check
 

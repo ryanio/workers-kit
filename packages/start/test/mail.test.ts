@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   cloudflareMailer,
   escapeHtml,
+  escapeText,
   MailError,
   type MailMessage,
   recordingMailer,
@@ -177,6 +178,14 @@ describe("escapeHtml", () => {
   it("escapes the five characters", () => {
     expect(escapeHtml(`<a href="x">Tom & Jerry's</a>`)).toBe(
       "&lt;a href=&quot;x&quot;&gt;Tom &amp; Jerry&#39;s&lt;/a&gt;",
+    );
+  });
+});
+
+describe("escapeText", () => {
+  it("escapes only what ends a text node, and leaves quotes as they are", () => {
+    expect(escapeText(`Tom & "Jerry" <b>'s</b>`)).toBe(
+      `Tom &amp; "Jerry" &lt;b&gt;'s&lt;/b&gt;`,
     );
   });
 });

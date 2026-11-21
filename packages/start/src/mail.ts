@@ -232,7 +232,10 @@ export function recordingMailer(): Mailer & { sent: MailMessage[] } {
   };
 }
 
-/** Escapes text for an HTML body. */
+/**
+ * Escapes text for an HTML body or attribute: `& < > " '`. For a text node
+ * that will never sit in an attribute, `escapeText` leaves quotes alone.
+ */
 export function escapeHtml(text: string): string {
   return text.replace(
     /[&<>"']/g,
@@ -240,5 +243,18 @@ export function escapeHtml(text: string): string {
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
         c
       ] ?? c,
+  );
+}
+
+/**
+ * Escapes only `& < >`, which is all a text node needs. For text read by
+ * something that shows an entity it does not know as typed, and for markup
+ * diffs that should not change every apostrophe. Never use it inside an
+ * attribute value.
+ */
+export function escapeText(text: string): string {
+  return text.replace(
+    /[&<>]/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c] ?? c,
   );
 }
