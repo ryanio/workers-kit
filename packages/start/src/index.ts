@@ -52,6 +52,7 @@ export {
   cachedEntry,
   edgeCacheMiddleware,
   peekCached,
+  purgeEdgeCache,
   sharedMaxAge,
   withEdgeCache,
   withoutBrowserMaxAge,

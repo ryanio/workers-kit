@@ -31,7 +31,9 @@ export interface EdgeCacheOptions {
    * The Cache-Control a cache hit answers the browser with. By default a hit
    * keeps what was stored, minus the browser `max-age` the zone's Browser
    * Cache TTL adds on the way back. Give this when the browser should see
-   * something else, such as `"public, max-age=0, must-revalidate"`.
+   * something else, such as `"public, max-age=0, must-revalidate"`, or
+   * `"stored"` to answer with the stored Cache-Control as it is, browser
+   * `max-age` included, for a route whose browser lifetime is deliberate.
    */
   clientCacheControl?: string | undefined;
   /**
@@ -109,9 +111,11 @@ export async function withEdgeCache(
     options.onError?.(error, "match");
   }
   if (hit) {
-    const answer = options.clientCacheControl
-      ? withHeader(hit, "cache-control", options.clientCacheControl)
-      : withoutBrowserMaxAge(hit);
+    const answer = !options.clientCacheControl
+      ? withoutBrowserMaxAge(hit)
+      : options.clientCacheControl === "stored"
+        ? hit
+        : withHeader(hit, "cache-control", options.clientCacheControl);
     return marked(answer, options.statusHeader, "HIT");
   }
 
@@ -141,7 +145,41 @@ export async function withEdgeCache(
   return marked(response, options.statusHeader, "MISS");
 }
 
-function cacheKey(request: Request, options: EdgeCacheOptions): Request {
+/**
+ * Drops pages from the edge cache, so the next request renders them fresh:
+ * after an edit to what a cached page shows. Give the same `version` and
+ * `key` the pages were cached with. Answers how many entries were there.
+ * The Cache API is per data center, so this clears the one it runs in; a
+ * page cached elsewhere lives out its `s-maxage` there.
+ */
+export async function purgeEdgeCache(
+  urls: readonly (string | URL)[],
+  options: Pick<EdgeCacheOptions, "version" | "key" | "onError"> & {
+    cache?: Pick<Cache, "delete"> | undefined;
+  } = {},
+): Promise<number> {
+  const cache =
+    options.cache ??
+    (globalThis as { caches?: { default?: Pick<Cache, "delete"> } }).caches
+      ?.default;
+  if (!cache) return 0;
+  let dropped = 0;
+  for (const url of urls) {
+    try {
+      if (await cache.delete(cacheKey(new Request(String(url)), options))) {
+        dropped++;
+      }
+    } catch (error) {
+      options.onError?.(error, "put");
+    }
+  }
+  return dropped;
+}
+
+function cacheKey(
+  request: Request,
+  options: Pick<EdgeCacheOptions, "version" | "key">,
+): Request {
   const chosen = options.key?.(request);
   if (chosen instanceof Request)
     return new Request(chosen.url, { method: "GET" });

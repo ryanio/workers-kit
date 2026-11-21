@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import {
   edgeCacheMiddleware,
+  purgeEdgeCache,
   sharedMaxAge,
   withEdgeCache,
   withoutBrowserMaxAge,
@@ -213,6 +214,49 @@ describe("withEdgeCache options", () => {
     );
     expect(res.status).toBe(206);
     expect(store.size).toBe(1);
+  });
+});
+
+describe("stored Cache-Control and purging", () => {
+  it("answers a hit with the stored Cache-Control when asked to", async () => {
+    const { cache } = memoryCache();
+    await cache.put(
+      new Request("https://e.test/img"),
+      page("public, max-age=86400, s-maxage=31536000"),
+    );
+    const hit = await withEdgeCache(
+      new Request("https://e.test/img"),
+      async () => {
+        throw new Error("rendered on a hit");
+      },
+      { cache, clientCacheControl: "stored" },
+    );
+    expect(hit.headers.get("cache-control")).toBe(
+      "public, max-age=86400, s-maxage=31536000",
+    );
+  });
+
+  it("purges the entries a page was cached under, version included", async () => {
+    const { cache, store } = memoryCache();
+    const deletable = {
+      ...cache,
+      async delete(req: RequestInfo | URL) {
+        return store.delete(new Request(req).url);
+      },
+    };
+    await withEdgeCache(
+      new Request("https://e.test/u/1"),
+      async () => page("s-maxage=60"),
+      { cache, version: "b1", waitUntil: () => {} },
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    expect(store.size).toBe(1);
+    const dropped = await purgeEdgeCache(
+      ["https://e.test/u/1", "https://e.test/u/2"],
+      { cache: deletable, version: "b1" },
+    );
+    expect(dropped).toBe(1);
+    expect(store.size).toBe(0);
   });
 });
 

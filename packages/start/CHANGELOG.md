@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.23.0 (2026-11-21)
+
+- `purgeEdgeCache(urls, { version, key })` drops pages from the edge cache under the key `withEdgeCache` stored them with.
+- `withEdgeCache`'s `clientCacheControl: "stored"` answers a hit with the stored Cache-Control as it is.
+
 ## 0.22.0 (2026-11-21)
 
 - `withTimeout(work, ms, { label, fallback, fallbackOnError })` and `TimeoutError` in `workers-start/http`: a deadline that throws or resolves a fallback, aborts a work function's signal, and always clears its timer.
