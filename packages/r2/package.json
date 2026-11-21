@@ -1,7 +1,6 @@
 {
   "name": "workers-r2",
   "version": "0.1.0",
-  "private": true,
   "description": "Presigned Cloudflare R2 upload and download URLs that bind the content type into the signature, and server-side puts, on aws4fetch.",
   "license": "MIT",
   "author": "Ryan Ghods",

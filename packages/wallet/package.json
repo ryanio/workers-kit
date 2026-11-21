@@ -1,7 +1,6 @@
 {
   "name": "workers-wallet",
   "version": "0.1.0",
-  "private": true,
   "description": "Wallet signature checks that pass plain accounts and smart wallets alike (ERC-1271, ERC-6492), with a timeout and a distinct answer for an RPC that could not say, plus Sign-In with Ethereum parsing and checks, on viem.",
   "license": "MIT",
   "author": "Ryan Ghods",
