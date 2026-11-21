@@ -420,7 +420,7 @@ const price = await fetchJson<{ usd: number }>(
 ```
 
 - Each attempt times out (default 8 seconds) and the request is aborted, not left running.
-- 408, 425, 429, 5xx, timeouts and network errors are retried for idempotent methods (GET, HEAD, OPTIONS, PUT, DELETE), three attempts by default, with full-jitter backoff. A POST or PATCH is tried once unless `idempotent: true` (it carries an idempotency key, say). `retry: false` turns retries off; `retry: { attempts, baseMs, capMs, budgetMs }` tunes them.
+- 408, 425, 429, 5xx, timeouts and network errors are retried for idempotent methods (GET, HEAD, OPTIONS, PUT, DELETE), three attempts by default, with full-jitter backoff. A POST or PATCH is tried once unless `idempotent: true` (it carries an idempotency key, say). `retry: false` turns retries off; `retry: { attempts, baseMs, capMs, budgetMs }` tunes them. `retryAfterMs(err)` reads a wait from an app's own error type, treated like `Retry-After`.
 - `Retry-After` (seconds or a date) and a JSON `retry_after` (Discord's) set the wait. An upstream that asks for longer than `capMs` (default 10 seconds) is not retried: the `HttpError` is thrown with its `retryAfter`, so the caller can queue the work instead of asking again too early.
 - The body is parsed: JSON when the response says so, else text, else null when empty. A body with no content type or `text/plain` that starts with `{` or `[` is tried as JSON too (as `new Response(JSON.stringify(x))` in a test makes), and stays text when it does not parse. A status outside 2xx throws `HttpError` with `status`, `url`, the parsed `body` and `retryAfter`; its message names the upstream's reason (`api.x.com answered 402: Out of credits.`) when the body carries one.
 - `new HttpError(status, url, body, retryAfter, { message })` keeps the caller's own wording in place of the built message. `url` may be any string; the built message names its host when it parses as a URL, else the string itself.
@@ -460,6 +460,8 @@ export default {
 - `applySecurityHeaders(headers, options)` sets the same headers on an existing `Headers` in place, skipping any it already has. It acts on headers only, so the caller skips a 101 response.
 
 A Hono app mutates `c.res.headers` with `applySecurityHeaders` (and `cors().applyTo`) instead of reassigning `c.res`. Hono copies the old response's headers over a reassigned one, which undoes the never-overwrite rule:
+
+A response from workerd's `fetch()` has immutable headers, so a handler that returns an upstream response as is must copy it first (`new Response(res.body, res)`) before anything sets headers on it in place.
 
 ```ts
 import { Hono } from "hono";

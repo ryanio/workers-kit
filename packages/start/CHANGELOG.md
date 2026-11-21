@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.17.0 (2026-11-21)
 
+- `withRetry({ retryAfterMs })` reads a wait from an app's own error type, treated like `Retry-After`.
 - `createLogger({ mask })` rewrites the value under a key with a function instead of `"[redacted]"`, matched like `redact` and winning over it for that key. `stacks: false` leaves `stack` out of serialised Errors and their causes.
 - `applySecurityHeaders(headers, options)` and `cors().applyTo(request, headers)` set their headers on an existing `Headers` in place, for Hono's `c.res.headers`. Callers skip a 101 themselves.
 - `cors().allows(origin)` says whether an origin is on the list, and `cors().headers()` takes no request for `origins: "*"`.

@@ -87,6 +87,8 @@ export interface RetryOptions {
   budgetMs?: number;
   /** Which errors to retry. Default `transient`. */
   retryIf?: (err: unknown) => boolean;
+  /** The wait an error asks for, in milliseconds, for errors that are not `HttpError` (an app's own error type with a retry hint). Treated like `Retry-After`. */
+  retryAfterMs?: (err: unknown) => number | undefined;
   /** Hears each retry before its wait. */
   onRetry?: (err: unknown, attempt: number, waitMs: number) => void;
   /** Stops waiting and retrying when aborted. */
@@ -117,6 +119,7 @@ export async function withRetry<T>(
     capMs = 10_000,
     budgetMs,
     retryIf = transient,
+    retryAfterMs,
     onRetry,
     signal,
     sleep = defaultSleep,
@@ -132,7 +135,7 @@ export async function withRetry<T>(
       const asked =
         err instanceof HttpError && err.retryAfter !== undefined
           ? err.retryAfter * 1000
-          : undefined;
+          : retryAfterMs?.(err);
       // An upstream that asks for a longer wait than the cap would only be
       // asked again too early; give up and let the caller decide.
       if (asked !== undefined && asked > capMs) throw err;

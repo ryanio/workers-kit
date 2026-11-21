@@ -232,6 +232,34 @@ describe("withRetry", () => {
   });
 });
 
+describe("retryAfterMs", () => {
+  it("reads an app's own retry hint like Retry-After", async () => {
+    class Busy extends Error {
+      constructor(readonly waitMs: number) {
+        super("busy");
+      }
+    }
+    const waits: number[] = [];
+    let first = true;
+    await withRetry(
+      async () => {
+        if (first) {
+          first = false;
+          throw new Busy(1234);
+        }
+        return 1;
+      },
+      {
+        ...noSleep,
+        retryIf: () => true,
+        retryAfterMs: (e) => (e instanceof Busy ? e.waitMs : undefined),
+        onRetry: (_e, _a, w) => waits.push(w),
+      },
+    );
+    expect(waits).toEqual([1234]);
+  });
+});
+
 describe("helpers", () => {
   it("classifies transient errors and reads Retry-After", () => {
     expect(transient(new HttpError(503, "https://a.test/", null))).toBe(true);
