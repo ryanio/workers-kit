@@ -161,6 +161,33 @@ describe("cachedEntry", () => {
     expect(s.calls()).toBe(1);
   });
 
+  it("peeks KV for a newer value when the local copy is past fresh", async () => {
+    const s = setup();
+    const kv = memoryKv();
+    await cachedEntry("gas", s.compute, { ...s.options, kv });
+    await s.settle();
+    const start = Date.UTC(2026, 10, 20, 12);
+    kv.data.set(
+      "gas",
+      JSON.stringify({ at: start + 30_000, value: { n: 50 } }),
+    );
+    // Fresh locally: KV is not consulted.
+    expect(await peekCached("gas", { ...s.options, kv })).toMatchObject({
+      value: { n: 1 },
+    });
+    s.tick(120);
+    expect(await peekCached("gas", { ...s.options, kv })).toMatchObject({
+      value: { n: 50 },
+      at: start + 30_000,
+      stale: true,
+    });
+    kv.data.set("gas", JSON.stringify({ at: start - 1000, value: { n: 0 } }));
+    expect(await peekCached("gas", { ...s.options, kv })).toMatchObject({
+      value: { n: 1 },
+    });
+    expect(s.calls()).toBe(1);
+  });
+
   it("reads a newer KV value before recomputing a stale local copy", async () => {
     const s = setup();
     const kv = memoryKv();

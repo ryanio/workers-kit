@@ -92,6 +92,58 @@ export function validDsn(dsn: string | null | undefined): string | undefined {
   return value?.startsWith("https://") ? value : undefined;
 }
 
+interface ParsedDsn {
+  key: string;
+  origin: string;
+  /** Any path before the project id, as a self-hosted Sentry under a prefix has. */
+  prefix: string;
+  projectId: string;
+}
+
+function parseDsn(dsn: string | null | undefined): ParsedDsn | undefined {
+  const value = validDsn(dsn);
+  if (!value) return undefined;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return undefined;
+  }
+  const match = /^(.*)\/([0-9]+)\/?$/.exec(url.pathname);
+  if (!(url.username && match)) return undefined;
+  return {
+    key: decodeURIComponent(url.username),
+    origin: url.origin,
+    prefix: match[1] ?? "",
+    projectId: match[2] ?? "",
+  };
+}
+
+/**
+ * The CSP report endpoint for a DSN, for `contentSecurityPolicy({ reportUri })`:
+ * `https://<key>@<host>/<projectId>` becomes
+ * `https://<host>/api/<projectId>/security/?sentry_key=<key>`. Undefined for a
+ * DSN that is missing or not a Sentry DSN.
+ */
+export function sentryReportUri(
+  dsn: string | null | undefined,
+): string | undefined {
+  const parsed = parseDsn(dsn);
+  if (!parsed) return undefined;
+  const { key, origin, prefix, projectId } = parsed;
+  return `${origin}${prefix}/api/${projectId}/security/?sentry_key=${encodeURIComponent(key)}`;
+}
+
+/**
+ * The origin events for a DSN are sent to, `https://<host>`, for a CSP
+ * `connect-src`. Undefined for a DSN that is missing or not a Sentry DSN.
+ */
+export function sentryConnectSource(
+  dsn: string | null | undefined,
+): string | undefined {
+  return parseDsn(dsn)?.origin;
+}
+
 function chain(...steps: (BeforeSend | undefined)[]): BeforeSend {
   return (event, hint) => {
     let current = event;

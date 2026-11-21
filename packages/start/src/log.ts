@@ -32,6 +32,15 @@ export interface LoggerOptions {
   sink?: (entry: LogEntry) => void;
   /** The lowest level written. Default `info`. */
   level?: LogLevel;
+  /**
+   * Functions that rewrite the value under a key instead of redacting it, such
+   * as `{ email: (v) => "***@" + String(v).split("@")[1] }`. Keys match the
+   * way `redact` entries do, and a mask wins over redaction for its key. A
+   * mask that throws writes `"[redacted]"`.
+   */
+  mask?: Record<string, (value: unknown) => unknown>;
+  /** Set false to leave `stack` out of serialised Errors and their causes. Default true. */
+  stacks?: boolean;
 }
 
 export interface Logger {
@@ -67,21 +76,68 @@ function words(key: string): string[] {
     .filter(Boolean);
 }
 
+function endsWith(parts: string[], pattern: string[]): boolean {
+  return (
+    pattern.length <= parts.length &&
+    pattern.every(
+      (word, i) => parts[parts.length - pattern.length + i] === word,
+    )
+  );
+}
+
 function matcher(entries: string[]): (key: string) => boolean {
   const patterns = entries.map(words).filter((w) => w.length > 0);
   return (key) => {
     const parts = words(key);
-    return patterns.some(
-      (p) =>
-        p.length <= parts.length &&
-        p.every((word, i) => parts[parts.length - p.length + i] === word),
-    );
+    return patterns.some((p) => endsWith(parts, p));
   };
+}
+
+type Mask = (value: unknown) => unknown;
+
+function maskFinder(
+  masks: Record<string, Mask>,
+): (key: string) => Mask | undefined {
+  const patterns = Object.entries(masks)
+    .map(([entry, fn]) => [words(entry), fn] as const)
+    .filter(([w]) => w.length > 0);
+  return (key) => {
+    if (patterns.length === 0) return undefined;
+    const parts = words(key);
+    return patterns.find(([p]) => endsWith(parts, p))?.[1];
+  };
+}
+
+interface Rules {
+  sensitive: (key: string) => boolean;
+  mask: (key: string) => Mask | undefined;
+  stacks: boolean;
+}
+
+function field(
+  key: string,
+  item: unknown,
+  rules: Rules,
+  depth: number,
+  seen: WeakSet<object>,
+): unknown {
+  const mask = rules.mask(key);
+  if (mask) {
+    let masked: unknown;
+    try {
+      masked = mask(item);
+    } catch {
+      return "[redacted]";
+    }
+    return clean(masked, rules, depth, seen);
+  }
+  if (rules.sensitive(key)) return "[redacted]";
+  return clean(item, rules, depth, seen);
 }
 
 function clean(
   value: unknown,
-  sensitive: (key: string) => boolean,
+  rules: Rules,
   depth: number,
   seen: WeakSet<object>,
 ): unknown {
@@ -93,22 +149,17 @@ function clean(
   seen.add(value);
   try {
     if (value instanceof Error) {
-      const out: LogFields = {
-        name: value.name,
-        message: value.message,
-        stack: value.stack,
-      };
+      const out: LogFields = { name: value.name, message: value.message };
+      if (rules.stacks) out.stack = value.stack;
       if (value.cause !== undefined)
-        out.cause = clean(value.cause, sensitive, depth + 1, seen);
+        out.cause = clean(value.cause, rules, depth + 1, seen);
       return out;
     }
     if (Array.isArray(value))
-      return value.map((item) => clean(item, sensitive, depth + 1, seen));
+      return value.map((item) => clean(item, rules, depth + 1, seen));
     const out: LogFields = {};
     for (const [key, item] of Object.entries(value)) {
-      out[key] = sensitive(key)
-        ? "[redacted]"
-        : clean(item, sensitive, depth + 1, seen);
+      out[key] = field(key, item, rules, depth + 1, seen);
     }
     return out;
   } finally {
@@ -137,15 +188,21 @@ export function createLogger(
     base = {},
     sink = write,
     level = "info",
+    mask = {},
+    stacks = true,
   } = options;
-  const sensitive = matcher(redact);
+  const rules: Rules = {
+    sensitive: matcher(redact),
+    mask: maskFinder(mask),
+    stacks,
+  };
   const threshold = RANK[level];
 
   const emit = (at: LogLevel, msg: string, fields?: LogFields) => {
     if (RANK[at] < threshold) return;
     const extra = clean(
       { ...base, ...fields },
-      sensitive,
+      rules,
       0,
       new WeakSet(),
     ) as LogFields;

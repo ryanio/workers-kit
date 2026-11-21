@@ -29,12 +29,24 @@ export interface CorsOptions {
 }
 
 export interface Cors {
-  /** The CORS headers for an actual (non-preflight) response to `request`. */
-  headers(request: Request): Record<string, string>;
+  /**
+   * The CORS headers for an actual (non-preflight) response to `request`.
+   * With `origins: "*"` the request may be left out, since the headers never
+   * depend on it.
+   */
+  headers(request?: Request): Record<string, string>;
+  /** Whether `origin` (an Origin header value) is on the allowlist. Always true for `"*"`. */
+  allows(origin: string | null): boolean;
   /** The 204 answer to a preflight, or null when `request` is not one. */
   preflight(request: Request): Response | null;
   /** A copy of `response` with the CORS headers for `request`, `Vary` merged. */
   apply(request: Request, response: Response): Response;
+  /**
+   * Sets the CORS headers for `request` on `headers` in place, `Vary`
+   * merged, and returns it. For frameworks that hold the response, such as
+   * Hono's `c.res.headers`. Callers skip a 101 response themselves.
+   */
+  applyTo(request: Request, headers: Headers): Headers;
 }
 
 const DEFAULT_METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"];
@@ -68,8 +80,13 @@ export function cors(options: CorsOptions): Cors {
       return pattern.test(origin);
     });
 
-  const headersFor = (request: Request): Record<string, string> => {
+  const headersFor = (request?: Request): Record<string, string> => {
     if (origins === "*") return { "access-control-allow-origin": "*" };
+    if (!request) {
+      throw new TypeError(
+        'workers-start: cors().headers() needs the request unless origins is "*".',
+      );
+    }
     const origin = request.headers.get("origin");
     if (!(origin && allowed(origin))) return { vary: "Origin" };
     return {
@@ -82,7 +99,7 @@ export function cors(options: CorsOptions): Cors {
   const isAllowed = (cors: Record<string, string>) =>
     "access-control-allow-origin" in cors;
 
-  const responseHeaders = (request: Request): Record<string, string> => {
+  const responseHeaders = (request?: Request): Record<string, string> => {
     const cors = headersFor(request);
     if (isAllowed(cors) && exposeHeaders.length > 0) {
       cors["access-control-expose-headers"] = exposeHeaders.join(", ");
@@ -90,8 +107,21 @@ export function cors(options: CorsOptions): Cors {
     return cors;
   };
 
+  const applyTo = (request: Request, headers: Headers): Headers => {
+    for (const [name, value] of Object.entries(responseHeaders(request))) {
+      if (name === "vary")
+        headers.set(name, mergeVary(headers.get(name), value));
+      else headers.set(name, value);
+    }
+    return headers;
+  };
+
   return {
     headers: responseHeaders,
+
+    allows: (origin) => origins === "*" || (!!origin && allowed(origin)),
+
+    applyTo,
 
     preflight(request) {
       if (
@@ -113,12 +143,7 @@ export function cors(options: CorsOptions): Cors {
 
     apply(request, response) {
       if (response.status === 101) return response;
-      const merged = new Headers(response.headers);
-      for (const [name, value] of Object.entries(responseHeaders(request))) {
-        if (name === "vary")
-          merged.set(name, mergeVary(merged.get(name), value));
-        else merged.set(name, value);
-      }
+      const merged = applyTo(request, new Headers(response.headers));
       return new Response(response.body, {
         status: response.status,
         statusText: response.statusText,

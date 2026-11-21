@@ -89,6 +89,26 @@ describe("cors options", () => {
     });
   });
 
+  it("gives the static headers for * without a request", () => {
+    const open = cors({ origins: "*", exposeHeaders: ["x-total"] });
+    expect(open.headers()).toEqual({
+      "access-control-allow-origin": "*",
+      "access-control-expose-headers": "x-total",
+    });
+    expect(() => cors({ origins: [SITE] }).headers()).toThrow(/request/);
+  });
+
+  it("says whether an origin is allowed", () => {
+    const listed = cors({
+      origins: [SITE, /^https:\/\/[a-z]+\.example\.org$/],
+    });
+    expect(listed.allows(SITE.toUpperCase())).toBe(true);
+    expect(listed.allows("https://app.example.org")).toBe(true);
+    expect(listed.allows("https://evil.example")).toBe(false);
+    expect(listed.allows(null)).toBe(false);
+    expect(cors({ origins: "*" }).allows(null)).toBe(true);
+  });
+
   it("refuses * with credentials", () => {
     expect(() => cors({ origins: "*", credentials: true })).toThrow(
       /credentials/,
@@ -170,5 +190,19 @@ describe("cors apply", () => {
     );
     expect(out.headers.get("vary")).toBe("origin");
     expect(out.headers.has("access-control-allow-origin")).toBe(false);
+  });
+});
+
+describe("cors applyTo", () => {
+  it("sets the headers on a Headers object in place and merges Vary", () => {
+    const headers = new Headers({ vary: "Accept" });
+    const out = cors({ origins: [SITE], credentials: true }).applyTo(
+      request(SITE),
+      headers,
+    );
+    expect(out).toBe(headers);
+    expect(headers.get("access-control-allow-origin")).toBe(SITE);
+    expect(headers.get("access-control-allow-credentials")).toBe("true");
+    expect(headers.get("vary")).toBe("Accept, Origin");
   });
 });

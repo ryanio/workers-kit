@@ -9,17 +9,34 @@
 import { readText } from "./body.js";
 
 /** An upstream answered with an error status. */
+export interface HttpErrorOptions {
+  /** The error's message, in place of the built `<host> answered <status>: <reason>`. */
+  message?: string;
+}
+
 export class HttpError extends Error {
   override readonly name = "HttpError";
   constructor(
     readonly status: number,
+    /** The URL called. Any string is accepted; the built message names its host when it parses as a URL. */
     readonly url: string,
     /** The response body: parsed JSON when it was JSON, else text. */
     readonly body: unknown,
     /** Seconds the upstream asked to wait, from `Retry-After` or a JSON `retry_after`. */
     readonly retryAfter?: number,
+    options: HttpErrorOptions = {},
   ) {
-    super(`${new URL(url).host} answered ${status}${reasonOf(body)}`);
+    super(
+      options.message ?? `${hostOf(url)} answered ${status}${reasonOf(body)}`,
+    );
+  }
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host || url;
+  } catch {
+    return url;
   }
 }
 
@@ -203,8 +220,12 @@ async function readBody(
     text = read.value;
   }
   if (!text) return null;
-  const type = res.headers.get("content-type") ?? "";
-  if (type.includes("json")) {
+  const type = (res.headers.get("content-type") ?? "").trim().toLowerCase();
+  // An untyped or text/plain body that looks like JSON is parsed too: some
+  // upstreams mislabel it, and so does `new Response(JSON.stringify(x))`.
+  const lenient =
+    (type === "" || type.startsWith("text/plain")) && /^\s*[[{]/.test(text);
+  if (type.includes("json") || lenient) {
     try {
       return JSON.parse(text);
     } catch {
@@ -216,7 +237,8 @@ async function readBody(
 
 /**
  * `fetch` that returns the parsed body (JSON, else text, else null for an
- * empty body) and throws `HttpError` for a status outside 2xx. Each attempt
+ * empty body; an untyped or text/plain body starting with `{` or `[` is tried
+ * as JSON) and throws `HttpError` for a status outside 2xx. Each attempt
  * times out; transient failures are retried for idempotent methods.
  */
 export async function fetchJson<T = unknown>(

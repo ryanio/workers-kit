@@ -276,9 +276,11 @@ function toResponse(envelope: Envelope<unknown>, seconds: number): Response {
 }
 
 /**
- * The stored entry for `key`, without computing or refreshing anything: null
- * when nothing is stored. `stale` is judged by `freshSeconds`. Takes the same
- * options as `cachedEntry`, so the same key and version are read.
+ * The stored entry for `key`, without computing, refreshing or storing
+ * anything: null when nothing is stored. `stale` is judged by `freshSeconds`.
+ * A local copy past fresh is checked against KV, when given, and the newer of
+ * the two is returned, as `cachedEntry` reads. Takes the same options as
+ * `cachedEntry`, so the same key and version are read.
  */
 export async function peekCached<T>(
   key: string,
@@ -294,14 +296,17 @@ export async function peekCached<T>(
         ),
       )
     : undefined;
-  let envelope: Envelope<T> | null = null;
-  if (hit) envelope = (await hit.json()) as Envelope<T>;
-  else if (options.kv) {
+  const now = options.now ?? Date.now;
+  const freshMs = options.freshSeconds * 1000;
+  let envelope: Envelope<T> | null = hit
+    ? ((await hit.json()) as Envelope<T>)
+    : null;
+  if (options.kv && !(envelope && now() - envelope.at <= freshMs)) {
     const raw = await options.kv.get(fullKey);
-    if (raw) envelope = JSON.parse(raw) as Envelope<T>;
+    const shared = raw ? (JSON.parse(raw) as Envelope<T>) : null;
+    if (shared && !(envelope && envelope.at >= shared.at)) envelope = shared;
   }
   if (!envelope) return null;
-  const now = options.now ?? Date.now;
   return {
     value: envelope.value,
     at: envelope.at,

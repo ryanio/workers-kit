@@ -10,30 +10,30 @@ It has no runtime dependencies. Each piece is its own entry point, so an app tak
 
 Check this list before writing a helper in an app. Anything generic to TanStack Start on Workers that is missing belongs here, with a test, rather than in one app.
 
-| Entry point                    | Exports                                                                                                                           | For                                                                                                      |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `workers-start/entry`          | `createEntry`, `withHeaders`, `wantsMarkdown`, `acceptsHtml`                                                                      | The Worker entry: Markdown for agents, Accept fixes, 405s, headers on every response                     |
-| `workers-start/head`           | `createPageHead`, `jsonLdScript`                                                                                                  | Per-route head tags and escaped JSON-LD                                                                  |
-| `workers-start/scripts`        | `themeScript`, `analyticsScript`, `tagManagerScript`, `gaEvent`, `inlineJson`                                                     | Inline bootstraps, analytics events, JSON safe inside a script tag                                       |
-| `workers-start/cache`          | `withEdgeCache`, `sharedMaxAge`, `withoutBrowserMaxAge`, `cached`, `cachedEntry`                                                  | Rendered pages and computed values kept in the Workers Cache API                                         |
-| `workers-start/workers`        | `getBinding`, `getEnvString`, `afterResponse`, `isKvNamespace`                                                                    | Bindings and `waitUntil` without a static `cloudflare:workers` import                                    |
-| `workers-start/access`         | `verifyAccessToken`, `createAccessVerifier`, `parseAccessConfig`, `accessToken`                                                   | Cloudflare Access sign-ins checked in the Worker, failing closed                                         |
-| `workers-start/access/testing` | `createTestAccessTeam`                                                                                                            | A fake Access team for tests: keys, certs and signed tokens                                              |
-| `workers-start/google`         | `googleAccessToken`, `parseServiceAccount`, `ga4RunReport`, `ga4BatchRunReports`, `ga4Rows`, `inListFilter`, `searchConsoleQuery` | Google APIs as a service account: cached tokens, GA4 reports, Search Console                             |
-| `workers-start/sentry`         | `workerSentryOptions`, `browserSentryOptions`, `dropLocalEvents`, `isBrowserNoise`, `BROWSER_DENY_URLS`                           | Sentry options for a Worker and its pages: off without a DSN, no local events, no browser noise          |
-| `workers-start/mail`           | `cloudflareMailer`, `resendMailer`, `recordingMailer`, `MailError`, `escapeHtml`                                                  | One `send` over Email Sending or Resend, text and HTML always, and a fake for tests                      |
-| `workers-start/rate-limit`     | `rateLimit`, `clientKey`, `checkRateLimit`, `tooManyRequests`, `rateLimitHeaders`                                                 | The rate limiting binding with hashed client keys, fail-open reporting and one 429 answer                |
-| `workers-start/body`           | `bodyProblem`, `isJsonType`, `readJson`, `readText`                                                                               | Request bodies read under a byte cap, JSON type checked, schema run, failures as problems                |
-| `workers-start/log`            | `createLogger`, `requestId`                                                                                                       | Structured logs for Workers Logs, with redaction and request ids                                         |
-| `workers-start/webhooks`       | `timingSafeEqual`, `verifyDiscord`, `verifyHmac`, `verifySvix`                                                                    | Webhook signatures (Discord, HMAC senders, Svix and Resend) checked in constant time with replay windows |
-| `workers-start/security`       | `contentSecurityPolicy`, `securityHeaders`, `withSecurityHeaders`                                                                 | Security headers and a Content-Security-Policy builder with presets                                      |
-| `workers-start/cors`           | `cors`                                                                                                                            | CORS with an origin allowlist, preflights and `Vary: Origin`                                             |
-| `workers-start/discord`        | `deferred`, `discordRest`, `interactionResponse`, `InteractionResponseType`, `MessageFlags`, `pong`                               | A Discord REST client that waits out 429s and times out, plus interaction responses                      |
-| `workers-start/x`              | `oauth1Header`, `percentEncode`, `xClient`                                                                                        | OAuth 1.0a signing on WebCrypto and an X API v2 client that waits out rate limits                        |
-| `workers-start/http`           | `fetchJson`, `withRetry`, `HttpError`, `transient`, `retryAfterSeconds`, `ResponseTooLarge`                                       | Outbound calls with timeouts, jittered retries, Retry-After and an optional size cap                     |
-| `workers-start/seo`            | `sitemapXml`, `robotsTxt`, `escapeXml`                                                                                            | `/sitemap.xml` and `/robots.txt` bodies                                                                  |
-| `workers-start/accept`         | `parseAccept`, `quality`                                                                                                          | Accept header parsing                                                                                    |
-| `workers-start/check-bundle`   | `workers-start-check-bundle` (bin)                                                                                                | Fails a build that would ship a local secret                                                             |
+| Entry point                    | Exports                                                                                                                                           | For                                                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `workers-start/entry`          | `createEntry`, `withHeaders`, `wantsMarkdown`, `acceptsHtml`                                                                                      | The Worker entry: Markdown for agents, Accept fixes, 405s, headers on every response                     |
+| `workers-start/head`           | `createPageHead`, `jsonLdScript`                                                                                                                  | Per-route head tags and escaped JSON-LD                                                                  |
+| `workers-start/scripts`        | `themeScript`, `analyticsScript`, `tagManagerScript`, `gaEvent`, `inlineJson`                                                                     | Inline bootstraps, analytics events, JSON safe inside a script tag                                       |
+| `workers-start/cache`          | `withEdgeCache`, `sharedMaxAge`, `withoutBrowserMaxAge`, `cached`, `cachedEntry`                                                                  | Rendered pages and computed values kept in the Workers Cache API                                         |
+| `workers-start/workers`        | `getBinding`, `getEnvString`, `afterResponse`, `isKvNamespace`                                                                                    | Bindings and `waitUntil` without a static `cloudflare:workers` import                                    |
+| `workers-start/access`         | `verifyAccessToken`, `createAccessVerifier`, `parseAccessConfig`, `accessToken`                                                                   | Cloudflare Access sign-ins checked in the Worker, failing closed                                         |
+| `workers-start/access/testing` | `createTestAccessTeam`                                                                                                                            | A fake Access team for tests: keys, certs and signed tokens                                              |
+| `workers-start/google`         | `googleAccessToken`, `parseServiceAccount`, `ga4RunReport`, `ga4BatchRunReports`, `ga4Rows`, `inListFilter`, `searchConsoleQuery`                 | Google APIs as a service account: cached tokens, GA4 reports, Search Console                             |
+| `workers-start/sentry`         | `workerSentryOptions`, `browserSentryOptions`, `dropLocalEvents`, `isBrowserNoise`, `BROWSER_DENY_URLS`, `sentryReportUri`, `sentryConnectSource` | Sentry options for a Worker and its pages: off without a DSN, no local events, no browser noise          |
+| `workers-start/mail`           | `cloudflareMailer`, `resendMailer`, `recordingMailer`, `MailError`, `escapeHtml`                                                                  | One `send` over Email Sending or Resend, text and HTML always, and a fake for tests                      |
+| `workers-start/rate-limit`     | `rateLimit`, `clientKey`, `checkRateLimit`, `tooManyRequests`, `rateLimitHeaders`                                                                 | The rate limiting binding with hashed client keys, fail-open reporting and one 429 answer                |
+| `workers-start/body`           | `bodyProblem`, `isJsonType`, `readJson`, `readText`                                                                                               | Request bodies read under a byte cap, JSON type checked, schema run, failures as problems                |
+| `workers-start/log`            | `createLogger`, `requestId`                                                                                                                       | Structured logs for Workers Logs, with redaction and request ids                                         |
+| `workers-start/webhooks`       | `timingSafeEqual`, `verifyDiscord`, `verifyHmac`, `verifySvix`                                                                                    | Webhook signatures (Discord, HMAC senders, Svix and Resend) checked in constant time with replay windows |
+| `workers-start/security`       | `contentSecurityPolicy`, `securityHeaders`, `withSecurityHeaders`, `applySecurityHeaders`                                                         | Security headers and a Content-Security-Policy builder with presets                                      |
+| `workers-start/cors`           | `cors`                                                                                                                                            | CORS with an origin allowlist, preflights and `Vary: Origin`                                             |
+| `workers-start/discord`        | `deferred`, `discordRest`, `interactionResponse`, `InteractionResponseType`, `MessageFlags`, `pong`                                               | A Discord REST client that waits out 429s and times out, plus interaction responses                      |
+| `workers-start/x`              | `oauth1Header`, `percentEncode`, `xClient`                                                                                                        | OAuth 1.0a signing on WebCrypto and an X API v2 client that waits out rate limits                        |
+| `workers-start/http`           | `fetchJson`, `withRetry`, `HttpError`, `transient`, `retryAfterSeconds`, `ResponseTooLarge`                                                       | Outbound calls with timeouts, jittered retries, Retry-After and an optional size cap                     |
+| `workers-start/seo`            | `sitemapXml`, `robotsTxt`, `escapeXml`                                                                                                            | `/sitemap.xml` and `/robots.txt` bodies                                                                  |
+| `workers-start/accept`         | `parseAccept`, `quality`                                                                                                                          | Accept header parsing                                                                                    |
+| `workers-start/check-bundle`   | `workers-start-check-bundle` (bin)                                                                                                                | Fails a build that would ship a local secret                                                             |
 
 ## Why
 
@@ -215,7 +215,7 @@ const gas = await cached("gas", () => fetchGasSnapshot(env), {
 - Older or missing, it is recomputed before answering. If that fails and an earlier value is still stored, the earlier value is returned (with the `error` on the entry) and the error goes to `onError`; with nothing stored, the error is thrown.
 - Values live in each location's Cache API, which has no write limit or cost. Pass `kv` to share them across locations too, for an upstream too slow or rate limited to call once per location; a location then warms its own cache from KV.
 - With `kv`, a location whose own copy is past fresh reads KV before recomputing, so values written elsewhere (another location, an indexer, a cron) are used. `kvTtlSeconds` sets how long KV keeps them (default four times fresh plus stale; null until overwritten), and `cache: false` skips the Cache API tier when KV alone should answer.
-- `version` is added to every key, so a deploy that changes the value's shape starts fresh. Values must be JSON. `cachedEntry` returns `{ value, at, stale }` instead of the value, for a page that shows how old its numbers are, and `peekCached` reads what is stored without computing anything.
+- `version` is added to every key, so a deploy that changes the value's shape starts fresh. Values must be JSON. `cachedEntry` returns `{ value, at, stale }` instead of the value, for a page that shows how old its numbers are, and `peekCached` reads what is stored without computing anything. Like `cachedEntry`, `peekCached` checks KV when the local copy is past fresh and returns the newer of the two.
 
 ## Cloudflare Access
 
@@ -346,6 +346,7 @@ Sentry.init({
 - Both drop events whose request came from this machine (`localhost`, `127.0.0.1`, `[::1]`, `*.localhost`), so `wrangler dev` and `vite preview` never post into the production project. Events with no request, such as a cron run, are kept.
 - The browser options also drop requests that never left the device ("Failed to fetch", "Load failed", Firefox's NetworkError), errors from extensions and injected wallets, and a person declining a wallet prompt, and ignore scripts from extension URLs and Google Translate's proxy (`BROWSER_DENY_URLS`). Pass `noise` and `denyUrls` to add patterns, and `keep(event)` to keep an event that reads like noise (a handled capture from a wallet flow, say). The noise check reads the exception value, `message` and `logentry.message`.
 - The Worker options get no message filters: browser wording describes nothing workerd says, so a filter there could only hide a real failure.
+- `sentryReportUri(dsn)` returns the project's CSP report endpoint (`https://<key>@<host>/<projectId>` becomes `https://<host>/api/<projectId>/security/?sentry_key=<key>`), for `contentSecurityPolicy({ reportUri })`. `sentryConnectSource(dsn)` returns `https://<host>` for `connect-src`, which also covers a self-hosted Sentry the `sentry` preset does not. Both return undefined for a missing or invalid DSN.
 - `tracesSampleRate` is left unset unless given, which turns tracing off entirely (a rate of 0 still creates unsampled spans). `release` and `environment` are left unset unless given, so `@sentry/cloudflare` reads `SENTRY_RELEASE` (or `CF_VERSION_METADATA`) and `SENTRY_ENVIRONMENT` itself. `beforeSend` runs after the built-in filters; spread the result to add integrations or a sampler.
 
 ## Mail
@@ -421,7 +422,8 @@ const price = await fetchJson<{ usd: number }>(
 - Each attempt times out (default 8 seconds) and the request is aborted, not left running.
 - 408, 425, 429, 5xx, timeouts and network errors are retried for idempotent methods (GET, HEAD, OPTIONS, PUT, DELETE), three attempts by default, with full-jitter backoff. A POST or PATCH is tried once unless `idempotent: true` (it carries an idempotency key, say). `retry: false` turns retries off; `retry: { attempts, baseMs, capMs, budgetMs }` tunes them.
 - `Retry-After` (seconds or a date) and a JSON `retry_after` (Discord's) set the wait. An upstream that asks for longer than `capMs` (default 10 seconds) is not retried: the `HttpError` is thrown with its `retryAfter`, so the caller can queue the work instead of asking again too early.
-- The body is parsed: JSON when the response says so, else text, else null when empty. A status outside 2xx throws `HttpError` with `status`, `url`, the parsed `body` and `retryAfter`; its message names the upstream's reason (`api.x.com answered 402: Out of credits.`) when the body carries one.
+- The body is parsed: JSON when the response says so, else text, else null when empty. A body with no content type or `text/plain` that starts with `{` or `[` is tried as JSON too (as `new Response(JSON.stringify(x))` in a test makes), and stays text when it does not parse. A status outside 2xx throws `HttpError` with `status`, `url`, the parsed `body` and `retryAfter`; its message names the upstream's reason (`api.x.com answered 402: Out of credits.`) when the body carries one.
+- `new HttpError(status, url, body, retryAfter, { message })` keeps the caller's own wording in place of the built message. `url` may be any string; the built message names its host when it parses as a URL, else the string itself.
 - `maxBytes` refuses a response body past that size with `ResponseTooLarge`, for upstreams the app does not trust.
 - `withRetry(fn, options)` retries any async work the same way, and `transient(err)` says whether an error is worth retrying.
 
@@ -455,13 +457,34 @@ export default {
 - `frame: "sameorigin"` sends `SAMEORIGIN` and puts `frame-ancestors 'self'` in the CSP; the default puts `frame-ancestors 'none'`. A policy that already names `frame-ancestors` keeps it.
 - No CSP is sent unless `csp` is given, as a header value or as options for `contentSecurityPolicy`. `reportOnly: true` (on the options, or on `csp` when `csp` is options) sends it as `Content-Security-Policy-Report-Only`, for a rollout. A `csp` passed as a string is a header value and carries no flag, so pass the top-level `reportOnly` with it.
 - `withSecurityHeaders` never overwrites a header the response already set, so a route with its own CSP or framing rule keeps it. `securityHeaders(options)` returns the plain object, for `withHeaders` or a `headers` init.
+- `applySecurityHeaders(headers, options)` sets the same headers on an existing `Headers` in place, skipping any it already has. It acts on headers only, so the caller skips a 101 response.
+
+A Hono app mutates `c.res.headers` with `applySecurityHeaders` (and `cors().applyTo`) instead of reassigning `c.res`. Hono copies the old response's headers over a reassigned one, which undoes the never-overwrite rule:
+
+```ts
+import { Hono } from "hono";
+import { cors } from "workers-start/cors";
+import { applySecurityHeaders } from "workers-start/security";
+
+const api = cors({ origins: ["https://www.example.com"] });
+const app = new Hono();
+
+app.use(async (c, next) => {
+  const preflight = api.preflight(c.req.raw);
+  if (preflight) return preflight;
+  await next();
+  if (c.res.status === 101) return;
+  applySecurityHeaders(c.res.headers);
+  api.applyTo(c.req.raw, c.res.headers);
+});
+```
 
 `contentSecurityPolicy({ directives, presets, reportOnly, reportUri, nonce })` returns the header value. It starts from `default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: https:; upgrade-insecure-requests`.
 
-- `directives` add sources to a directive, duplicates dropped, order kept. A directive the base lacks is taken as given. `false` removes a directive, a base one included.
-- The presets are `ga4` (gtag.js and its collect beacons, `www.google.com` included), `sentry` (event ingest in the US, EU and older data regions), `cloudflareInsights` (the beacon the zone injects and where it posts) and `walletConnect` (the relay socket, the WalletConnect and AppKit APIs, and the Verify and embedded wallet frames). A `*-src` directive a preset creates starts from `'self'`. `CSP_PRESETS` lists each host with what it is for.
+- `directives` add sources to a directive, duplicates dropped, order kept. A directive the base lacks is taken as given. `{ replace: ["'self'", "https://cdn.example.com"] }` uses those sources instead of the base's, to narrow `img-src` below the base `https:`; presets and the nonce still add to it. `false` removes a directive, a base one included.
+- The presets are `ga4` (gtag.js and its config from `*.googletagmanager.com`, the collect beacons, and `www.google.com` for `/g/collect`, per Google's Tag Platform CSP guide), `sentry` (event ingest in the US, EU and older data regions), `cloudflareInsights` (the beacon the zone injects and where it posts) and `walletConnect` (the relay socket, the WalletConnect and AppKit APIs, and the Verify and embedded wallet frames). A `*-src` directive a preset creates starts from `'self'`. `CSP_PRESETS` lists each host with what it is for.
 - `nonce` adds `'nonce-…'` to `script-src`. Generate a new one per response.
-- `reportUri` adds `report-uri`, such as a Sentry project's security endpoint. `reportOnly` drops `upgrade-insecure-requests`, which browsers ignore in a report-only policy.
+- `reportUri` adds `report-uri`, such as a Sentry project's security endpoint from `sentryReportUri(dsn)`. `reportOnly` drops `upgrade-insecure-requests`, which browsers ignore in a report-only policy.
 
 ## CORS
 
@@ -494,7 +517,9 @@ export default {
 - An origin off the list gets no CORS headers, never a fallback origin, and the browser refuses the read.
 - `origins: "*"` allows anyone without credentials. Pairing it with `credentials: true` throws when the policy is built, because browsers reject that response.
 - `preflight` answers an OPTIONS request that has `Access-Control-Request-Method` with a 204 carrying the allowed methods (default GET, HEAD, POST, PUT, PATCH, DELETE), headers (default `content-type`) and `Access-Control-Max-Age` (default 600 seconds). Any other request gets null.
-- `exposeHeaders` lists response headers the page's script may read, such as `ratelimit`. `headers(request)` returns the plain object, for code that builds its own response.
+- `exposeHeaders` lists response headers the page's script may read, such as `ratelimit`. `headers(request)` returns the plain object, for code that builds its own response. With `origins: "*"` it can be called without a request.
+- `applyTo(request, headers)` sets the CORS headers on an existing `Headers` in place and merges `Vary`, for Hono's `c.res.headers` (see Security headers). It acts on headers only, so the caller skips a 101 response.
+- `allows(origin)` says whether an Origin header value is on the list (always true for `"*"`), for code that refuses a cross-origin write outright.
 
 ## Request bodies
 
@@ -513,7 +538,7 @@ await signUp(body.value.email);
 
 - The body is streamed through a byte counter and the read is cancelled as soon as it passes `maxBytes` (default 64 KiB), so a chunked upload or one with a false `Content-Length` is never buffered past the cap. A `Content-Length` over the cap is refused before reading.
 - `readJson` answers 415 `unsupported_media_type` unless `content-type` is `application/json` or a `+json` type. `requireJsonType: false` skips that check.
-- An empty body, invalid UTF-8 or malformed JSON is 400 `invalid_json`. A body over the cap is 413 `too_large`.
+- An empty (or all whitespace) body is 400 `empty_body`, so a caller can tell a missing body from a broken one. Invalid UTF-8 or malformed JSON is 400 `invalid_json`. A body over the cap is 413 `too_large`.
 - `schema` is anything with a Zod style `safeParse`. A failure is 400 `invalid_request`, and the detail names the first issue, such as `email: Invalid email`.
 - Failures are values, not throws: `{ ok: false, status, code, detail }`. `bodyProblem(failure)` turns one into an RFC 9457 problem (`application/problem+json`, `{ type, title, status, code, detail }`, `cache-control: no-store`).
 
@@ -587,7 +612,8 @@ try {
 
 - Each call writes one object to `console.log` (debug and info), `console.warn` or `console.error`: `{ level, scope, msg, ...base, ...fields }`. A field named `level`, `scope` or `msg` never replaces those three.
 - Values under sensitive keys become `"[redacted]"` at any depth, arrays included. A key matches when its last words are an entry's words, ignoring case and separators, so `token` covers `accessToken` and `x-auth-token` but not `tokenCount`. The default list is `email`, `ip`, `ipAddress`, `token`, `authorization`, `password`, `secret` and `cookie`; `redact` replaces it.
-- An `Error` becomes `{ name, message, stack }`, with its `cause` serialised the same way. Dates become ISO strings, bigints strings, and a cycle `"[circular]"`. Nesting past 8 levels is cut off as `"[truncated]"`.
+- `mask` keeps part of a value instead of redacting all of it: `mask: { email: (v) => "***@" + String(v).split("@")[1], userId: (v) => String(v).slice(0, 8) }`. Its keys match the way `redact` entries do, and a mask wins over redaction for its key. A mask that throws writes `"[redacted]"`.
+- An `Error` becomes `{ name, message, stack }`, with its `cause` serialised the same way. `stacks: false` leaves `stack` out of every Error and cause, for logs that should stay small. Dates become ISO strings, bigints strings, and a cycle `"[circular]"`. Nesting past 8 levels is cut off as `"[truncated]"`.
 - `level` (default `info`) drops anything below it. `log.child(fields)` returns a logger that adds `fields` to every entry and keeps the level, redaction and sink.
 - `sink` receives each entry instead of the console, for tests or another transport.
 
@@ -622,7 +648,7 @@ return deferred({ ephemeral: true });
 ```
 
 - A 429 waits Discord's `retry_after` (from the JSON body or `Retry-After`, global and per-route alike) and tries again, up to `max429` times (5). Discord did not act on a rate limited request, so this applies to a POST too. A wait longer than `maxWaitMs` (60 seconds) throws instead.
-- A 5xx, a timeout or a network error is tried twice more for GET, PUT, PATCH and DELETE. A POST is tried once: a message that timed out may still have been sent.
+- A 5xx, a timeout or a network error is tried twice more for GET, PUT, PATCH and DELETE. A POST is tried once: a message that timed out may still have been sent. `retryServerErrors: false` tries every method once on those failures; 429 waits still apply.
 - When a response says its bucket is spent (`X-RateLimit-Remaining: 0`), the next call on that route waits for `X-RateLimit-Reset-After` first.
 - Each attempt times out after `timeoutMs` (15 seconds). An error status throws `HttpError` from `workers-start/http` with Discord's JSON error in `body`, so `err.body.code === 10008` is an unknown message.
 - `reason` goes into `X-Audit-Log-Reason`, URI-encoded. `query` is appended to the path. A `FormData` body goes up as multipart (a file with `payload_json`), anything else as JSON. A 204 returns `null`.
@@ -651,7 +677,7 @@ console.log(x.rateLimit); // { endpoint: "DELETE /tweets/...", limit, remaining,
 ```
 
 - A 429 waits until `x-rate-limit-reset` plus a second and tries again, for a POST too, since X did not act on it. A reset later than `maxWaitMs` (60 seconds) throws at once rather than waiting.
-- A 5xx, a timeout or a network error is retried for GET and DELETE. A POST is tried once: a post that timed out may have gone out.
+- A 5xx, a timeout or a network error is retried for GET and DELETE. A POST is tried once: a post that timed out may have gone out. `retryServerErrors: false` never retries them on any method, for reads X bills per call; 429 waits still apply.
 - An error status throws `HttpError` from `workers-start/http` with X's JSON body (`title`, `detail`, `errors`). Each attempt times out after `timeoutMs` (15 seconds) and is signed again with a fresh nonce.
 - `rateLimit` holds the `x-rate-limit-*` headers of the last response that carried them. They describe that endpoint, not the account.
 - `get(path, query)` signs the query string; `post(path, body)` sends JSON, which is not signed. `postTweet(text, { replyTo, quote, mediaIds })` returns `{ id, text }`.

@@ -188,6 +188,34 @@ describe("xClient", () => {
     expect(s.calls).toHaveLength(3);
   });
 
+  it("never retries a GET on 5xx or timeout with retryServerErrors: false, but waits out a 429", async () => {
+    const s = server(
+      new Response("", { status: 502 }),
+      "hang",
+      Response.json({}, { status: 429, headers: limits(0, 1010) }),
+      Response.json({ data: { id: "u" } }),
+      Response.json({ data: { id: "extra" } }),
+    );
+    const waits: number[] = [];
+    const x = xClient(docs.creds, {
+      fetch: s.fetch,
+      timeoutMs: 10,
+      retryServerErrors: false,
+      now: () => 1_000_000,
+      sleep: async (ms) => {
+        waits.push(ms);
+      },
+    });
+    await expect(x.get("/users/me")).rejects.toMatchObject({ status: 502 });
+    await expect(x.get("/users/me")).rejects.toMatchObject({
+      name: "TimeoutError",
+    });
+    expect(s.calls).toHaveLength(2);
+    expect(await x.get("/users/me")).toEqual({ data: { id: "u" } });
+    expect(waits).toEqual([11_000]);
+    expect(s.calls).toHaveLength(4);
+  });
+
   it("signs the query string of a GET", async () => {
     const s = server(Response.json({ data: [] }));
     const x = xClient(docs.creds, { fetch: s.fetch });

@@ -20,6 +20,7 @@ export type BodyFailure = {
   ok: false;
   status: 400 | 413 | 415;
   code:
+    | "empty_body"
     | "invalid_json"
     | "too_large"
     | "unsupported_media_type"
@@ -159,7 +160,7 @@ export async function readJson<T = unknown>(
     return fail(400, "invalid_json", "The request body is not valid UTF-8.");
   }
   if (!text.trim())
-    return fail(400, "invalid_json", "The request body is empty.");
+    return fail(400, "empty_body", "The request body is empty.");
   let value: unknown;
   try {
     value = JSON.parse(text);

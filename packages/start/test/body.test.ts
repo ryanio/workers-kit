@@ -100,17 +100,20 @@ describe("readJson", () => {
     });
   });
 
-  it("answers invalid_json for malformed and empty bodies", async () => {
+  it("answers invalid_json for a malformed body and empty_body for an empty one", async () => {
     expect(await readJson(json("{nope"))).toMatchObject({
       status: 400,
       code: "invalid_json",
     });
     expect(await readJson(json(null))).toMatchObject({
       status: 400,
-      code: "invalid_json",
+      code: "empty_body",
       detail: "The request body is empty.",
     });
-    expect(await readJson(json(""))).toMatchObject({ code: "invalid_json" });
+    expect(await readJson(json(" \n"))).toMatchObject({
+      status: 400,
+      code: "empty_body",
+    });
   });
 
   it("runs the schema and names the first issue on failure", async () => {
