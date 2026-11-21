@@ -79,6 +79,8 @@ export function transient(err: unknown): boolean {
 /** What `withTimeout` throws when the work does not settle in time. */
 export class TimeoutError extends Error {
   override readonly name = "TimeoutError";
+  /** 408, so code that classifies errors by HTTP status reads a timeout as one. */
+  readonly status = 408;
   constructor(
     readonly ms: number,
     label = "operation",

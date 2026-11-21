@@ -207,6 +207,7 @@ A cache hit has its browser `max-age` removed (the zone adds one, and a browser 
 - `key(request)` picks the cache key (a URL or a Request), for example the URL without tracking parameters. `version` is still added to it.
 - `shouldStore(response, request)` decides, after the response is sent, whether a page that passes the usual rules (200, `s-maxage`, no `set-cookie`) is stored; it may be async.
 - `statusHeader: "x-edge-cache"` marks each answer `HIT` or `MISS`.
+- `storedCacheControl` writes a different Cache-Control on the stored copy than the visitor gets, and a miss is stored when that header has an `s-maxage`, so a page can answer `no-store` to browsers and still be kept at the edge. Pair it with `clientCacheControl` for hits. A page `shouldStore` refuses has its copy released rather than left buffered.
 - `purgeEdgeCache(urls, { version, key })` drops pages after an edit to what they show, and answers how many were cached. Give the `version` and `key` they were cached with. The Cache API is per data center, so it clears the one it runs in.
 - A cache that throws never takes the page down: a failed lookup renders, a failed store loses only the store, and `onError(error, "match" | "put")` hears about both.
 
@@ -442,7 +443,7 @@ const price = await fetchJson<{ usd: number }>(
 - `maxBytes` refuses a response body past that size with `ResponseTooLarge`, for upstreams the app does not trust.
 - A request that carries an `authorization` header does not follow redirects (`redirect: "manual"`), so the credential never reaches wherever a 3xx points; the 3xx comes back as an `HttpError`. Pass `redirect: "follow"` to follow one anyway.
 - `withRetry(fn, options)` retries any async work the same way, and `transient(err)` says whether an error is worth retrying.
-- `withTimeout(work, ms, options)` races work against a deadline and throws a `TimeoutError` (which `transient` counts as retryable) when the deadline wins. Pass a function, `(signal) => fetch(url, { signal })`, and its signal aborts at the deadline so the work stops too. `{ fallback }` resolves with that value instead of throwing, for an answer that is optional; `fallbackOnError: true` also resolves with it when the work fails. `label` names the work in the error. The timer is always cleared.
+- `withTimeout(work, ms, options)` races work against a deadline and throws a `TimeoutError` (status 408, which `transient` counts as retryable) when the deadline wins. Pass a function, `(signal) => fetch(url, { signal })`, and its signal aborts at the deadline so the work stops too. `{ fallback }` resolves with that value instead of throwing, for an answer that is optional; `fallbackOnError: true` also resolves with it when the work fails. `label` names the work in the error. The timer is always cleared.
 - `sleep(ms, signal?)` waits, and rejects with the signal's reason if it aborts first. `sleepWithJitter(baseMs, jitterMs, signal?)` adds a random wait up to `jitterMs`, so callers that started together do not wake together.
 
 ## Security headers

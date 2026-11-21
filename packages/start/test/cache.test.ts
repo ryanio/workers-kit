@@ -217,6 +217,52 @@ describe("withEdgeCache options", () => {
   });
 });
 
+describe("storedCacheControl", () => {
+  it("stores a no-store miss under its own Cache-Control, and leaves the visitor's alone", async () => {
+    const { cache, store } = memoryCache();
+    const pending: Promise<unknown>[] = [];
+    const miss = await withEdgeCache(
+      new Request("https://e.test/t"),
+      async () => page("private, no-store, max-age=0"),
+      {
+        cache,
+        waitUntil: (p) => pending.push(p),
+        storedCacheControl: "public, s-maxage=30",
+      },
+    );
+    await Promise.all(pending);
+    expect(miss.headers.get("cache-control")).toBe(
+      "private, no-store, max-age=0",
+    );
+    expect(store.get("https://e.test/t")?.headers.get("cache-control")).toBe(
+      "public, s-maxage=30",
+    );
+  });
+
+  it("stores nothing when the stored Cache-Control has no s-maxage", async () => {
+    const { cache, store } = memoryCache();
+    const pending: Promise<unknown>[] = [];
+    await withEdgeCache(
+      new Request("https://e.test/n"),
+      async () => page("public, s-maxage=60"),
+      {
+        cache,
+        waitUntil: (p) => pending.push(p),
+        storedCacheControl: "no-store",
+      },
+    );
+    await Promise.all(pending);
+    expect(store.size).toBe(0);
+  });
+});
+
+describe("TimeoutError", () => {
+  it("carries a 408 status", async () => {
+    const { TimeoutError } = await import("../src/http.js");
+    expect(new TimeoutError(10).status).toBe(408);
+  });
+});
+
 describe("stored Cache-Control and purging", () => {
   it("answers a hit with the stored Cache-Control when asked to", async () => {
     const { cache } = memoryCache();

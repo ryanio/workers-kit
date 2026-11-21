@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.24.0 (2026-11-21)
+
+- `withEdgeCache`'s `storedCacheControl` writes its own Cache-Control on the stored copy and decides storability by it, so a `no-store` page can still be kept at the edge. A copy `shouldStore` refuses is released.
+- `TimeoutError` carries `status: 408`.
+
 ## 0.23.0 (2026-11-21)
 
 - `purgeEdgeCache(urls, { version, key })` drops pages from the edge cache under the key `withEdgeCache` stored them with.

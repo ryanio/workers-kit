@@ -49,6 +49,14 @@ export interface EdgeCacheOptions {
   shouldStore?:
     | ((response: Response, request: Request) => boolean | Promise<boolean>)
     | undefined;
+  /**
+   * The Cache-Control written on the stored copy, when it should differ from
+   * what the visitor gets on a miss. The miss is then stored when this has an
+   * `s-maxage`, whatever the render sent, so a page can answer `no-store` to
+   * browsers and still be kept at the edge. Pair it with `clientCacheControl`
+   * for what a hit tells the browser.
+   */
+  storedCacheControl?: string | undefined;
   /** A header naming whether the answer came from the cache (`HIT` or `MISS`), such as `x-edge-cache`. */
   statusHeader?: string | undefined;
   /** Called when the cache itself fails. A failed lookup renders the page; a failed store loses only the store. */
@@ -120,21 +128,35 @@ export async function withEdgeCache(
   }
 
   const response = await render();
+  const storedHeader =
+    options.storedCacheControl ?? response.headers.get("cache-control") ?? "";
   if (
     response.status === 200 &&
-    sharedMaxAge(response) > 0 &&
+    S_MAXAGE.test(storedHeader) &&
+    Number(storedHeader.match(S_MAXAGE)?.[1]) > 0 &&
     !response.headers.has("set-cookie")
   ) {
     const copy = response.clone();
     const store = (async () => {
       try {
-        if (
-          options.shouldStore &&
-          !(await options.shouldStore(copy.clone(), request))
-        ) {
-          return;
+        if (options.shouldStore) {
+          const probe = copy.clone();
+          const keep = await options.shouldStore(probe, request);
+          // Whatever the check left unread is released, not left buffered.
+          // A cancel on one half of a clone settles only once the other half
+          // is done too, so it is not awaited.
+          void probe.body?.cancel().catch(() => {});
+          if (!keep) {
+            void copy.body?.cancel().catch(() => {});
+            return;
+          }
         }
-        await cache.put(key, copy);
+        await cache.put(
+          key,
+          options.storedCacheControl
+            ? withHeader(copy, "cache-control", options.storedCacheControl)
+            : copy,
+        );
       } catch (error) {
         options.onError?.(error, "put");
       }
