@@ -1,5 +1,5 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 (2026-11-20)
 
 - First version: `h`, `div`, `text`, `img` and `svgImage` build a satori element tree with no JSX, `createRenderer` boots the wasm once per isolate and draws a card to SVG or PNG, `decodeWebpPictures` turns a WebP picture into a PNG so resvg can draw it, and `unmask` drops the no-op masks satori puts on every image, leaving a fill-less mask rect alone because that one hides the picture rather than showing it.

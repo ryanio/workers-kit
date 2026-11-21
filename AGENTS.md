@@ -7,7 +7,7 @@
 - [`packages/r2`](packages/r2/AGENTS.md): `workers-r2`, presigned R2 URLs on aws4fetch.
 - [`packages/wallet`](packages/wallet/AGENTS.md): `workers-wallet`, wallet signatures and SIWE on viem.
 - [`packages/api`](packages/api/AGENTS.md): `workers-api`, Hono APIs with problem responses, an Access guard, spec and types generation and spec checks.
-- [`packages/cards`](packages/cards/AGENTS.md): `workers-cards`, link preview cards on satori and resvg. Still `private`, so the release workflow skips it.
+- [`packages/cards`](packages/cards/AGENTS.md): `workers-cards`, link preview cards on satori and resvg.
 
 Read the package's AGENTS.md before changing it. This file has what every package shares.
 

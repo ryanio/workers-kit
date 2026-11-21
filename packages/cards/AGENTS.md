@@ -2,8 +2,6 @@
 
 `workers-cards` is a TypeScript library for link preview and social cards drawn in a Cloudflare Worker, on satori and resvg. The README is the user guide. This file is for agents changing the package; the repo's [AGENTS.md](../../AGENTS.md) has the commands, hooks and release steps shared by every package.
 
-The package is still `private`, so the release workflow skips it. Dropping that needs the owner to publish a `0.0.0` placeholder of the name and attach the trusted publisher first, as the repo's AGENTS.md describes.
-
 ## Layout
 
 - `src/h.ts`: the element builder (`h`, `div`, `text`, `img`, `svgImage`) and the two data URI helpers.
