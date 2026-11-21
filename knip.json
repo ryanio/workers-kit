@@ -19,6 +19,10 @@
     "packages/r2": {
       "entry": ["src/index.ts", "test/**/*.ts"],
       "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "packages/wallet": {
+      "entry": ["src/index.ts", "test/**/*.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"]
     }
   }
 }

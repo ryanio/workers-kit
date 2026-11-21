@@ -4,6 +4,8 @@
 
 - [`packages/start`](packages/start/AGENTS.md): `workers-start`, zero-dependency helpers for apps on Workers (TanStack Start entry, caches, Access, Google, Sentry, mail, rate limits, HTTP, security headers, CORS, webhooks, bodies, logging).
 - [`packages/jobs`](packages/jobs/AGENTS.md): `workers-jobs`, background jobs on Cron Triggers and Workflows.
+- [`packages/r2`](packages/r2/AGENTS.md): `workers-r2`, presigned R2 URLs on aws4fetch.
+- [`packages/wallet`](packages/wallet/AGENTS.md): `workers-wallet`, wallet signatures and SIWE on viem.
 - [`packages/api`](packages/api/AGENTS.md): `workers-api`, Hono APIs with problem responses, an Access guard, spec and types generation and spec checks.
 
 Read the package's AGENTS.md before changing it. This file has what every package shares.

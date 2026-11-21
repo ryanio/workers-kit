@@ -24,12 +24,26 @@ Background jobs on Cron Triggers and Workflows: typed jobs, deduplicated instanc
 
 Hono APIs on `@hono/zod-openapi`: RFC 9457 problem responses, request validation that names every field, opaque cursors, a Cloudflare Access guard, the OpenAPI spec and openapi-fetch types generated with a drift check, and a test that the spec matches the routes.
 
+### [workers-r2](packages/r2#readme)
+
+[![npm](https://img.shields.io/npm/v/workers-r2?color=f38020&label=npm)](https://www.npmjs.com/package/workers-r2) [![downloads](https://img.shields.io/npm/dm/workers-r2?color=f38020)](https://www.npmjs.com/package/workers-r2)
+
+Presigned R2 uploads and downloads on `aws4fetch` that always sign the content type, so a client cannot swap it, with keys validated against path tricks.
+
+### [workers-wallet](packages/wallet#readme)
+
+[![npm](https://img.shields.io/npm/v/workers-wallet?color=f38020&label=npm)](https://www.npmjs.com/package/workers-wallet) [![downloads](https://img.shields.io/npm/dm/workers-wallet?color=f38020)](https://www.npmjs.com/package/workers-wallet)
+
+Wallet signature checks on `viem` that work for plain accounts and smart wallets (ERC-1271 and ERC-6492), telling a failed check from an unreachable chain, and Sign-In with Ethereum parsing and checks.
+
 ## Install
 
 ```bash
 npm install workers-start
 npm install workers-jobs
 npm install workers-api
+npm install workers-r2
+npm install workers-wallet
 ```
 
 ## Working on it

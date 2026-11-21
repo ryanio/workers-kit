@@ -1,0 +1,67 @@
+{
+  "name": "workers-wallet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Wallet signature checks that pass plain accounts and smart wallets alike (ERC-1271, ERC-6492), with a timeout and a distinct answer for an RPC that could not say, plus Sign-In with Ethereum parsing and checks, on viem.",
+  "license": "MIT",
+  "author": "Ryan Ghods",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ryanio/workers-kit.git",
+    "directory": "packages/wallet"
+  },
+  "homepage": "https://github.com/ryanio/workers-kit/tree/main/packages/wallet#readme",
+  "bugs": {
+    "url": "https://github.com/ryanio/workers-kit/issues"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "viem",
+    "ethereum",
+    "siwe",
+    "eip-4361",
+    "erc-1271",
+    "erc-6492",
+    "smart-wallet"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run build && vitest run",
+    "prepack": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "viem": "^2.56.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "^7.0.2",
+    "viem": "^2.58.3",
+    "vitest": "^5.1.0"
+  }
+}
