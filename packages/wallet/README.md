@@ -46,6 +46,8 @@ The signature is first recovered locally. If it recovers to `address`, the answe
 - An address that is not an address, or a signature that is not hex, is `false` without a call.
 - `message` is a string or `{ raw }`, as in viem.
 
+In tests, a fake chain has to answer `eth_chainId`: a `false` from `verifyMessage` is checked against it, and a fake that throws on unknown methods turns every refused signature into `undefined`.
+
 The client must be on the wallet's chain: a smart wallet deployed on Base has no code on mainnet.
 
 ### Your own JSON-RPC function

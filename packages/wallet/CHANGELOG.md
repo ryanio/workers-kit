@@ -3,6 +3,7 @@
 ## 0.2.0 (2026-11-21)
 
 - `checkSiwe`'s `uri` takes a string or a list, and both sides are normalised before the compare: scheme and host lowercased, a trailing slash and a default port dropped. An app can allow its www and bare hosts.
+- README: a test fake chain must answer `eth_chainId`.
 - `rpcSignatureClient(request)`: a `SignatureClient` on an app's own JSON-RPC function `(method, params) => Promise<result>`. It is a viem client with a `custom` transport that does not retry, with viem's own `verifyMessage` and `getChainId`, so ERC-1271, ERC-6492 and the down-RPC check work without a viem `PublicClient`.
 
 ## 0.1.1 (2026-11-21)
