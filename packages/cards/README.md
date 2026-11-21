@@ -14,7 +14,7 @@ It has no runtime dependencies and imports neither satori nor resvg.
 | ------------------------------------- | --------------------------------------------------------------------------------- |
 | `h`, `div`, `text`, `img`, `svgImage` | A satori element tree with no React and no JSX                                    |
 | `base64`, `dataUri`                   | Bytes into a picture a card can draw                                              |
-| `createRenderer`                      | The renderer: boot once, draw to SVG or PNG                                       |
+| `createRenderer`                      | The renderer: boot once, draw to SVG, PNG or JPEG                                 |
 | `decodeWebpPictures`                  | Every WebP picture in a tree turned into a PNG, since resvg draws nothing for one |
 | `unmask`                              | The no-op masks satori puts on every image, dropped                               |
 
@@ -98,7 +98,9 @@ satori reads plain `{ type, props: { style, children } }` objects, so `h` and it
 - `createRenderer(load)` calls `load` once per isolate and keeps the promise: resvg refuses a second `initWasm`. A boot that fails is forgotten rather than cached, so the next request tries again instead of serving an error for the isolate's life. `ready()` runs it without drawing, for a warm-up.
 - `svg(element, size)` stops before rasterizing. It is cheap, it is deterministic, and it is what a test should assert on.
 - `png(element, size)` rasterizes at `width * scale`, with system fonts off so a card looks the same wherever it renders, and frees both the drawing and the renderer even when the draw throws.
-- Give the engine a `decodeWebp` and every WebP data URI in the tree becomes a PNG first. resvg draws nothing at all for a WebP, with no error, which looks exactly like a card whose picture failed to load. A picture that will not decode is dropped, so the card is drawn without it rather than not drawn.
+- Give the engine a `decodeWebp` and every WebP data URI in the tree becomes a PNG first. resvg draws nothing at all for a WebP, with no error, which looks exactly like a card whose picture failed to load. A picture that will not decode is dropped, so the card is drawn without it rather than not drawn. `decodeWebp` can choose otherwise for one that fails: return an element to draw in the picture's place (a placeholder tile), or `null` to drop the element holding the picture with everything in it, for a picture with a wash or frame laid over it.
+- `jpeg(element, { width, height, scale, quality, supersample })` needs an `encodeJpeg(pixels, width, height, quality)` in the engine, since resvg writes only PNG; jpeg-js's encoder fits. `supersample: 2` draws at twice the size and averages each 2 by 2 block back to one pixel, which antialiases fine lines and star dust better than resvg does. `quality` defaults to 86.
+- `png` and `jpeg` take `nearest`: `true`, or a test of each `<image>` box, marks those pictures `image-rendering="optimizeSpeed"`, which resvg draws much faster and which gives the same pixels for a picture drawn at its own size or a whole multiple. `prepare(svg)` rewrites the SVG last, before resvg reads it, for app-specific tidying such as inlining vector layers.
 - `unmask` runs on every `png`. satori gives each `<image>` a clip path and a mask of its own box; where that box is a plain rectangle the same size as the image they change nothing, but resvg still draws each one to an offscreen buffer. A rounded or offset mask is left alone.
 
 ## Related

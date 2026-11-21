@@ -29,7 +29,15 @@
  * like a card whose picture did not load. Give the engine a `decodeWebp` and
  * every WebP data URI in the tree is turned into a PNG first. One that will
  * not decode is dropped, so the card is drawn without the picture rather than
- * not drawn at all.
+ * not drawn at all. `decodeWebp` can choose otherwise: an element to draw in
+ * the picture's place, or `null` to drop the element holding the picture,
+ * with whatever is laid over it.
+ *
+ * ## JPEG
+ *
+ * resvg writes only PNG. Give the engine an `encodeJpeg` (jpeg-js's encoder,
+ * say) and `jpeg()` hands it resvg's RGBA pixels, drawn at `supersample` times
+ * the size and averaged back down first when asked.
  */
 
 import type { El } from "./h.js";
@@ -61,16 +69,28 @@ export interface ResvgOptions {
   font: { loadSystemFonts: false };
 }
 
+/** What resvg's `render()` returns. `pixels` is RGBA, `width` by `height`. */
+export interface ResvgImage {
+  asPng(): Uint8Array;
+  free(): void;
+  readonly pixels?: Uint8Array;
+  readonly width?: number;
+  readonly height?: number;
+}
+
 /** The part of resvg's class this uses. */
 export interface ResvgLike {
   new (
     svg: string,
     options: ResvgOptions,
   ): {
-    render(): { asPng(): Uint8Array; free(): void };
+    render(): ResvgImage;
     free(): void;
   };
 }
+
+/** What a WebP that will not decode becomes: see `CardEngine.decodeWebp`. */
+export type WebpResult = string | El | null | undefined;
 
 export interface CardEngine {
   satori: SatoriLike;
@@ -82,10 +102,34 @@ export interface CardEngine {
    */
   init?: (() => Promise<void>) | undefined;
   /**
-   * A WebP data URI to a PNG data URI, or `undefined` to drop the picture.
-   * Without it a WebP is left alone and resvg draws a gap.
+   * A WebP data URI to a PNG data URI. When it will not decode: `undefined`
+   * drops the picture, an element is drawn in its place, and `null` drops the
+   * element holding the picture along with it, for a picture with a wash or
+   * a frame laid over it. Without it a WebP is left alone and resvg draws a
+   * gap.
    */
-  decodeWebp?: ((dataUri: string) => Promise<string | undefined>) | undefined;
+  decodeWebp?: ((dataUri: string) => Promise<WebpResult>) | undefined;
+  /**
+   * RGBA pixels to JPEG bytes at a quality from 1 to 100, for `jpeg()`. The
+   * package has no encoder of its own; jpeg-js's `encode` fits:
+   * `(data, width, height, quality) => encode({ data, width, height }, quality).data`.
+   */
+  encodeJpeg?:
+    | ((
+        pixels: Uint8Array,
+        width: number,
+        height: number,
+        quality: number,
+      ) => Uint8Array)
+    | undefined;
+}
+
+/** An `<image>` box in the SVG, for `nearest`. */
+export interface ImageBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface CardSize {
@@ -95,9 +139,32 @@ export interface CardSize {
   scale?: number | undefined;
 }
 
+export interface RasterOptions extends CardSize {
+  /**
+   * Sample pictures nearest-neighbour (`image-rendering="optimizeSpeed"`),
+   * which is much faster and draws the same pixels where a picture is drawn
+   * at its own size or a whole multiple of it. `true` for every picture, or a
+   * test of each `<image>` box.
+   */
+  nearest?: boolean | ((box: ImageBox) => boolean) | undefined;
+  /** Rewrites the SVG last, after `unmask` and `nearest`, before resvg reads it. */
+  prepare?: ((svg: string) => string) | undefined;
+}
+
+export interface JpegOptions extends RasterOptions {
+  /** 1 to 100. Default 86. */
+  quality?: number | undefined;
+  /**
+   * Draw at this many times the output size and average each block back to
+   * one pixel, which antialiases fine lines better than resvg does. A whole
+   * number; default 1.
+   */
+  supersample?: number | undefined;
+}
+
 export interface RenderedCard {
   bytes: Uint8Array;
-  type: "image/png";
+  type: "image/png" | "image/jpeg";
   width: number;
   height: number;
 }
@@ -106,7 +173,9 @@ export interface CardRenderer {
   /** The card as SVG, before rasterizing. Cheap, and what a test should read. */
   svg(element: El, size: CardSize): Promise<string>;
   /** The card as a PNG at `width * scale`. */
-  png(element: El, size: CardSize): Promise<RenderedCard>;
+  png(element: El, size: RasterOptions): Promise<RenderedCard>;
+  /** The card as a JPEG at `width * scale`, through the engine's `encodeJpeg`. */
+  jpeg(element: El, size: JpegOptions): Promise<RenderedCard>;
   /** Runs the boot without drawing, for a warm-up on the first request. */
   ready(): Promise<void>;
 }
@@ -167,14 +236,31 @@ export function unmask(svg: string): string {
  */
 export async function decodeWebpPictures(
   element: El,
-  decode: (dataUri: string) => Promise<string | undefined>,
+  decode: (dataUri: string) => Promise<WebpResult>,
 ): Promise<El | null> {
+  const out = await walk(element, decode);
+  return out === DROP_HOLDER ? null : out;
+}
+
+/** A picture asking for the element that holds it to go too. */
+const DROP_HOLDER = Symbol("drop holder");
+
+async function walk(
+  element: El,
+  decode: (dataUri: string) => Promise<WebpResult>,
+): Promise<El | null | typeof DROP_HOLDER> {
   const src = element.props.src;
   let props = element.props;
   if (typeof src === "string" && src.startsWith(WEBP_PREFIX)) {
     const decoded = await decode(src);
     if (decoded === undefined) {
       return null;
+    }
+    if (decoded === null) {
+      return DROP_HOLDER;
+    }
+    if (typeof decoded !== "string") {
+      return decoded;
     }
     props = { ...props, src: decoded };
   }
@@ -188,7 +274,10 @@ export async function decodeWebpPictures(
         next.push(child);
         continue;
       }
-      const kid = await decodeWebpPictures(child, decode);
+      const kid = await walk(child, decode);
+      if (kid === DROP_HOLDER) {
+        return null;
+      }
       changed = changed || kid !== child;
       if (kid !== null) {
         next.push(kid);
@@ -198,7 +287,10 @@ export async function decodeWebpPictures(
       props = { ...props, children: next };
     }
   } else if (children !== undefined && typeof children !== "string") {
-    const kid = await decodeWebpPictures(children, decode);
+    const kid = await walk(children, decode);
+    if (kid === DROP_HOLDER) {
+      return null;
+    }
     if (kid !== children) {
       props = kid === null ? omitChildren(props) : { ...props, children: kid };
     }
@@ -235,6 +327,71 @@ function omitChildren(props: El["props"]): El["props"] {
  *     // a route
  *     const { bytes } = await cards.png(card(post), { width: 1200, height: 630 });
  */
+function outputSize(size: CardSize): { width: number; height: number } {
+  const scale = size.scale ?? 1;
+  return {
+    width: Math.round(size.width * scale),
+    height: Math.round(size.height * scale),
+  };
+}
+
+const IMAGE =
+  /<image x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)"([^>]*)\/>/g;
+
+/** `svg` with `image-rendering="optimizeSpeed"` on each picture `nearest` picks. */
+function sampleNearest(svg: string, nearest: RasterOptions["nearest"]): string {
+  if (!nearest) {
+    return svg;
+  }
+  return svg.replace(
+    IMAGE,
+    (
+      tag,
+      x: string,
+      y: string,
+      width: string,
+      height: string,
+      rest: string,
+    ) => {
+      const box = {
+        x: Number(x),
+        y: Number(y),
+        width: Number(width),
+        height: Number(height),
+      };
+      if (
+        rest.includes("image-rendering") ||
+        (nearest !== true && !nearest(box))
+      ) {
+        return tag;
+      }
+      return `<image x="${x}" y="${y}" width="${width}" height="${height}" image-rendering="optimizeSpeed"${rest}/>`;
+    },
+  );
+}
+
+/** Averages each `k` by `k` block of RGBA pixels into one. */
+function shrink(src: Uint8Array, w: number, h: number, k: number): Uint8Array {
+  const ow = Math.floor(w / k);
+  const oh = Math.floor(h / k);
+  const out = new Uint8Array(ow * oh * 4);
+  const n = k * k;
+  for (let y = 0; y < oh; y++) {
+    for (let x = 0; x < ow; x++) {
+      for (let c = 0; c < 4; c++) {
+        let sum = 0;
+        for (let dy = 0; dy < k; dy++) {
+          for (let dx = 0; dx < k; dx++) {
+            sum += src[((y * k + dy) * w + x * k + dx) * 4 + c] ?? 0;
+          }
+        }
+        out[(y * ow + x) * 4 + c] = Math.round(sum / n);
+      }
+    }
+  }
+  return out;
+}
+
 export function createRenderer(load: () => Promise<CardEngine>): CardRenderer {
   let loaded: Promise<CardEngine> | undefined;
   let started: Promise<void> | undefined;
@@ -283,6 +440,37 @@ export function createRenderer(load: () => Promise<CardEngine>): CardRenderer {
     });
   };
 
+  /**
+   * The card drawn by resvg at `drawWidth`, handed to `use`. The drawing is
+   * freed first and then the renderer, whatever `use` does.
+   */
+  const raster = async <T>(
+    engine: CardEngine,
+    element: El,
+    size: RasterOptions,
+    drawWidth: number,
+    use: (drawn: ResvgImage) => T,
+  ): Promise<T> => {
+    let markup = sampleNearest(unmask(await draw(element, size)), size.nearest);
+    if (size.prepare) {
+      markup = size.prepare(markup);
+    }
+    const resvg = new engine.Resvg(markup, {
+      fitTo: { mode: "width", value: drawWidth },
+      font: { loadSystemFonts: false },
+    });
+    try {
+      const drawn = resvg.render();
+      try {
+        return use(drawn);
+      } finally {
+        drawn.free();
+      }
+    } finally {
+      resvg.free();
+    }
+  };
+
   return {
     async ready() {
       await boot();
@@ -294,24 +482,47 @@ export function createRenderer(load: () => Promise<CardEngine>): CardRenderer {
 
     async png(element, size) {
       const engine = await boot();
-      const scale = size.scale ?? 1;
-      const width = Math.round(size.width * scale);
-      const height = Math.round(size.height * scale);
-      const markup = unmask(await draw(element, size));
-      const resvg = new engine.Resvg(markup, {
-        fitTo: { mode: "width", value: width },
-        font: { loadSystemFonts: false },
-      });
-      try {
-        const drawn = resvg.render();
-        try {
-          return { bytes: drawn.asPng(), type: "image/png", width, height };
-        } finally {
-          drawn.free();
-        }
-      } finally {
-        resvg.free();
+      const { width, height } = outputSize(size);
+      return raster(engine, element, size, width, (drawn) => ({
+        bytes: drawn.asPng(),
+        type: "image/png" as const,
+        width,
+        height,
+      }));
+    },
+
+    async jpeg(element, size) {
+      const engine = await boot();
+      const encode = engine.encodeJpeg;
+      if (!encode) {
+        throw new TypeError(
+          "workers-cards: jpeg() needs an encodeJpeg in the engine",
+        );
       }
+      const { width } = outputSize(size);
+      const k = Math.max(1, Math.round(size.supersample ?? 1));
+      return raster(engine, element, size, width * k, (drawn) => {
+        const { pixels } = drawn;
+        if (
+          !pixels ||
+          drawn.width === undefined ||
+          drawn.height === undefined
+        ) {
+          throw new TypeError(
+            "workers-cards: resvg's render() gave no pixels to encode",
+          );
+        }
+        const outWidth = Math.floor(drawn.width / k);
+        const outHeight = Math.floor(drawn.height / k);
+        const rgba =
+          k > 1 ? shrink(pixels, drawn.width, drawn.height, k) : pixels;
+        return {
+          bytes: encode(rgba, outWidth, outHeight, size.quality ?? 86),
+          type: "image/jpeg" as const,
+          width: outWidth,
+          height: outHeight,
+        };
+      });
     },
   };
 }

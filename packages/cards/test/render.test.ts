@@ -326,3 +326,119 @@ describe("the boot latches init apart from load", () => {
     expect(init).toHaveBeenCalledOnce();
   });
 });
+
+describe("what a WebP that will not decode becomes", () => {
+  it("draws the element decodeWebp returns in the picture's place", async () => {
+    const tile = div({ backgroundColor: "#ccc" });
+    const card = div({}, img("data:image/webp;base64,bad", 4, 4));
+    const out = await decodeWebpPictures(card, async () => tile);
+    expect(out?.props.children).toBe(tile);
+  });
+
+  it("drops the element holding the picture, and what is laid over it, on null", async () => {
+    const wash = div({ backgroundColor: "#0008" });
+    const picture = div({}, img("data:image/webp;base64,bad", 4, 4), wash);
+    const card = div({}, text({}, "caption"), picture);
+    const out = await decodeWebpPictures(card, async () => null);
+    expect(out?.props.children).toEqual([text({}, "caption")]);
+  });
+});
+
+describe("JPEG, supersampling and the markup hook", () => {
+  /** A resvg stand-in that paints every pixel from the requested width, so averaging is visible. */
+  function rasterEngine(encodeJpeg?: CardEngine["encodeJpeg"]) {
+    const seen: { svg: string; width: number }[] = [];
+    class Resvg {
+      constructor(
+        svg: string,
+        private options: { fitTo: { value: number } },
+      ) {
+        seen.push({ svg, width: options.fitTo.value });
+      }
+      render() {
+        const width = this.options.fitTo.value;
+        const height = width / 2;
+        const pixels = new Uint8Array(width * height * 4);
+        // A checkerboard of 0 and 200, so a 2x2 average is 100 everywhere.
+        for (let i = 0; i < width * height; i++) {
+          const x = i % width;
+          const y = Math.floor(i / width);
+          pixels.fill((x + y) % 2 === 0 ? 0 : 200, i * 4, i * 4 + 4);
+        }
+        return {
+          width,
+          height,
+          pixels,
+          asPng: () => new Uint8Array([9]),
+          free: () => {},
+        };
+      }
+      free() {}
+    }
+    const engine: CardEngine = {
+      satori: async () =>
+        '<svg><image x="0" y="0" width="4" height="2" href="a.png"/></svg>',
+      Resvg: Resvg as unknown as CardEngine["Resvg"],
+      fonts: [FONT],
+      encodeJpeg,
+    };
+    return { engine, seen };
+  }
+
+  it("encodes a JPEG with the engine's encoder, at the quality asked", async () => {
+    const encode = vi.fn<NonNullable<CardEngine["encodeJpeg"]>>(
+      () => new Uint8Array([0xff, 0xd8]),
+    );
+    const { engine } = rasterEngine(encode);
+    const cards = createRenderer(async () => engine);
+    const out = await cards.jpeg(text({}, "x"), {
+      width: 4,
+      height: 2,
+      quality: 80,
+    });
+    expect(out).toMatchObject({ type: "image/jpeg", width: 4, height: 2 });
+    expect(out.bytes).toEqual(new Uint8Array([0xff, 0xd8]));
+    expect(encode).toHaveBeenCalledWith(expect.any(Uint8Array), 4, 2, 80);
+  });
+
+  it("draws at supersample times the size and averages back down", async () => {
+    const encode = vi.fn<NonNullable<CardEngine["encodeJpeg"]>>(
+      () => new Uint8Array([1]),
+    );
+    const { engine, seen } = rasterEngine(encode);
+    const cards = createRenderer(async () => engine);
+    await cards.jpeg(text({}, "x"), { width: 4, height: 2, supersample: 2 });
+    expect(seen[0]?.width).toBe(8);
+    const [pixels, width, height] = encode.mock.calls[0] ?? [];
+    expect([width, height]).toEqual([4, 2]);
+    expect([...(pixels ?? [])].every((v) => v === 100)).toBe(true);
+  });
+
+  it("refuses a JPEG without an encoder rather than drawing a PNG", async () => {
+    const { engine } = rasterEngine();
+    const cards = createRenderer(async () => engine);
+    await expect(
+      cards.jpeg(text({}, "x"), { width: 4, height: 2 }),
+    ).rejects.toThrow(/encodeJpeg/);
+  });
+
+  it("samples pictures nearest-neighbour where asked, and runs prepare last", async () => {
+    const { engine, seen } = rasterEngine();
+    const cards = createRenderer(async () => engine);
+    await cards.png(text({}, "x"), {
+      width: 4,
+      height: 2,
+      nearest: true,
+      prepare: (svg) => svg.replace("<svg>", '<svg data-ready="1">'),
+    });
+    expect(seen[0]?.svg).toBe(
+      '<svg data-ready="1"><image x="0" y="0" width="4" height="2" image-rendering="optimizeSpeed" href="a.png"/></svg>',
+    );
+    await cards.png(text({}, "x"), {
+      width: 4,
+      height: 2,
+      nearest: (box) => box.width === 99,
+    });
+    expect(seen[1]?.svg).not.toContain("optimizeSpeed");
+  });
+});

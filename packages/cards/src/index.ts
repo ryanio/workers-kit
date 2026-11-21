@@ -5,9 +5,14 @@ export type {
   CardFont,
   CardRenderer,
   CardSize,
+  ImageBox,
+  JpegOptions,
+  RasterOptions,
   RenderedCard,
+  ResvgImage,
   ResvgLike,
   ResvgOptions,
   SatoriLike,
+  WebpResult,
 } from "./render.js";
 export { createRenderer, decodeWebpPictures, unmask } from "./render.js";
