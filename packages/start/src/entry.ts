@@ -57,6 +57,15 @@ export interface EntryOptions {
   readOnlyPrefixes?: string[];
   /** Whether a path is a page. Receives the normalized path. Default: {@link defaultIsPage}. */
   isPage?: (path: string) => boolean;
+  /**
+   * Headers added to every response the entry returns, without overwriting
+   * ones the response already set, such as `securityHeaders()` from
+   * `workers-start/security`. A function gets the request and the response.
+   * A 101 WebSocket answer passes through untouched.
+   */
+  headers?:
+    | HeadersInit
+    | ((request: Request, response: Response) => HeadersInit);
 }
 
 /** Last-segment extensions that mark a file rather than a page. */
@@ -183,6 +192,8 @@ export function withHeaders(
   headers: HeadersInit,
   { overwrite = true }: { overwrite?: boolean } = {},
 ): Response {
+  // A 101 carries the WebSocket; rebuilding it would drop the socket.
+  if (response.status === 101) return response;
   const merged = new Headers(response.headers);
   new Headers(headers).forEach((value, name) => {
     if (overwrite || !merged.has(name)) {
@@ -197,6 +208,7 @@ export function withHeaders(
 }
 
 function withVaryAccept(response: Response): Response {
+  if (response.status === 101) return response;
   const vary = mergeVary(response.headers.get("vary"), "Accept");
   if (vary === response.headers.get("vary")) {
     return response;
@@ -217,54 +229,68 @@ export function createEntry(options: EntryOptions): {
   const isPage =
     options.isPage ?? ((path: string) => defaultIsPage(path, readOnlyPrefixes));
 
+  const handle = async (
+    request: Request,
+    ...rest: unknown[]
+  ): Promise<Response> => {
+    const path = normalizePath(new URL(request.url).pathname);
+    const method = request.method.toUpperCase();
+    const isRead = method === "GET" || method === "HEAD";
+
+    if (readOnlyPrefixes.some((prefix) => underPrefix(path, prefix))) {
+      if (method === "OPTIONS") {
+        return new Response(null, {
+          status: 204,
+          headers: { allow: "GET, HEAD, OPTIONS" },
+        });
+      }
+      if (!isRead) {
+        return Response.json(
+          { error: "Method not allowed" },
+          { status: 405, headers: { allow: "GET, HEAD, OPTIONS" } },
+        );
+      }
+      return options.handler.fetch(request, ...rest);
+    }
+
+    if (!(isRead && isPage(path))) {
+      return options.handler.fetch(request, ...rest);
+    }
+
+    if (options.markdown && wantsMarkdown(request)) {
+      try {
+        const result = await options.markdown(path, request, {
+          html: async () =>
+            options.handler.fetch(withAcceptHtml(request), ...rest),
+        });
+        if (result !== null && result !== undefined) {
+          return markdownResponse(result, method === "HEAD");
+        }
+      } catch (error) {
+        console.error(
+          "workers-start: markdown renderer failed, serving HTML",
+          error,
+        );
+      }
+    }
+
+    const pageRequest = acceptsHtml(request)
+      ? request
+      : withAcceptHtml(request);
+    const response = await options.handler.fetch(pageRequest, ...rest);
+    return options.markdown ? withVaryAccept(response) : response;
+  };
+
   return {
     async fetch(request, ...rest) {
-      const path = normalizePath(new URL(request.url).pathname);
-      const method = request.method.toUpperCase();
-      const isRead = method === "GET" || method === "HEAD";
-
-      if (readOnlyPrefixes.some((prefix) => underPrefix(path, prefix))) {
-        if (method === "OPTIONS") {
-          return new Response(null, {
-            status: 204,
-            headers: { allow: "GET, HEAD, OPTIONS" },
-          });
-        }
-        if (!isRead) {
-          return Response.json(
-            { error: "Method not allowed" },
-            { status: 405, headers: { allow: "GET, HEAD, OPTIONS" } },
-          );
-        }
-        return options.handler.fetch(request, ...rest);
-      }
-
-      if (!(isRead && isPage(path))) {
-        return options.handler.fetch(request, ...rest);
-      }
-
-      if (options.markdown && wantsMarkdown(request)) {
-        try {
-          const result = await options.markdown(path, request, {
-            html: async () =>
-              options.handler.fetch(withAcceptHtml(request), ...rest),
-          });
-          if (result !== null && result !== undefined) {
-            return markdownResponse(result, method === "HEAD");
-          }
-        } catch (error) {
-          console.error(
-            "workers-start: markdown renderer failed, serving HTML",
-            error,
-          );
-        }
-      }
-
-      const pageRequest = acceptsHtml(request)
-        ? request
-        : withAcceptHtml(request);
-      const response = await options.handler.fetch(pageRequest, ...rest);
-      return options.markdown ? withVaryAccept(response) : response;
+      const response = await handle(request, ...rest);
+      const extra = options.headers;
+      if (!extra) return response;
+      return withHeaders(
+        response,
+        typeof extra === "function" ? extra(request, response) : extra,
+        { overwrite: false },
+      );
     },
   };
 }

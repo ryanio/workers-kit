@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   fetchJson,
   HttpError,
+  ResponseTooLarge,
   retryAfterSeconds,
   transient,
   withRetry,
@@ -204,5 +205,25 @@ describe("helpers", () => {
       ),
     ).toBeGreaterThan(8);
     expect(retryAfterSeconds("soon")).toBeUndefined();
+  });
+});
+
+describe("response caps", () => {
+  it("refuses a body past maxBytes without retrying", async () => {
+    const big = "x".repeat(2000);
+    let calls = 0;
+    const fetch = async () => {
+      calls++;
+      return new Response(big);
+    };
+    const err = await fetchJson("https://api.test/big", {
+      fetch,
+      maxBytes: 1000,
+    }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ResponseTooLarge);
+    expect(calls).toBe(1);
+    expect(
+      await fetchJson("https://api.test/big", { fetch, maxBytes: 4000 }),
+    ).toBe(big);
   });
 });

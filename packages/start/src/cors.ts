@@ -112,6 +112,7 @@ export function cors(options: CorsOptions): Cors {
     },
 
     apply(request, response) {
+      if (response.status === 101) return response;
       const merged = new Headers(response.headers);
       for (const [name, value] of Object.entries(responseHeaders(request))) {
         if (name === "vary")

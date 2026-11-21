@@ -318,3 +318,35 @@ describe("helpers", () => {
     expect(await replaced.text()).toBe("body");
   });
 });
+
+describe("headers and WebSocket upgrades", () => {
+  it("adds entry headers to every response without overwriting the response's own", async () => {
+    const entry = createEntry({
+      handler: {
+        fetch: async () =>
+          new Response("<p>hi</p>", {
+            headers: {
+              "content-type": "text/html",
+              "x-frame-options": "SAMEORIGIN",
+            },
+          }),
+      },
+      headers: (request) => ({
+        "x-frame-options": "DENY",
+        "x-path": new URL(request.url).pathname,
+      }),
+    });
+    const res = await entry.fetch(new Request("https://example.com/about"));
+    expect(res.headers.get("x-frame-options")).toBe("SAMEORIGIN");
+    expect(res.headers.get("x-path")).toBe("/about");
+  });
+
+  it("passes a 101 through untouched, so the socket survives", () => {
+    // Node cannot build a 101 Response; workerd attaches the socket to it.
+    const upgrade = {
+      status: 101,
+      headers: new Headers(),
+    } as unknown as Response;
+    expect(withHeaders(upgrade, { "x-a": "1" })).toBe(upgrade);
+  });
+});

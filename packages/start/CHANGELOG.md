@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.15.0 (2026-11-21)
+
+- `withHeaders`, and so `withSecurityHeaders` and `cors().apply`, return a 101 response untouched. Rebuilding it dropped the WebSocket in workerd.
+- `createEntry({ headers })` adds headers (or a function of the request and response) to every response without overwriting the response's own, such as `securityHeaders()`.
+- `readText` and `readJson` read a fetched `Response` as well as a `Request`, under the same byte cap.
+- `fetchJson({ maxBytes })` refuses a response body past that size with `ResponseTooLarge`, for untrusted upstreams.
+- README: the outbound HTTP section.
+
 ## 0.14.0 (2026-11-20)
 
 - `workers-start/discord`: `discordRest({ token })` with get, post, patch, put and delete on Discord's REST API v10. It waits out a 429's `retry_after` up to `max429` times, retries 5xx and timeouts except for POST, waits for a spent bucket before the next call on that route, takes an audit log `reason`, and throws `HttpError` with Discord's JSON body. Also `editOriginal`, `followup` and `deleteOriginal` without the bot token, and `interactionResponse`, `deferred`, `pong`, `InteractionResponseType` and `MessageFlags`.

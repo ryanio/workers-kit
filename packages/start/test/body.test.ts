@@ -159,3 +159,12 @@ describe("bodyProblem", () => {
     });
   });
 });
+
+describe("reading a fetched response", () => {
+  it("caps a Response body the same way", async () => {
+    const small = await readText(new Response("hello"), { maxBytes: 10 });
+    expect(small).toEqual({ ok: true, value: "hello" });
+    const big = await readText(new Response("x".repeat(50)), { maxBytes: 10 });
+    expect(big.ok).toBe(false);
+  });
+});

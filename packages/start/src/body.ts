@@ -59,7 +59,7 @@ export function isJsonType(contentType: string | null | undefined): boolean {
   return type === "application/json" || type.endsWith("+json");
 }
 
-async function discard(request: Request): Promise<void> {
+async function discard(request: Request | Response): Promise<void> {
   try {
     await request.body?.cancel();
   } catch {
@@ -69,7 +69,7 @@ async function discard(request: Request): Promise<void> {
 
 /** The body's bytes, or undefined once it passes `maxBytes`. */
 async function readBytes(
-  request: Request,
+  request: Request | Response,
   maxBytes: number,
 ): Promise<Uint8Array | undefined> {
   const declared = Number(request.headers.get("content-length"));
@@ -102,7 +102,7 @@ async function readBytes(
 
 /** The body as text (UTF-8), refused with 413 past `maxBytes`. */
 export async function readText(
-  request: Request,
+  request: Request | Response,
   { maxBytes = DEFAULT_MAX_BYTES }: ReadTextOptions = {},
 ): Promise<BodyResult<string>> {
   const bytes = await readBytes(request, maxBytes);
@@ -135,7 +135,7 @@ function issueDetail(error: unknown): string | undefined {
  *   if (!body.ok) return bodyProblem(body);
  */
 export async function readJson<T = unknown>(
-  request: Request,
+  request: Request | Response,
   {
     maxBytes = DEFAULT_MAX_BYTES,
     schema,

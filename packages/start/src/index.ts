@@ -111,6 +111,7 @@ export type { FetchJsonOptions, RetryOptions } from "./http.js";
 export {
   fetchJson,
   HttpError,
+  ResponseTooLarge,
   retryAfterSeconds,
   transient,
   withRetry,

@@ -6,6 +6,8 @@
  * unless the caller says the request is safe to repeat.
  */
 
+import { readText } from "./body.js";
+
 /** An upstream answered with an error status. */
 export class HttpError extends Error {
   override readonly name = "HttpError";
@@ -126,6 +128,8 @@ export interface FetchJsonOptions extends Omit<RequestInit, "body" | "signal"> {
   body?: unknown;
   /** Per attempt. Default 8 seconds. */
   timeoutMs?: number;
+  /** Refuse a response body past this many bytes (`ResponseTooLarge`), for untrusted upstreams. Default: no cap. */
+  maxBytes?: number;
   /** Retry options, or false for one attempt. A POST or PATCH is tried once unless `idempotent` is true. */
   retry?: RetryOptions | false;
   /** The request is safe to repeat (it carries an idempotency key, say). */
@@ -154,8 +158,29 @@ function encodeBody(
   return JSON.stringify(body);
 }
 
-async function readBody(res: Response): Promise<unknown> {
-  const text = await res.text();
+/** A response body larger than the caller's `maxBytes`. Not retried. */
+export class ResponseTooLarge extends Error {
+  override readonly name = "ResponseTooLarge";
+  constructor(
+    readonly url: string,
+    readonly maxBytes: number,
+  ) {
+    super(`${new URL(url).host} answered more than ${maxBytes} bytes`);
+  }
+}
+
+async function readBody(
+  res: Response,
+  url: string,
+  maxBytes: number | undefined,
+): Promise<unknown> {
+  let text: string;
+  if (maxBytes === undefined) text = await res.text();
+  else {
+    const read = await readText(res, { maxBytes });
+    if (!read.ok) throw new ResponseTooLarge(url, maxBytes);
+    text = read.value;
+  }
   if (!text) return null;
   const type = res.headers.get("content-type") ?? "";
   if (type.includes("json")) {
@@ -180,6 +205,7 @@ export async function fetchJson<T = unknown>(
   const {
     body,
     timeoutMs = 8000,
+    maxBytes,
     retry,
     idempotent,
     signal,
@@ -201,7 +227,7 @@ export async function fetchJson<T = unknown>(
       body: payload ?? null,
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     });
-    const parsed = await readBody(res);
+    const parsed = await readBody(res, url, maxBytes);
     if (!res.ok) {
       const jsonWait =
         typeof parsed === "object" && parsed !== null

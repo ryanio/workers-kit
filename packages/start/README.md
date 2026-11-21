@@ -30,6 +30,7 @@ Check this list before writing a helper in an app. Anything generic to TanStack 
 | `workers-start/cors`           | `cors`                                                                                                                            | CORS with an origin allowlist, preflights and `Vary: Origin`                                             |
 | `workers-start/discord`        | `deferred`, `discordRest`, `interactionResponse`, `InteractionResponseType`, `MessageFlags`, `pong`                               | A Discord REST client that waits out 429s and times out, plus interaction responses                      |
 | `workers-start/x`              | `oauth1Header`, `percentEncode`, `xClient`                                                                                        | OAuth 1.0a signing on WebCrypto and an X API v2 client that waits out rate limits                        |
+| `workers-start/http`           | `fetchJson`, `withRetry`, `HttpError`, `transient`, `retryAfterSeconds`, `ResponseTooLarge`                                       | Outbound calls with timeouts, jittered retries, Retry-After and an optional size cap                     |
 | `workers-start/seo`            | `sitemapXml`, `robotsTxt`, `escapeXml`                                                                                            | `/sitemap.xml` and `/robots.txt` bodies                                                                  |
 | `workers-start/accept`         | `parseAccept`, `quality`                                                                                                          | Accept header parsing                                                                                    |
 | `workers-start/check-bundle`   | `workers-start-check-bundle` (bin)                                                                                                | Fails a build that would ship a local secret                                                             |
@@ -86,6 +87,7 @@ Details that matter when you compare against production:
 - Accept is parsed with q-values. Markdown is served only when the client names `text/markdown` with q > 0 and rates it at least as high as HTML, so `text/markdown;q=0` and `*/*` both get HTML.
 - Paths are decoded, repeated slashes collapsed and trailing slashes dropped before any test, and prefixes match whole segments ignoring case. `/API/x`, `/%61pi/x` and `//api//x` all count as `/api`; `/apiary` does not. `markdown()` receives that normalized path, so `/learn/caf%C3%A9/` arrives as `/learn/café`.
 - A page is any path whose last segment has no file extension like `.js`, `.xml` or `.txt`. A dotted slug such as `/blog/node.js-tips` is still a page.
+- `headers` adds headers to every response the entry returns, without overwriting the response's own: `createEntry({ handler, headers: securityHeaders() })`. A function gets the request and the response. A 101 WebSocket answer passes through untouched, here and in `withHeaders`.
 - `readOnlyPrefixes` (default `["/api"]`, `[]` to turn off) and `isPage` change those rules. An API that accepts writes, or that needs CORS headers on preflight, should pass `readOnlyPrefixes: []` and answer those methods itself.
 - `markdown(path, request, page)` gets a third argument: `await page.html()` renders the same request through the handler as HTML (extra fetch arguments passed through), for a renderer that converts the page rather than building Markdown from data.
 - Static assets are served before the Worker runs. On a prerendered site, or a static site on Pages, none of this applies to the prerendered pages unless `assets.run_worker_first` sends them through the Worker.
@@ -399,6 +401,30 @@ if (limited) return limited;
 
 `checkRateLimit(binding, key, { name })` is the bare check, `tooManyRequests(policy)` the bare response, and `rateLimitProblem(policy)` its body as an object, for code that builds its own flow. The header and response helpers take any window, so a daily cap counted in the app's database answers the same way.
 
+## Outbound HTTP
+
+`workers-start/http` gives every upstream call the defaults it needs:
+
+```ts
+import { fetchJson, HttpError } from "workers-start/http";
+
+const price = await fetchJson<{ usd: number }>(
+  "https://api.example.com/price",
+  {
+    headers: { authorization: `Bearer ${env.API_KEY}` },
+    timeoutMs: 5000,
+    maxBytes: 64 * 1024,
+  },
+);
+```
+
+- Each attempt times out (default 8 seconds) and the request is aborted, not left running.
+- 408, 425, 429, 5xx, timeouts and network errors are retried for idempotent methods (GET, HEAD, OPTIONS, PUT, DELETE), three attempts by default, with full-jitter backoff. A POST or PATCH is tried once unless `idempotent: true` (it carries an idempotency key, say). `retry: false` turns retries off; `retry: { attempts, baseMs, capMs, budgetMs }` tunes them.
+- `Retry-After` (seconds or a date) and a JSON `retry_after` (Discord's) set the wait, capped at `capMs`.
+- The body is parsed: JSON when the response says so, else text, else null when empty. A status outside 2xx throws `HttpError` with `status`, `url`, the parsed `body` and `retryAfter`.
+- `maxBytes` refuses a response body past that size with `ResponseTooLarge`, for upstreams the app does not trust.
+- `withRetry(fn, options)` retries any async work the same way, and `transient(err)` says whether an error is worth retrying.
+
 ## Security headers
 
 `workers-start/security` builds the security headers every page and API response should carry, and a Content Security Policy with presets for the third parties these apps load:
@@ -472,7 +498,7 @@ export default {
 
 ## Request bodies
 
-`workers-start/body` reads a request body with a size cap and answers the failures with one problem shape:
+`workers-start/body` reads a request body (or a fetched `Response`) with a size cap and answers the failures with one problem shape:
 
 ```ts
 import { bodyProblem, readJson } from "workers-start/body";
