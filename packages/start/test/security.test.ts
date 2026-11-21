@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applySecurityHeaders,
   contentSecurityPolicy,
   securityHeaders,
   withSecurityHeaders,
@@ -168,6 +169,25 @@ describe("contentSecurityPolicy", () => {
     expect(csp.has("form-action")).toBe(false);
   });
 
+  it("replaces a directive's base sources given { replace }", () => {
+    const csp = parse(
+      contentSecurityPolicy({
+        directives: {
+          "img-src": { replace: ["'self'", "https://cdn.example.com"] },
+        },
+        presets: ["ga4"],
+      }),
+    );
+    expect(csp.get("img-src")).toEqual(["'self'", "https://cdn.example.com"]);
+    const narrowed = parse(
+      contentSecurityPolicy({
+        directives: { "script-src": { replace: ["'none'"] } },
+        nonce: "n",
+      }),
+    );
+    expect(narrowed.get("script-src")).toEqual(["'nonce-n'"]);
+  });
+
   it("drops 'none' once a directive has other sources", () => {
     const csp = parse(
       contentSecurityPolicy({ directives: { "object-src": ["'self'"] } }),
@@ -179,13 +199,13 @@ describe("contentSecurityPolicy", () => {
     const ga4 = parse(contentSecurityPolicy({ presets: ["ga4"] }));
     expect(ga4.get("script-src")).toEqual([
       "'self'",
-      "https://www.googletagmanager.com",
+      "https://*.googletagmanager.com",
     ]);
     expect(ga4.get("connect-src")).toEqual([
       "'self'",
       "https://*.google-analytics.com",
       "https://*.analytics.google.com",
-      "https://www.googletagmanager.com",
+      "https://*.googletagmanager.com",
       "https://www.google.com",
     ]);
 
@@ -231,7 +251,7 @@ describe("contentSecurityPolicy", () => {
     expect(new Set(connect).size).toBe(connect.length);
     expect(csp.get("script-src")).toEqual([
       "'self'",
-      "https://www.googletagmanager.com",
+      "https://*.googletagmanager.com",
       "https://static.cloudflareinsights.com",
     ]);
   });
@@ -244,7 +264,7 @@ describe("contentSecurityPolicy", () => {
       parse(contentSecurityPolicy({ nonce: "n", presets: ["ga4"] })).get(
         "script-src",
       ),
-    ).toEqual(["'self'", "https://www.googletagmanager.com", "'nonce-n'"]);
+    ).toEqual(["'self'", "https://*.googletagmanager.com", "'nonce-n'"]);
   });
 
   it("adds report-uri and drops upgrade-insecure-requests when report-only", () => {
@@ -258,6 +278,19 @@ describe("contentSecurityPolicy", () => {
       "https://o1.ingest.sentry.io/api/2/security/?sentry_key=k",
     ]);
     expect(csp.has("upgrade-insecure-requests")).toBe(false);
+  });
+});
+
+describe("applySecurityHeaders", () => {
+  it("sets missing headers in place without overwriting", () => {
+    const headers = new Headers({ "x-frame-options": "SAMEORIGIN" });
+    const out = applySecurityHeaders(headers, { csp: "default-src 'self'" });
+    expect(out).toBe(headers);
+    expect(headers.get("x-frame-options")).toBe("SAMEORIGIN");
+    expect(headers.get("x-content-type-options")).toBe("nosniff");
+    expect(headers.get("content-security-policy")).toBe(
+      "default-src 'self'; frame-ancestors 'none'",
+    );
   });
 });
 

@@ -107,7 +107,11 @@ export type {
   SiteHead,
 } from "./head.js";
 export { createPageHead, jsonLdScript } from "./head.js";
-export type { FetchJsonOptions, RetryOptions } from "./http.js";
+export type {
+  FetchJsonOptions,
+  HttpErrorOptions,
+  RetryOptions,
+} from "./http.js";
 export {
   fetchJson,
   HttpError,
@@ -170,12 +174,14 @@ export {
 } from "./scripts.js";
 export type {
   ContentSecurityPolicyOptions,
+  CspDirective,
   CspDirectives,
   CspPreset,
   HstsOptions,
   SecurityHeadersOptions,
 } from "./security.js";
 export {
+  applySecurityHeaders,
   BASE_CSP,
   CSP_PRESETS,
   contentSecurityPolicy,
@@ -196,6 +202,8 @@ export {
   isBrowserNoise,
   isLocalEvent,
   NETWORK_ERROR,
+  sentryConnectSource,
+  sentryReportUri,
   USER_REJECTION,
   validDsn,
   workerSentryOptions,

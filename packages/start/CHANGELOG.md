@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- `createLogger({ mask })` rewrites the value under a key with a function instead of `"[redacted]"`, matched like `redact` and winning over it for that key. `stacks: false` leaves `stack` out of serialised Errors and their causes.
+- `applySecurityHeaders(headers, options)` and `cors().applyTo(request, headers)` set their headers on an existing `Headers` in place, for Hono's `c.res.headers`. Callers skip a 101 themselves.
+- `cors().allows(origin)` says whether an origin is on the list, and `cors().headers()` takes no request for `origins: "*"`.
+- `contentSecurityPolicy({ directives: { "img-src": { replace: [...] } } })` uses the given sources instead of the base's, so a directive can be narrowed below the base `https:`.
+- The `ga4` CSP preset allows `https://*.googletagmanager.com` in `script-src` and `connect-src`, per Google's Tag Platform CSP guide, in place of `https://www.googletagmanager.com`.
+- `sentryReportUri(dsn)` returns a DSN's CSP report endpoint and `sentryConnectSource(dsn)` its `https://<host>` for `connect-src`, or undefined for an invalid DSN.
+- `discordRest({ retryServerErrors: false })` and `xClient(creds, { retryServerErrors: false })` never retry a 5xx or timeout on any method, for billed calls. 429 waits still apply.
+- `fetchJson` parses a body with no content type or `text/plain` as JSON when it starts with `{` or `[` and parses, and keeps the text otherwise.
+- `HttpError` takes `{ message }` as a fifth argument to keep the caller's wording, and accepts a `url` that is not a valid URL instead of throwing.
+- `peekCached` checks KV when the local copy is past fresh and returns the newer of the two, as `cachedEntry` does.
+- `readJson` answers an empty body with 400 `empty_body` instead of `invalid_json`. Only the code for empty bodies changes; a caller matching `invalid_json` to catch a missing body should match `empty_body` too.
+
 ## 0.16.0 (2026-11-21)
 
 - `withRetry` and `fetchJson` give up when an upstream asks to wait longer than `capMs`, instead of clamping the wait and asking again too early. The `HttpError` carries `retryAfter` for the caller to queue the work.

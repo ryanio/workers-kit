@@ -143,6 +143,23 @@ describe("fetchJson", () => {
       await fetchJson("https://api.test/b", { fetch: s.fetch }),
     ).toBeNull();
   });
+
+  it("parses an untyped or text/plain body that is JSON", async () => {
+    const untyped = new Response(new Blob([JSON.stringify([1, 2])]));
+    untyped.headers.delete("content-type");
+    const s = server(
+      new Response(JSON.stringify({ a: 1 })),
+      untyped,
+      new Response(" { not json", { headers: { "content-type": "" } }),
+      new Response("[oops", { headers: { "content-type": "text/html" } }),
+    );
+    const get = (path: string) =>
+      fetchJson(`https://api.test/${path}`, { fetch: s.fetch });
+    expect(await get("a")).toEqual({ a: 1 });
+    expect(await get("b")).toEqual([1, 2]);
+    expect(await get("c")).toBe(" { not json");
+    expect(await get("d")).toBe("[oops");
+  });
 });
 
 describe("withRetry", () => {
@@ -201,6 +218,17 @@ describe("withRetry", () => {
     expect(new HttpError(500, "https://a.test/", null).message).toBe(
       "a.test answered 500",
     );
+  });
+
+  it("takes its own message and a URL that does not parse", () => {
+    const own = new HttpError(503, "https://a.test/", { detail: "x" }, 2, {
+      message: "price feed down",
+    });
+    expect(own.message).toBe("price feed down");
+    expect(own).toMatchObject({ status: 503, retryAfter: 2 });
+    const relative = new HttpError(404, "/v1/things", null);
+    expect(relative.url).toBe("/v1/things");
+    expect(relative.message).toBe("/v1/things answered 404");
   });
 });
 

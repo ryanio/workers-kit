@@ -29,14 +29,14 @@ export const CSP_PRESETS: Readonly<Record<CspPreset, CspDirectives>> =
   Object.freeze({
     // Google's Tag Platform CSP guide, Analytics without Ads features.
     ga4: {
-      // gtag.js itself.
-      "script-src": ["https://www.googletagmanager.com"],
+      // gtag.js itself, from www or a regional googletagmanager.com host.
+      "script-src": ["https://*.googletagmanager.com"],
       "connect-src": [
         // The collect beacons, regional ones (region1 and so on) included.
         "https://*.google-analytics.com",
         "https://*.analytics.google.com",
-        // gtag fetches its config from here.
-        "https://www.googletagmanager.com",
+        // gtag fetches its config and sends some hits here.
+        "https://*.googletagmanager.com",
         // gtag sends a second copy of some hits to www.google.com/g/collect.
         "https://www.google.com",
       ],
@@ -91,13 +91,26 @@ export const BASE_CSP: Readonly<CspDirectives> = Object.freeze({
   "upgrade-insecure-requests": [],
 });
 
+/**
+ * One entry of {@link ContentSecurityPolicyOptions.directives}: sources merged
+ * into the base, `{ replace }` for sources used in place of the base's, or
+ * `false` to remove the directive.
+ */
+export type CspDirective =
+  | readonly string[]
+  | { readonly replace: readonly string[] }
+  | false;
+
 export interface ContentSecurityPolicyOptions {
   /**
-   * Directives merged into the base. Sources are added to the directive's
-   * list, duplicates dropped, order kept. A directive the base lacks is taken
-   * as given. `false` removes a directive, base ones included.
+   * Directives applied to the base. A list of sources is added to the
+   * directive's list, duplicates dropped, order kept. `{ replace: [...] }`
+   * uses those sources instead of the base's, to narrow a directive such as
+   * `img-src` below the base `https:`. A directive the base lacks is taken as
+   * given. `false` removes a directive, base ones included. Presets and the
+   * nonce still add to a replaced directive.
    */
-  directives?: Record<string, readonly string[] | false>;
+  directives?: Record<string, CspDirective>;
   /** Integrations to allow. Each adds its hosts; see {@link CSP_PRESETS}. */
   presets?: readonly CspPreset[];
   /**
@@ -141,6 +154,8 @@ export function contentSecurityPolicy(
   );
   for (const [name, sources] of Object.entries(options.directives ?? {})) {
     if (sources === false) policy.delete(name);
+    else if ("replace" in sources)
+      policy.set(name, [...new Set(sources.replace)]);
     else add(policy, name, sources, []);
   }
   const seedFor = (name: string) => (name.endsWith("-src") ? ["'self'"] : []);
@@ -306,6 +321,21 @@ export function securityHeaders(
       typeof csp === "string" || !reportOnly ? csp : { ...csp, reportOnly },
       frame,
     );
+  }
+  return headers;
+}
+
+/**
+ * Sets the security headers on `headers` in place, skipping any it already
+ * has, and returns it. For frameworks that hold the response, such as Hono's
+ * `c.res.headers`. Callers skip a 101 response themselves.
+ */
+export function applySecurityHeaders(
+  headers: Headers,
+  options: SecurityHeadersOptions = {},
+): Headers {
+  for (const [name, value] of Object.entries(securityHeaders(options))) {
+    if (!headers.has(name)) headers.set(name, value);
   }
   return headers;
 }

@@ -3,6 +3,8 @@ import {
   browserSentryOptions,
   isBrowserNoise,
   isLocalEvent,
+  sentryConnectSource,
+  sentryReportUri,
   validDsn,
   workerSentryOptions,
 } from "../src/sentry.js";
@@ -137,5 +139,42 @@ describe("browserSentryOptions", () => {
     expect(isBrowserNoise(error("load failed"))).toBe(true);
     expect(isBrowserNoise(error("real bug"))).toBe(false);
     expect(validDsn("off")).toBeUndefined();
+  });
+});
+
+describe("sentryReportUri and sentryConnectSource", () => {
+  it("builds the security endpoint and origin for US, EU and self-hosted DSNs", () => {
+    const us = "https://abc123@o42.ingest.us.sentry.io/4507";
+    expect(sentryReportUri(us)).toBe(
+      "https://o42.ingest.us.sentry.io/api/4507/security/?sentry_key=abc123",
+    );
+    expect(sentryConnectSource(us)).toBe("https://o42.ingest.us.sentry.io");
+
+    const eu = "https://def456@o7.ingest.de.sentry.io/99";
+    expect(sentryReportUri(eu)).toBe(
+      "https://o7.ingest.de.sentry.io/api/99/security/?sentry_key=def456",
+    );
+    expect(sentryConnectSource(eu)).toBe("https://o7.ingest.de.sentry.io");
+
+    const self = "https://k@sentry.example.com:8443/sentry/3";
+    expect(sentryReportUri(self)).toBe(
+      "https://sentry.example.com:8443/sentry/api/3/security/?sentry_key=k",
+    );
+    expect(sentryConnectSource(self)).toBe("https://sentry.example.com:8443");
+  });
+
+  it("returns undefined for a DSN that is not one", () => {
+    for (const dsn of [
+      undefined,
+      "",
+      "off",
+      "http://k@o1.ingest.sentry.io/2",
+      "https://o1.ingest.sentry.io/2",
+      "https://k@o1.ingest.sentry.io/",
+      "https://k@o1.ingest.sentry.io/project",
+    ]) {
+      expect(sentryReportUri(dsn)).toBeUndefined();
+      expect(sentryConnectSource(dsn)).toBeUndefined();
+    }
   });
 });

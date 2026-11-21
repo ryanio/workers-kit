@@ -33,6 +33,12 @@ export interface DiscordRestOptions {
   timeoutMs?: number;
   /** How many 429s one call waits out before it throws. Default 5. */
   max429?: number;
+  /**
+   * Retry a 5xx, a timeout or a network error on the methods that allow it.
+   * Default true. False never retries them on any method, for billed calls;
+   * a 429 is still waited out.
+   */
+  retryServerErrors?: boolean;
   /** A 429 asking for a longer wait than this throws at once. Default 60 seconds. */
   maxWaitMs?: number;
   /** Default `https://discord.com/api/v10`. */
@@ -131,6 +137,7 @@ export function discordRest(options: DiscordRestOptions = {}): DiscordRest {
     kind = "Bot",
     timeoutMs = 15_000,
     max429 = 5,
+    retryServerErrors = true,
     maxWaitMs = 60_000,
     apiBase = "https://discord.com/api/v10",
     userAgent = "DiscordBot (https://github.com/ryanio/workers-kit, 1)",
@@ -191,7 +198,8 @@ export function discordRest(options: DiscordRestOptions = {}): DiscordRest {
         return (err.retryAfter ?? 1) * 1000 <= maxWaitMs;
       }
       // Two more tries for a 5xx or a timeout, never for a POST.
-      if (method === "POST" || !transient(err) || failed >= 2) return false;
+      if (!retryServerErrors || method === "POST") return false;
+      if (!transient(err) || failed >= 2) return false;
       failed++;
       return true;
     };

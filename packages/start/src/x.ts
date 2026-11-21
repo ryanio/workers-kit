@@ -122,6 +122,12 @@ export interface XClientOptions {
   timeoutMs?: number;
   /** A 429 whose window resets later than this throws at once instead of waiting. Default 60 seconds. */
   maxWaitMs?: number;
+  /**
+   * Retry a 5xx, a timeout or a network error on the methods that allow it.
+   * Default true. False never retries them on any method, for billed calls;
+   * a 429 is still waited out.
+   */
+  retryServerErrors?: boolean;
   /** Default `https://api.x.com/2`. */
   apiBase?: string;
   fetch?: (input: string, init?: RequestInit) => Promise<Response>;
@@ -176,6 +182,7 @@ export function xClient(
   const {
     timeoutMs = 15_000,
     maxWaitMs = 60_000,
+    retryServerErrors = true,
     apiBase = "https://api.x.com/2",
     fetch: fetcher = (u, i) => fetch(u, i),
     sleep = defaultSleep,
@@ -247,7 +254,8 @@ export function xClient(
       retryIf: (err) => {
         if (err instanceof HttpError && err.status === 429)
           return (err.retryAfter ?? 1) * 1000 <= maxWaitMs;
-        if (method === "POST" || !transient(err) || failed >= 2) return false;
+        if (!retryServerErrors || method === "POST") return false;
+        if (!transient(err) || failed >= 2) return false;
         failed++;
         return true;
       },

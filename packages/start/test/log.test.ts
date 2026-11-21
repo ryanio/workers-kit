@@ -123,6 +123,43 @@ describe("createLogger", () => {
     });
   });
 
+  it("masks a key with its function instead of redacting it", () => {
+    const { entries, sink } = capture();
+    createLogger("x", {
+      sink,
+      mask: {
+        email: (v) => `***@${String(v).split("@")[1]}`,
+        userId: (v) => String(v).slice(0, 8),
+        boom: () => {
+          throw new Error("no");
+        },
+      },
+    }).info("m", {
+      userEmail: "ann@example.com",
+      user: { userId: "1234567890abcdef", token: "t" },
+      boom: 1,
+      ip: "1.2.3.4",
+    });
+    expect(entries[0]).toMatchObject({
+      userEmail: "***@example.com",
+      user: { userId: "12345678", token: "[redacted]" },
+      boom: "[redacted]",
+      ip: "[redacted]",
+    });
+  });
+
+  it("leaves stacks out of errors and causes with stacks: false", () => {
+    const { entries, sink } = capture();
+    const err = new Error("outer", { cause: new Error("inner") });
+    createLogger("x", { sink, stacks: false }).error("boom", { err });
+    const out = entries[0]?.err as Record<string, unknown>;
+    expect(out).toEqual({
+      name: "Error",
+      message: "outer",
+      cause: { name: "Error", message: "inner" },
+    });
+  });
+
   it("drops entries below the level", () => {
     const { entries, sink } = capture();
     const logger = createLogger("x", { sink, level: "warn" });

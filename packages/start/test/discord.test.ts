@@ -83,6 +83,30 @@ describe("discordRest", () => {
     expect(get.calls).toHaveLength(2);
   });
 
+  it("never retries a 5xx or timeout with retryServerErrors: false, but waits out a 429", async () => {
+    const s = server(
+      new Response("", { status: 503 }),
+      "hang",
+      Response.json({ retry_after: 0.5 }, { status: 429 }),
+      Response.json({ id: "3" }),
+      Response.json({ id: "4" }),
+    );
+    const { api, waits } = client(s, {
+      timeoutMs: 10,
+      retryServerErrors: false,
+    });
+    await expect(api.get("/channels/1")).rejects.toMatchObject({
+      status: 503,
+    });
+    await expect(api.delete("/channels/1/messages/2")).rejects.toMatchObject({
+      name: "TimeoutError",
+    });
+    expect(s.calls).toHaveLength(2);
+    expect(await api.get("/channels/3")).toEqual({ id: "3" });
+    expect(waits).toEqual([500]);
+    expect(s.calls).toHaveLength(4);
+  });
+
   it("throws a 4xx at once with Discord's JSON error body", async () => {
     const s = server(
       Response.json(
