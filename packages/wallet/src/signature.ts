@@ -1,5 +1,7 @@
 import {
   type Address,
+  createClient,
+  custom,
   type Hex,
   isAddress,
   isAddressEqual,
@@ -7,6 +9,7 @@ import {
   recoverMessageAddress,
   type SignableMessage,
 } from "viem";
+import { getChainId, verifyMessage } from "viem/actions";
 
 /**
  * The part of a viem `PublicClient` the smart wallet check uses. Any public client fits; so does a
@@ -23,6 +26,36 @@ export interface SignatureClient {
    * failed RPC call as false. A viem `PublicClient` has it.
    */
   getChainId?(): Promise<number>;
+}
+
+/** Sends one JSON-RPC call and resolves to its `result`, or throws when the call fails. */
+export type RpcRequest = (
+  method: string,
+  params: unknown[],
+) => Promise<unknown>;
+
+/**
+ * A `SignatureClient` on an app's own JSON-RPC function, for an app that has one and no viem
+ * client. It is a viem client with a `custom` transport that does not retry, using viem's own
+ * `verifyMessage` (ERC-1271 and ERC-6492) and `getChainId`, so `verifyWalletSignature` can tell a
+ * refused signature from an RPC that is down.
+ */
+export function rpcSignatureClient(
+  request: RpcRequest,
+): Required<SignatureClient> {
+  const client = createClient({
+    transport: custom(
+      {
+        request: ({ method, params }) =>
+          request(method, Array.isArray(params) ? params : []),
+      },
+      { retryCount: 0 },
+    ),
+  });
+  return {
+    verifyMessage: (args) => verifyMessage(client, args),
+    getChainId: () => getChainId(client),
+  };
 }
 
 export interface VerifyWalletSignatureOptions {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0 (2026-11-21)
+
+- `checkSiwe`'s `uri` takes a string or a list, and both sides are normalised before the compare: scheme and host lowercased, a trailing slash and a default port dropped. An app can allow its www and bare hosts.
+- `rpcSignatureClient(request)`: a `SignatureClient` on an app's own JSON-RPC function `(method, params) => Promise<result>`. It is a viem client with a `custom` transport that does not retry, with viem's own `verifyMessage` and `getChainId`, so ERC-1271, ERC-6492 and the down-RPC check work without a viem `PublicClient`.
+
 ## 0.1.1 (2026-11-21)
 
 - `verifyWalletSignature` answers undefined, not false, when the RPC is down: viem's `verifyMessage` reports a failed call as false, so a false is checked against `client.getChainId()` (a viem `PublicClient` has it) and an unanswered chain means the check did not happen.

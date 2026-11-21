@@ -48,8 +48,11 @@ export interface CheckSiweOptions {
   domain: string | readonly string[];
   /** The nonce this server issued for the sign-in. Unchecked when omitted. */
   nonce?: string | undefined;
-  /** The exact URI the message must name. Unchecked when omitted. */
-  uri?: string | undefined;
+  /**
+   * The URI, or URIs, the message may name. Compared after normalising both sides: scheme and host
+   * lowercased, a default port and a trailing slash dropped. Unchecked when omitted.
+   */
+  uri?: string | readonly string[] | undefined;
   /** The chain ids the message may name. Unchecked when omitted. */
   chainId?: number | readonly number[] | undefined;
   /** The time to check against. Default now. */
@@ -77,8 +80,11 @@ export function checkSiwe(
     typeof options.domain === "string" ? [options.domain] : options.domain;
   const domain = fields.domain.toLowerCase();
   if (!domains.some((d) => d.toLowerCase() === domain)) return fail("domain");
-  if (options.uri !== undefined && fields.uri !== options.uri)
-    return fail("uri");
+  if (options.uri !== undefined) {
+    const uris = typeof options.uri === "string" ? [options.uri] : options.uri;
+    const uri = normaliseUri(fields.uri);
+    if (!uris.some((u) => normaliseUri(u) === uri)) return fail("uri");
+  }
   if (options.chainId !== undefined) {
     const chains =
       typeof options.chainId === "number" ? [options.chainId] : options.chainId;
@@ -92,6 +98,37 @@ export function checkSiwe(
     return fail("not-yet-valid");
   if (fields.issuedAt.getTime() > now + skewMs) return fail("issued-in-future");
   return { ok: true };
+}
+
+const DEFAULT_PORTS: Record<string, string> = {
+  "http:": "80",
+  "https:": "443",
+  "ws:": "80",
+  "wss:": "443",
+};
+
+/**
+ * `uri` with its scheme and host lowercased, a default port and a trailing slash dropped. A URI
+ * with no host, or one that does not parse, is compared as written.
+ */
+function normaliseUri(uri: string): string {
+  let url: URL;
+  try {
+    url = new URL(uri);
+  } catch {
+    return uri;
+  }
+  if (url.host === "") return uri;
+  const protocol = url.protocol.toLowerCase();
+  const port = url.port === DEFAULT_PORTS[protocol] ? "" : url.port;
+  const auth = url.username
+    ? `${url.username}${url.password ? `:${url.password}` : ""}@`
+    : "";
+  const host = `${url.hostname.toLowerCase()}${port ? `:${port}` : ""}`;
+  const path = url.pathname.endsWith("/")
+    ? url.pathname.slice(0, -1)
+    : url.pathname;
+  return `${protocol}//${auth}${host}${path}${url.search}${url.hash}`;
 }
 
 export interface VerifySiweOptions extends CheckSiweOptions {

@@ -16,7 +16,8 @@ It has no runtime dependencies. `viem` is a peer.
 | `parseSiwe`             | The EIP-4361 fields of a Sign-In with Ethereum message, or `null`                                 |
 | `checkSiwe`             | Whether those fields fit this sign-in: domain, nonce, URI, chain and times                        |
 | `verifySiwe`            | All three in one call                                                                             |
-| `SignatureClient`       | The one method of a viem `PublicClient` the smart wallet check uses                               |
+| `rpcSignatureClient`    | A `SignatureClient` on your own JSON-RPC function, for an app without a viem client               |
+| `SignatureClient`       | The methods of a viem `PublicClient` the smart wallet check uses                                  |
 
 ## Install
 
@@ -47,6 +48,38 @@ The signature is first recovered locally. If it recovers to `address`, the answe
 
 The client must be on the wallet's chain: a smart wallet deployed on Base has no code on mainnet.
 
+### Your own JSON-RPC function
+
+An app that already sends JSON-RPC its own way (a provider with failover, a cached fetch) can wrap that function instead of building a viem client:
+
+```ts
+import { rpcSignatureClient, verifyWalletSignature } from "workers-wallet";
+
+async function rpc(method: string, params: unknown[]) {
+  const response = await fetch(env.BASE_RPC_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+  });
+  const body = (await response.json()) as {
+    result?: unknown;
+    error?: { message: string };
+  };
+  if (body.error) throw new Error(body.error.message);
+  return body.result;
+}
+
+const client = rpcSignatureClient(rpc);
+const signed = await verifyWalletSignature({
+  client,
+  address,
+  message,
+  signature,
+});
+```
+
+The function takes the method and its params and resolves to the call's `result`, or throws. `rpcSignatureClient` builds a viem client on it with a `custom` transport that does not retry (the timeout in `verifyWalletSignature` bounds the whole check) and gives it viem's own `verifyMessage` and `getChainId`. ERC-1271, ERC-6492 and the down-RPC check then work the same as with a `PublicClient`. The smart wallet check sends `eth_call`, and the down check sends `eth_chainId`.
+
 ## Sign-In with Ethereum
 
 ```ts
@@ -72,7 +105,7 @@ const { address, chainId } = result.fields;
 | ------------------ | ---------------------------------------------------------------- |
 | `malformed`        | Not a well formed EIP-4361 message                               |
 | `domain`           | The domain is not one of `domain` (compared ignoring case)       |
-| `uri`              | The URI is not `uri`                                             |
+| `uri`              | The URI is not one of `uri` (compared after normalising)         |
 | `chain`            | The chain id is not in `chainId`                                 |
 | `nonce`            | The nonce is not `nonce`                                         |
 | `expired`          | Expiration Time is at or before `now`                            |
@@ -90,11 +123,13 @@ const fields = parseSiwe(message);
 if (!fields) return new Response("Not a SIWE message", { status: 400 });
 const check = checkSiwe(fields, {
   domain: ["example.com", "www.example.com"],
-  uri: "https://example.com/login",
+  uri: ["https://example.com/login", "https://www.example.com/login"],
   chainId: [1, 8453],
   nonce,
 });
 ```
+
+`uri` is one URI or a list. Both the message's URI and each allowed one are normalised before they are compared: the scheme and host are lowercased, a default port (80 for http, 443 for https) and a trailing slash are dropped. So `https://Example.com:443/login/` matches `https://example.com/login`, while another port, scheme or path does not. A URI with no host, such as a URN, is compared as written.
 
 `parseSiwe` uses viem's `parseSiweMessage` and returns `null` when a required field (address, domain, URI, version 1, chain id, nonce, Issued At) is missing or a date is not an RFC 3339 date-time. `checkSiwe` leaves `nonce`, `uri` and `chainId` unchecked when they are not given; `now` takes a `Date` or milliseconds and defaults to the current time.
 

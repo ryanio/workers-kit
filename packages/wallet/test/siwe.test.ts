@@ -137,6 +137,61 @@ describe("checkSiwe", () => {
     });
   });
 
+  it("takes a list of URIs, so the www and bare hosts can both sign in", () => {
+    const uri = ["https://www.example.com/login", "https://example.com/login"];
+    expect(checkSiwe(fields(), { ...base, uri })).toEqual({ ok: true });
+    expect(
+      checkSiwe(fields({ uri: "https://www.example.com/login" }), {
+        ...base,
+        uri,
+      }),
+    ).toEqual({ ok: true });
+    expect(
+      checkSiwe(fields({ uri: "https://evil.com/login" }), { ...base, uri }),
+    ).toEqual({ ok: false, reason: "uri" });
+  });
+
+  it.each([
+    [
+      "the host's case",
+      "https://EXAMPLE.com/login",
+      "https://example.com/login",
+    ],
+    [
+      "the scheme's case",
+      "HTTPS://example.com/login",
+      "https://example.com/login",
+    ],
+    [
+      "a trailing slash",
+      "https://example.com/login/",
+      "https://example.com/login",
+    ],
+    ["a bare origin's slash", "https://example.com", "https://example.com/"],
+    [
+      "a default port",
+      "https://example.com:443/login",
+      "https://example.com/login",
+    ],
+  ])("ignores %s in the URI", (_, signed, allowed) => {
+    expect(
+      checkSiwe(fields({ uri: signed }), { ...base, uri: allowed }),
+    ).toEqual({ ok: true });
+  });
+
+  it.each([
+    ["another port", "https://example.com:8443/login"],
+    ["another scheme", "http://example.com/login"],
+    ["another path", "https://example.com/Login"],
+  ])("still fails %s", (_, signed) => {
+    expect(
+      checkSiwe(fields({ uri: signed }), {
+        ...base,
+        uri: "https://example.com/login",
+      }),
+    ).toEqual({ ok: false, reason: "uri" });
+  });
+
   it("allows an Issued At within the skew", () => {
     const ahead = fields({ issuedAt: new Date("2026-11-20T12:05:00Z") });
     expect(checkSiwe(ahead, base)).toEqual({ ok: true });

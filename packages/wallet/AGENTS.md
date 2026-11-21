@@ -4,10 +4,10 @@
 
 ## Layout
 
-- `src/signature.ts`: `verifyWalletSignature` and the `SignatureClient` type.
+- `src/signature.ts`: `verifyWalletSignature`, `rpcSignatureClient` and the `SignatureClient` type.
 - `src/siwe.ts`: `parseSiwe`, `checkSiwe` and `verifySiwe`.
 - `src/index.ts`: the only entry point.
-- `test/signature.test.ts`, `test/siwe.test.ts`: generated keys sign through `privateKeyToAccount`, and a fake `verifyMessage` stands in for the chain. No test touches the network.
+- `test/signature.test.ts`, `test/siwe.test.ts`: generated keys sign through `privateKeyToAccount`, and a fake `verifyMessage` stands in for the chain. `rpcSignatureClient` tests answer `eth_call` and `eth_chainId` from a fake request function. No test touches the network.
 
 ## Rules
 

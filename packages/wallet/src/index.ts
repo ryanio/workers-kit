@@ -1,4 +1,6 @@
 export {
+  type RpcRequest,
+  rpcSignatureClient,
   type SignatureClient,
   type VerifyWalletSignatureOptions,
   verifyWalletSignature,
