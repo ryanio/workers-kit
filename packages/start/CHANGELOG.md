@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.14.0 (2026-11-20)
 
+- `workers-start/discord`: `discordRest({ token })` with get, post, patch, put and delete on Discord's REST API v10. It waits out a 429's `retry_after` up to `max429` times, retries 5xx and timeouts except for POST, waits for a spent bucket before the next call on that route, takes an audit log `reason`, and throws `HttpError` with Discord's JSON body. Also `editOriginal`, `followup` and `deleteOriginal` without the bot token, and `interactionResponse`, `deferred`, `pong`, `InteractionResponseType` and `MessageFlags`.
+- `workers-start/x`: `oauth1Header` signs OAuth 1.0a requests with HMAC-SHA1 over WebCrypto. `xClient(creds)` gives `get`, `post`, `postTweet`, `deleteTweet` and `uploadMedia` (images and GIFs) on the X API v2, waits until `x-rate-limit-reset` on a 429 up to a cap, keeps the last rate limit headers in `rateLimit`, and throws `HttpError`.
 - `workers-start/security`: `securityHeaders`, `withSecurityHeaders` and `contentSecurityPolicy`, with HSTS, nosniff, framing, referrer, permissions and COOP defaults, and CSP presets for GA4, Sentry, Cloudflare Web Analytics and WalletConnect. It never sends the deprecated `X-XSS-Protection`.
 - `workers-start/cors`: `cors()` with an origin allowlist (strings and RegExps), `Vary: Origin`, preflight answers, and a refusal of `"*"` with credentials.
 - `workers-start/body`: `readJson` and `readText` read a request body under a byte cap (default 64 KiB), streaming and cancelling past it whatever `Content-Length` says. `readJson` checks for a JSON content type and runs an optional `safeParse` schema. `bodyProblem` answers a failure with an RFC 9457 problem (400 `invalid_json` or `invalid_request`, 413 `too_large`, 415 `unsupported_media_type`).

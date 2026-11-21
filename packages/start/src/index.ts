@@ -39,6 +39,19 @@ export {
 export type { Cors, CorsOptions } from "./cors.js";
 export { cors } from "./cors.js";
 export type {
+  DiscordRequestOptions,
+  DiscordRest,
+  DiscordRestOptions,
+} from "./discord.js";
+export {
+  deferred,
+  discordRest,
+  InteractionResponseType,
+  interactionResponse,
+  MessageFlags,
+  pong,
+} from "./discord.js";
+export type {
   EntryOptions,
   FetchHandler,
   MarkdownPage,
@@ -210,3 +223,13 @@ export {
   loadWorkers,
   setWorkersModule,
 } from "./workers.js";
+export type {
+  OAuth1Options,
+  PostTweetOptions,
+  XClient,
+  XClientOptions,
+  XCredentials,
+  XQuery,
+  XRateLimit,
+} from "./x.js";
+export { oauth1Header, percentEncode, xClient } from "./x.js";

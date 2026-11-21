@@ -1,7 +1,7 @@
 {
   "name": "workers-start",
-  "version": "0.13.0",
-  "description": "The parts every app on Cloudflare Workers ends up writing: the TanStack Start entry with Markdown for agents, head tags, bindings, edge and value caches, Cloudflare Access checks, Google service-account calls, Sentry options, mail, rate limiting, and a check that no local secret ships in the build.",
+  "version": "0.14.0",
+  "description": "The parts every app on Cloudflare Workers ends up writing: the TanStack Start entry, edge and value caches, Cloudflare Access, Google service accounts, Sentry options, mail, rate limiting, outbound HTTP with retries, security headers, CORS, capped bodies, webhook signatures, structured logs, and Discord and X clients. No dependencies.",
   "license": "MIT",
   "author": "Ryan Ghods",
   "repository": {
@@ -32,7 +32,10 @@
     "cors",
     "csp",
     "security-headers",
-    "logging"
+    "logging",
+    "discord",
+    "x-api",
+    "oauth1"
   ],
   "type": "module",
   "sideEffects": false,
@@ -141,6 +144,16 @@
       "types": "./dist/cors.d.ts",
       "import": "./dist/cors.js",
       "default": "./dist/cors.js"
+    },
+    "./discord": {
+      "types": "./dist/discord.d.ts",
+      "import": "./dist/discord.js",
+      "default": "./dist/discord.js"
+    },
+    "./x": {
+      "types": "./dist/x.d.ts",
+      "import": "./dist/x.js",
+      "default": "./dist/x.js"
     },
     "./package.json": "./package.json"
   },

@@ -90,7 +90,7 @@ const formatAddress = (a: MailAddress) =>
 /** The `send_email` binding, structurally, so this module needs no Workers types. */
 export interface SendEmailBinding {
   // biome-ignore lint/suspicious/noExplicitAny: the binding's builder type lives in @cloudflare/workers-types.
-  send(message: any): Promise<{ messageId?: string } | undefined | void>;
+  send(message: any): Promise<unknown>;
 }
 
 /** Sends through Cloudflare Email Sending. Senders and recipients must be allowed in the binding's wrangler config. */
@@ -133,7 +133,9 @@ export function cloudflareMailer(binding: SendEmailBinding): Mailer {
               }
             : {}),
         });
-        return result?.messageId ? { id: result.messageId } : {};
+        const messageId = (result as { messageId?: unknown } | undefined)
+          ?.messageId;
+        return typeof messageId === "string" ? { id: messageId } : {};
       } catch (err) {
         throw new MailError(
           `Email Sending failed: ${err instanceof Error ? err.message : String(err)}`,

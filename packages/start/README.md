@@ -28,6 +28,8 @@ Check this list before writing a helper in an app. Anything generic to TanStack 
 | `workers-start/webhooks`       | `timingSafeEqual`, `verifyDiscord`, `verifyHmac`, `verifySvix`                                                                    | Webhook signatures (Discord, HMAC senders, Svix and Resend) checked in constant time with replay windows |
 | `workers-start/security`       | `contentSecurityPolicy`, `securityHeaders`, `withSecurityHeaders`                                                                 | Security headers and a Content-Security-Policy builder with presets                                      |
 | `workers-start/cors`           | `cors`                                                                                                                            | CORS with an origin allowlist, preflights and `Vary: Origin`                                             |
+| `workers-start/discord`        | `deferred`, `discordRest`, `interactionResponse`, `InteractionResponseType`, `MessageFlags`, `pong`                               | A Discord REST client that waits out 429s and times out, plus interaction responses                      |
+| `workers-start/x`              | `oauth1Header`, `percentEncode`, `xClient`                                                                                        | OAuth 1.0a signing on WebCrypto and an X API v2 client that waits out rate limits                        |
 | `workers-start/seo`            | `sitemapXml`, `robotsTxt`, `escapeXml`                                                                                            | `/sitemap.xml` and `/robots.txt` bodies                                                                  |
 | `workers-start/accept`         | `parseAccept`, `quality`                                                                                                          | Accept header parsing                                                                                    |
 | `workers-start/check-bundle`   | `workers-start-check-bundle` (bin)                                                                                                | Fails a build that would ship a local secret                                                             |
@@ -564,6 +566,71 @@ try {
 - `sink` receives each entry instead of the console, for tests or another transport.
 
 `requestId(request)` returns the `cf-ray` header, else `x-request-id`, else a new UUID, so one id ties together every line of a request.
+
+## Discord
+
+`workers-start/discord` is a client for Discord's REST API (v10) on `fetch`, and the responses a Worker answers interactions with.
+
+```ts
+import { deferred, discordRest, pong } from "workers-start/discord";
+
+const discord = discordRest({ token: env.DISCORD_BOT_TOKEN });
+
+await discord.post(`/channels/${channelId}/messages`, { content: "gm" });
+await discord.put(`/guilds/${guildId}/bans/${userId}`, undefined, {
+  reason: "spam links",
+});
+const recent = await discord.get<{ id: string }[]>(
+  `/channels/${channelId}/messages`,
+  { query: { limit: 50 } },
+);
+
+// In the interactions route, after the signature check:
+if (interaction.type === 1) return pong();
+ctx.waitUntil(
+  work().then((content) =>
+    discord.editOriginal(env.DISCORD_APP_ID, interaction.token, { content }),
+  ),
+);
+return deferred({ ephemeral: true });
+```
+
+- A 429 waits Discord's `retry_after` (from the JSON body or `Retry-After`, global and per-route alike) and tries again, up to `max429` times (5). Discord did not act on a rate limited request, so this applies to a POST too. A wait longer than `maxWaitMs` (60 seconds) throws instead.
+- A 5xx, a timeout or a network error is tried twice more for GET, PUT, PATCH and DELETE. A POST is tried once: a message that timed out may still have been sent.
+- When a response says its bucket is spent (`X-RateLimit-Remaining: 0`), the next call on that route waits for `X-RateLimit-Reset-After` first.
+- Each attempt times out after `timeoutMs` (15 seconds). An error status throws `HttpError` from `workers-start/http` with Discord's JSON error in `body`, so `err.body.code === 10008` is an unknown message.
+- `reason` goes into `X-Audit-Log-Reason`, URI-encoded. `query` is appended to the path. A `FormData` body goes up as multipart (a file with `payload_json`), anything else as JSON. A 204 returns `null`.
+- `token` is optional; `kind: "Bearer"` sends an OAuth2 access token instead of a bot token. `editOriginal`, `followup` and `deleteOriginal` send no Authorization header, since the interaction token in the path is the credential.
+- `interactionResponse(type, data)` returns the JSON `Response`; `InteractionResponseType` and `MessageFlags` hold the numbers. `deferred()` acknowledges within Discord's three seconds and `pong()` answers the endpoint check. Verifying the request signature is up to the app.
+
+## X
+
+`workers-start/x` calls the X API v2 as a user, signed with OAuth 1.0a over WebCrypto. OAuth 1.0a user tokens do not expire, so the four secrets are all it needs: no refresh and no stored token.
+
+```ts
+import { xClient } from "workers-start/x";
+
+const x = xClient({
+  consumerKey: env.X_CONSUMER_KEY,
+  consumerSecret: env.X_CONSUMER_SECRET,
+  token: env.X_ACCESS_TOKEN,
+  tokenSecret: env.X_ACCESS_TOKEN_SECRET,
+});
+
+const mediaId = await x.uploadMedia(await image.arrayBuffer(), "image/png");
+const tweet = await x.postTweet("gm", { mediaIds: [mediaId] });
+const me = await x.get<{ data: { id: string } }>("/users/me");
+await x.deleteTweet(tweet.id);
+console.log(x.rateLimit); // { endpoint: "DELETE /tweets/...", limit, remaining, reset }
+```
+
+- A 429 waits until `x-rate-limit-reset` plus a second and tries again, for a POST too, since X did not act on it. A reset later than `maxWaitMs` (60 seconds) throws at once rather than waiting.
+- A 5xx, a timeout or a network error is retried for GET and DELETE. A POST is tried once: a post that timed out may have gone out.
+- An error status throws `HttpError` from `workers-start/http` with X's JSON body (`title`, `detail`, `errors`). Each attempt times out after `timeoutMs` (15 seconds) and is signed again with a fresh nonce.
+- `rateLimit` holds the `x-rate-limit-*` headers of the last response that carried them. They describe that endpoint, not the account.
+- `get(path, query)` signs the query string; `post(path, body)` sends JSON, which is not signed. `postTweet(text, { replyTo, quote, mediaIds })` returns `{ id, text }`.
+- `uploadMedia(bytes, mimeType)` sends an image or GIF in one request to `POST /2/media/upload` and returns the media id. Video needs X's chunked upload, which is not here.
+- `oauth1Header(creds, method, url, params)` returns the `Authorization` header for any call, X's or another OAuth 1.0a API's. `params` are the fields of a form-encoded body; leave them out for JSON or multipart. Sign the final URL, since a parameter added after signing gets a 401.
 
 ## Sitemap and robots.txt
 
