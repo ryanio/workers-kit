@@ -17,7 +17,7 @@ Read the package's AGENTS.md before changing it. This file has what every packag
 - `biome.json`, `knip.json`, `.gitignore`, `.nvmrc`, `.githooks/`: one copy for the whole repo. `knip.json` lists each package's entry points; a new entry point goes there too.
 - `scripts/doc-refs/`: synced from `~/dev/doc-refs` (edit it there and run `npm run sync`); checks that paths named in these docs exist.
 - `scripts/check-lockfile-platforms.mjs`: fails when the lockfile loses the Linux binaries CI needs.
-- `scripts/check-package-list.mjs`: fails when a package is missing from the list at the top of this file or, once public, from the root README package table and install lines.
+- `scripts/check-package-list.mjs`: fails when a package is missing from the list at the top of this file or, once public, from the root README package list and install lines.
 - `scripts/check-consumers.mjs`: derives each package's consumer list from the apps beside this checkout and fails when a package's AGENTS.md leaves one out. `--write` updates the lines. It finds no apps in CI, so it only really checks on a machine that has them.
 - `.github/workflows/ci.yml`: the gate on Node 22 and 24. `.github/workflows/release.yml`: publishes each package whose version is new.
 
@@ -79,6 +79,6 @@ Each command opens an npm sign-in in the browser. npm may record the placeholder
 
 1. In `packages/<dir>/package.json`, remove `"private": true` and set `version` to `0.1.0`. Rename `## Unreleased` in its CHANGELOG to `## 0.1.0 (YYYY-MM-DD)`.
 2. Drop any "still private" notes from its AGENTS.md and from the package list here.
-3. Add a row for it to the package table in the root `README.md` (name linked to its README, then the version badge, one line on what a developer would reach for it for, and what it needs installed beside it) and an `npm install <name>` line. `npm run check:packages` fails until both are there.
+3. Add an entry for it to the package list in the root `README.md` (name linked to its README and the version badge on the first line, then one short line on what a developer would use it for and what it runs on) and an `npm install <name>` line. `npm run check:packages` fails until both are there.
 4. Run `npm run check`, commit and push. The release workflow publishes `0.1.0`, tags it and opens the GitHub release.
 5. Move the apps on its `- Consumers:` line onto it.

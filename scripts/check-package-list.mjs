@@ -1,5 +1,5 @@
 // Fails when a package in packages/ is missing from the places that list every
-// package: the root README (its row in the package table and its install line)
+// package: the root README (its entry in the package list and its install line)
 // and the root AGENTS.md. A private package needs only the AGENTS.md entry,
 // since it is not installable yet.
 import { readdirSync, readFileSync } from "node:fs";
@@ -24,8 +24,8 @@ for (const dir of readdirSync(join(ROOT, "packages"))) {
     problems.push(`AGENTS.md does not list packages/${dir}`);
   }
   if (manifest.private === true) continue;
-  if (!readme.includes(`\n| [${name}](packages/${dir}#readme) `)) {
-    problems.push(`README.md has no row for ${name} in the package table`);
+  if (!readme.includes(`\n- [${name}](packages/${dir}#readme) `)) {
+    problems.push(`README.md has no entry for ${name} in the package list`);
   }
   if (!readme.includes(`npm install ${name}\n`)) {
     problems.push(`README.md has no "npm install ${name}" line`);
