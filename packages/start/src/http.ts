@@ -76,6 +76,81 @@ export function transient(err: unknown): boolean {
   return err instanceof TypeError;
 }
 
+/** What `withTimeout` throws when the work does not settle in time. */
+export class TimeoutError extends Error {
+  override readonly name = "TimeoutError";
+  constructor(
+    readonly ms: number,
+    label = "operation",
+  ) {
+    super(`${label} timed out after ${ms}ms`);
+  }
+}
+
+export interface TimeoutOptions<F> {
+  /** Names the work in the `TimeoutError` message. Default "operation". */
+  label?: string | undefined;
+  /**
+   * Resolve with this instead of throwing when time runs out, for work whose
+   * answer is optional (an enrichment, a warm-up).
+   */
+  fallback?: F;
+  /** With `fallback`, also resolve with it when the work itself fails. Default false. */
+  fallbackOnError?: boolean | undefined;
+}
+
+/**
+ * The work's result, or a `TimeoutError` once `ms` pass first. Pass a
+ * function to get an `AbortSignal` that aborts at the deadline, so the work
+ * (a `fetch`, say) stops too instead of running on unobserved. With
+ * `fallback` it resolves with that value rather than throwing. The timer is
+ * always cleared, so a settled race keeps nothing alive.
+ *
+ *     const chart = await withTimeout((signal) => render(id, { signal }), 8_000, {
+ *       fallback: null,
+ *     });
+ */
+export function withTimeout<T>(
+  work: Promise<T> | ((signal: AbortSignal) => Promise<T>),
+  ms: number,
+  options?: Omit<TimeoutOptions<never>, "fallback" | "fallbackOnError"> & {
+    fallback?: undefined;
+  },
+): Promise<T>;
+export function withTimeout<T, F>(
+  work: Promise<T> | ((signal: AbortSignal) => Promise<T>),
+  ms: number,
+  options: TimeoutOptions<F> & { fallback: F },
+): Promise<T | F>;
+export function withTimeout<T, F>(
+  work: Promise<T> | ((signal: AbortSignal) => Promise<T>),
+  ms: number,
+  options: TimeoutOptions<F> = {},
+): Promise<T | F> {
+  const controller = new AbortController();
+  const hasFallback = "fallback" in options;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<F>((resolve, reject) => {
+    timer = setTimeout(() => {
+      const error = new TimeoutError(ms, options.label);
+      controller.abort(error);
+      if (hasFallback) resolve(options.fallback as F);
+      else reject(error);
+    }, ms);
+  });
+  let running: Promise<T>;
+  try {
+    running = typeof work === "function" ? work(controller.signal) : work;
+  } catch (error) {
+    running = Promise.reject(error);
+  }
+  const guarded: Promise<T | F> =
+    hasFallback && options.fallbackOnError
+      ? running.catch(() => options.fallback as F)
+      : running;
+  return Promise.race([guarded, deadline]).finally(() => clearTimeout(timer));
+}
+
 export interface RetryOptions {
   /** Total attempts, the first included. Default 3. */
   attempts?: number;

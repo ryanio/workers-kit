@@ -121,6 +121,7 @@ export type {
   DateLike,
   DateOptions,
   FitWordsOptions,
+  FormatBytesOptions,
   ListOfOptions,
   SlugifyOptions,
   TimeAgoOptions,
@@ -135,6 +136,7 @@ export {
   counted,
   DAY_MS,
   fitWords,
+  formatBytes,
   formatCount,
   fullDate,
   HOUR_MS,
@@ -200,6 +202,7 @@ export type {
   FetchJsonOptions,
   HttpErrorOptions,
   RetryOptions,
+  TimeoutOptions,
 } from "./http.js";
 export {
   fetchJson,
@@ -208,8 +211,10 @@ export {
   retryAfterSeconds,
   sleep,
   sleepWithJitter,
+  TimeoutError,
   transient,
   withRetry,
+  withTimeout,
 } from "./http.js";
 export type {
   LogEntry,

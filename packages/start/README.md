@@ -30,12 +30,12 @@ Check this list before writing a helper in an app. Anything generic to TanStack 
 | `workers-start/cors`            | `cors`                                                                                                                                                                                                              | CORS with an origin allowlist, preflights and `Vary: Origin`                                             |
 | `workers-start/discord`         | `deferred`, `discordRest`, `interactionResponse`, `InteractionResponseType`, `MessageFlags`, `pong`                                                                                                                 | A Discord REST client that waits out 429s and times out, plus interaction responses                      |
 | `workers-start/x`               | `oauth1Header`, `percentEncode`, `xClient`                                                                                                                                                                          | OAuth 1.0a signing on WebCrypto and an X API v2 client that waits out rate limits                        |
-| `workers-start/http`            | `fetchJson`, `withRetry`, `HttpError`, `transient`, `retryAfterSeconds`, `ResponseTooLarge`, `sleep`, `sleepWithJitter`                                                                                             | Outbound calls with timeouts, jittered retries, Retry-After and an optional size cap                     |
+| `workers-start/http`            | `fetchJson`, `withRetry`, `HttpError`, `transient`, `retryAfterSeconds`, `ResponseTooLarge`, `sleep`, `sleepWithJitter`, `withTimeout`, `TimeoutError`                                                              | Outbound calls with timeouts, jittered retries, Retry-After and an optional size cap                     |
 | `workers-start/seo`             | `sitemapXml`, `sitemapIndexXml`, `robotsTxt`, `llmsTxt`, `escapeXml`                                                                                                                                                | `/sitemap.xml`, `/robots.txt` and `/llms.txt` bodies                                                     |
 | `workers-start/bytes`           | `toHex`, `fromHex`, `toBase64`, `fromBase64`, `toBase64Url`, `fromBase64Url`, `utf8`, `fromUtf8`, `randomBytes`, `randomHex`, `randomId`, `sha256`, `sha256Hex`, `sha256Base64Url`, `hmacSha256`, `timingSafeEqual` | Hex, base64 and base64url that refuse bad input instead of throwing, digests and HMACs                   |
 | `workers-start/cookies`         | `readCookie`, `parseCookies`, `serializeCookie`, `clearCookie`, `appendCookie`                                                                                                                                      | Cookies on plain `Request` and `Response` objects, and a clear a browser will honour                     |
 | `workers-start/tokens`          | `signValue`, `verifyValue`, `signatureOf`, `verifySignature`, `sessionCookie`                                                                                                                                       | Signed payloads a stranger can hold, and a session cookie with a sliding expiry                          |
-| `workers-start/format`          | `plural`, `counted`, `compactCount`, `timeAgo`, `utcStamp`, `usd`, `slugify`, `truncate`, `wrapWords` and the rest                                                                                                  | Counts, plurals, relative times, UTC stamps, money, slugs and word wrapping                              |
+| `workers-start/format`          | `plural`, `counted`, `compactCount`, `formatBytes`, `timeAgo`, `utcStamp`, `usd`, `slugify`, `truncate`, `wrapWords` and the rest                                                                                   | Counts, plurals, relative times, UTC stamps, money, slugs and word wrapping                              |
 | `workers-start/discord/gateway` | `discordGateway`, the intent constants                                                                                                                                                                              | One Discord gateway websocket from a Durable Object: identify, heartbeat, resume, back off               |
 | `workers-start/accept`          | `parseAccept`, `quality`                                                                                                                                                                                            | Accept header parsing                                                                                    |
 | `workers-start/check-bundle`    | `workers-start-check-bundle` (bin)                                                                                                                                                                                  | Fails a build that would ship a local secret                                                             |
@@ -201,7 +201,13 @@ return withEdgeCache(request, () => handler.fetch(request), {
 
 In a Hono app, `app.use("*", edgeCacheMiddleware({ version: BUILD_ID }))` does the same: a hit is answered without running the route, and the store uses the context's `waitUntil`.
 
-A cache hit has its browser `max-age` removed (the zone adds one, and a browser holding page HTML that long outlives the next deploy's assets). The store runs after the response through `afterResponse`; pass `waitUntil` or `cache` to override, as tests do. Outside workerd every request renders.
+A cache hit has its browser `max-age` removed (the zone adds one, and a browser holding page HTML that long outlives the next deploy's assets). The store runs after the response through `afterResponse`; pass `waitUntil` or `cache` to override, as tests do. Outside workerd every request renders, and so does a `Range` request.
+
+- `clientCacheControl` sets the Cache-Control a hit answers the browser with, such as `"public, max-age=0, must-revalidate"`, in place of the stored one.
+- `key(request)` picks the cache key (a URL or a Request), for example the URL without tracking parameters. `version` is still added to it.
+- `shouldStore(response, request)` decides, after the response is sent, whether a page that passes the usual rules (200, `s-maxage`, no `set-cookie`) is stored; it may be async.
+- `statusHeader: "x-edge-cache"` marks each answer `HIT` or `MISS`.
+- A cache that throws never takes the page down: a failed lookup renders, a failed store loses only the store, and `onError(error, "match" | "put")` hears about both.
 
 ### Cached values
 
@@ -435,6 +441,7 @@ const price = await fetchJson<{ usd: number }>(
 - `maxBytes` refuses a response body past that size with `ResponseTooLarge`, for upstreams the app does not trust.
 - A request that carries an `authorization` header does not follow redirects (`redirect: "manual"`), so the credential never reaches wherever a 3xx points; the 3xx comes back as an `HttpError`. Pass `redirect: "follow"` to follow one anyway.
 - `withRetry(fn, options)` retries any async work the same way, and `transient(err)` says whether an error is worth retrying.
+- `withTimeout(work, ms, options)` races work against a deadline and throws a `TimeoutError` (which `transient` counts as retryable) when the deadline wins. Pass a function, `(signal) => fetch(url, { signal })`, and its signal aborts at the deadline so the work stops too. `{ fallback }` resolves with that value instead of throwing, for an answer that is optional; `fallbackOnError: true` also resolves with it when the work fails. `label` names the work in the error. The timer is always cleared.
 - `sleep(ms, signal?)` waits, and rejects with the signal's reason if it aborts first. `sleepWithJitter(baseMs, jitterMs, signal?)` adds a random wait up to `jitterMs`, so callers that started together do not wake together.
 
 ## Security headers
@@ -845,6 +852,7 @@ import {
 
 counted(1204, "reply"); // "1,204 replies"
 compactCount(12_340); // "12.3k"
+formatBytes(1_572_864); // "1.5 MB"
 timeAgo("2026-11-20 14:03:00"); // "2h ago"
 utcStamp(row.created_at); // "2026-11-20 14:03 UTC"
 usd(120_450, { cents: true }); // "$1,204.50"
@@ -854,6 +862,7 @@ Everything here is pure and locale-free on purpose: these strings end up in a Wo
 
 - A date argument is an ISO string, epoch milliseconds or a `Date`. Anything unparseable gives an empty string rather than `Invalid Date`, so a bad row leaves a gap in the page instead of a mark across it.
 - `toMillis` reads a timestamp with no zone as UTC. `Date.parse` already does that for `2026-11-20`, but not for `2026-11-20 14:03:00`, which SQLite's `datetime()` returns and which otherwise reads hours out on a fresh row.
+- `formatBytes(bytes, { decimals, si })` steps by 1024 with KB and MB (what operating systems and browsers show), or by 1000 with kB and MB with `si`, drops trailing zeros, rounds up into the next unit rather than writing "1024 KB", and gives "" for a negative or non-finite size.
 - `compactCount` groups in full below its threshold (10,000): "9.9k" hides whether a number crossed ten thousand and "9,934" does not.
 - `fullDate(value, { month: "short" })` writes "9 Mar 2026" in place of "9 March 2026", and `timeAgo` takes the same `month` for its fallback date past 30 days.
 - `timeAgo` reads anything in the future as "just now". A visitor's clock a little ahead of the server is the ordinary cause, and "in 2s" only looks broken.

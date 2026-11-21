@@ -27,6 +27,30 @@ export interface EdgeCacheOptions {
    * `workers-start/workers`, which uses the request's `waitUntil` in workerd.
    */
   waitUntil?: (work: Promise<unknown>) => void;
+  /**
+   * The Cache-Control a cache hit answers the browser with. By default a hit
+   * keeps what was stored, minus the browser `max-age` the zone's Browser
+   * Cache TTL adds on the way back. Give this when the browser should see
+   * something else, such as `"public, max-age=0, must-revalidate"`.
+   */
+  clientCacheControl?: string | undefined;
+  /**
+   * The cache key. Default the request URL, plus `version`. Return a URL or a
+   * Request; it is always looked up as a GET.
+   */
+  key?: ((request: Request) => string | URL | Request) | undefined;
+  /**
+   * Whether a rendered response may be stored, on top of the rules that
+   * always apply (200, `s-maxage` above 0, no `set-cookie`). It runs after the
+   * response is sent, inside the store, so it may be slow or async.
+   */
+  shouldStore?:
+    | ((response: Response, request: Request) => boolean | Promise<boolean>)
+    | undefined;
+  /** A header naming whether the answer came from the cache (`HIT` or `MISS`), such as `x-edge-cache`. */
+  statusHeader?: string | undefined;
+  /** Called when the cache itself fails. A failed lookup renders the page; a failed store loses only the store. */
+  onError?: ((error: unknown, during: "match" | "put") => void) | undefined;
 }
 
 const S_MAXAGE = /(?:^|,)\s*s-maxage=(\d+)/;
@@ -72,14 +96,24 @@ export async function withEdgeCache(
   options: EdgeCacheOptions = {},
 ): Promise<Response> {
   const cache = options.cache ?? defaultCache();
-  if (!cache || request.method !== "GET") return render();
+  // A Range request wants part of a body, and the Cache API stores whole ones.
+  if (!cache || request.method !== "GET" || request.headers.has("range")) {
+    return render();
+  }
 
-  const keyUrl = new URL(request.url);
-  if (options.version) keyUrl.searchParams.set("__build", options.version);
-  const key = new Request(keyUrl.toString(), { method: "GET" });
-
-  const hit = await cache.match(key);
-  if (hit) return withoutBrowserMaxAge(hit);
+  const key = cacheKey(request, options);
+  let hit: Response | undefined;
+  try {
+    hit = await cache.match(key);
+  } catch (error) {
+    options.onError?.(error, "match");
+  }
+  if (hit) {
+    const answer = options.clientCacheControl
+      ? withHeader(hit, "cache-control", options.clientCacheControl)
+      : withoutBrowserMaxAge(hit);
+    return marked(answer, options.statusHeader, "HIT");
+  }
 
   const response = await render();
   if (
@@ -87,11 +121,51 @@ export async function withEdgeCache(
     sharedMaxAge(response) > 0 &&
     !response.headers.has("set-cookie")
   ) {
-    const store = cache.put(key, response.clone());
+    const copy = response.clone();
+    const store = (async () => {
+      try {
+        if (
+          options.shouldStore &&
+          !(await options.shouldStore(copy.clone(), request))
+        ) {
+          return;
+        }
+        await cache.put(key, copy);
+      } catch (error) {
+        options.onError?.(error, "put");
+      }
+    })();
     if (options.waitUntil) options.waitUntil(store);
     else void afterResponse(store);
   }
-  return response;
+  return marked(response, options.statusHeader, "MISS");
+}
+
+function cacheKey(request: Request, options: EdgeCacheOptions): Request {
+  const chosen = options.key?.(request);
+  if (chosen instanceof Request)
+    return new Request(chosen.url, { method: "GET" });
+  const keyUrl = new URL(chosen ? String(chosen) : request.url);
+  if (options.version) keyUrl.searchParams.set("__build", options.version);
+  return new Request(keyUrl.toString(), { method: "GET" });
+}
+
+function withHeader(response: Response, name: string, value: string): Response {
+  const headers = new Headers(response.headers);
+  headers.set(name, value);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+function marked(
+  response: Response,
+  header: string | undefined,
+  status: "HIT" | "MISS",
+): Response {
+  return header ? withHeader(response, header, status) : response;
 }
 
 /** The part of a Hono context `edgeCacheMiddleware` reads. */

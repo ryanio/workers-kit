@@ -6,8 +6,10 @@ import {
   retryAfterSeconds,
   sleep,
   sleepWithJitter,
+  TimeoutError,
   transient,
   withRetry,
+  withTimeout,
 } from "../src/http.js";
 
 const noSleep = { sleep: async () => {}, random: () => 0.5 };
@@ -360,5 +362,58 @@ describe("sleep", () => {
     const wait = sleep(60_000, controller.signal);
     controller.abort(new Error("stop"));
     await expect(wait).rejects.toThrow("stop");
+  });
+});
+
+describe("withTimeout", () => {
+  const later = <T>(value: T, ms: number) =>
+    new Promise<T>((resolve) => setTimeout(() => resolve(value), ms));
+
+  it("returns the work's result when it settles in time", async () => {
+    await expect(withTimeout(later("done", 5), 200)).resolves.toBe("done");
+  });
+
+  it("throws a TimeoutError named for the work, which counts as transient", async () => {
+    const error = await withTimeout(later("late", 200), 10, {
+      label: "chart render",
+    }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(TimeoutError);
+    expect((error as Error).message).toBe("chart render timed out after 10ms");
+    expect(transient(error)).toBe(true);
+  });
+
+  it("resolves the fallback on timeout, and on failure only when asked", async () => {
+    await expect(
+      withTimeout(later("late", 200), 10, { fallback: null }),
+    ).resolves.toBeNull();
+    const failing = () => Promise.reject(new Error("boom"));
+    await expect(
+      withTimeout(failing(), 200, { fallback: null }),
+    ).rejects.toThrow("boom");
+    await expect(
+      withTimeout(failing(), 200, { fallback: null, fallbackOnError: true }),
+    ).resolves.toBeNull();
+  });
+
+  it("aborts the work's signal at the deadline", async () => {
+    let seen: AbortSignal | undefined;
+    await withTimeout(
+      (signal) => {
+        seen = signal;
+        return later("late", 200);
+      },
+      10,
+      { fallback: "fallback" },
+    );
+    expect(seen?.aborted).toBe(true);
+    expect(seen?.reason).toBeInstanceOf(TimeoutError);
+  });
+
+  it("turns a work function that throws into a rejection", async () => {
+    await expect(
+      withTimeout(() => {
+        throw new Error("sync");
+      }, 50),
+    ).rejects.toThrow("sync");
   });
 });

@@ -119,6 +119,103 @@ describe("withEdgeCache", () => {
   });
 });
 
+describe("withEdgeCache options", () => {
+  const settle = async (pending: Promise<unknown>[]) => {
+    await Promise.all(pending);
+  };
+
+  it("answers a hit with the client Cache-Control, and marks HIT and MISS", async () => {
+    const { cache } = memoryCache();
+    const pending: Promise<unknown>[] = [];
+    const options = {
+      cache,
+      waitUntil: (p: Promise<unknown>) => pending.push(p),
+      clientCacheControl: "public, max-age=0, must-revalidate",
+      statusHeader: "x-edge-cache",
+    };
+    const render = async () => page("public, max-age=0, s-maxage=60");
+    const miss = await withEdgeCache(
+      new Request("https://e.test/a"),
+      render,
+      options,
+    );
+    await settle(pending);
+    const hit = await withEdgeCache(
+      new Request("https://e.test/a"),
+      render,
+      options,
+    );
+    expect(miss.headers.get("x-edge-cache")).toBe("MISS");
+    expect(hit.headers.get("x-edge-cache")).toBe("HIT");
+    expect(hit.headers.get("cache-control")).toBe(
+      "public, max-age=0, must-revalidate",
+    );
+  });
+
+  it("keys by the given key, and stores only what shouldStore allows", async () => {
+    const { cache, store } = memoryCache();
+    const pending: Promise<unknown>[] = [];
+    const base = {
+      cache,
+      waitUntil: (p: Promise<unknown>) => pending.push(p),
+      key: (r: Request) => {
+        const url = new URL(r.url);
+        url.searchParams.delete("utm_source");
+        return url;
+      },
+    };
+    await withEdgeCache(
+      new Request("https://e.test/p?utm_source=x"),
+      async () => page("s-maxage=60"),
+      base,
+    );
+    await withEdgeCache(
+      new Request("https://e.test/q"),
+      async () => page("s-maxage=60"),
+      { ...base, shouldStore: async () => false },
+    );
+    await settle(pending);
+    expect([...store.keys()]).toEqual(["https://e.test/p"]);
+  });
+
+  it("renders past a cache that throws, and reports both failures", async () => {
+    const errors: string[] = [];
+    const pending: Promise<unknown>[] = [];
+    const broken = {
+      match: async () => {
+        throw new Error("match down");
+      },
+      put: async () => {
+        throw new Error("put down");
+      },
+    };
+    const res = await withEdgeCache(
+      new Request("https://e.test/"),
+      async () => page("s-maxage=60"),
+      {
+        cache: broken,
+        waitUntil: (p) => pending.push(p),
+        onError: (_e, during) => errors.push(during),
+      },
+    );
+    await settle(pending);
+    expect(await res.text()).toBe("<html>");
+    expect(errors).toEqual(["match", "put"]);
+  });
+
+  it("passes a Range request through without the cache", async () => {
+    const { cache, store } = memoryCache();
+    await cache.put(new Request("https://e.test/v"), page("s-maxage=60"));
+    const res = await withEdgeCache(
+      new Request("https://e.test/v", { headers: { range: "bytes=0-9" } }),
+      async () => new Response("partial", { status: 206 }),
+      { cache, waitUntil: () => {} },
+    );
+    expect(res.status).toBe(206);
+    expect(store.size).toBe(1);
+  });
+});
+
 describe("cache headers", () => {
   it("reads s-maxage", () => {
     expect(sharedMaxAge(page("public, s-maxage=300"))).toBe(300);

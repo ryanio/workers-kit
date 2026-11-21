@@ -6,6 +6,7 @@ import {
   counted,
   DAY_MS,
   fitWords,
+  formatBytes,
   formatCount,
   fullDate,
   listOf,
@@ -406,5 +407,30 @@ describe("wrapWords for Chinese, Japanese and long words", () => {
       "two",
       "three",
     ]);
+  });
+});
+
+describe("formatBytes", () => {
+  it("steps by 1024 with KB and MB, dropping trailing zeros", () => {
+    expect(formatBytes(0)).toBe("0 B");
+    expect(formatBytes(512)).toBe("512 B");
+    expect(formatBytes(1536)).toBe("1.5 KB");
+    expect(formatBytes(1024)).toBe("1 KB");
+    expect(formatBytes(12 * 1024 * 1024)).toBe("12 MB");
+    expect(formatBytes(3.25 * 1024 ** 3, { decimals: 2 })).toBe("3.25 GB");
+  });
+
+  it("rounds up into the next unit rather than writing 1024 KB", () => {
+    expect(formatBytes(1024 * 1024 - 1)).toBe("1 MB");
+  });
+
+  it("steps by 1000 with si", () => {
+    expect(formatBytes(1500, { si: true })).toBe("1.5 kB");
+    expect(formatBytes(2_000_000, { si: true })).toBe("2 MB");
+  });
+
+  it("is empty for a size that is not one", () => {
+    expect(formatBytes(-1)).toBe("");
+    expect(formatBytes(Number.NaN)).toBe("");
   });
 });

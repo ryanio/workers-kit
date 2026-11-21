@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.22.0 (2026-11-21)
+
+- `withTimeout(work, ms, { label, fallback, fallbackOnError })` and `TimeoutError` in `workers-start/http`: a deadline that throws or resolves a fallback, aborts a work function's signal, and always clears its timer.
+- `formatBytes(bytes, { decimals, si })` in `workers-start/format`.
+- `withEdgeCache` and `edgeCacheMiddleware` take `clientCacheControl`, `key`, `shouldStore`, `statusHeader` and `onError`, pass a `Range` request through, and render when the cache throws.
+
 ## 0.21.1 (2026-11-21)
 
 - `createLogger`'s default writer (`consoleSink`) writes debug entries with `console.debug` instead of `console.log`, so a Sentry console integration that forwards `console.log` no longer sends debug lines, and Workers Logs shows them at debug level.

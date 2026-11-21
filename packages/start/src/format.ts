@@ -120,6 +120,43 @@ export function formatCount(count: number): string {
   return Number.isFinite(count) ? count.toLocaleString("en-US") : "";
 }
 
+export interface FormatBytesOptions {
+  /** Digits after the point, trailing zeros dropped. Default 1. */
+  decimals?: number | undefined;
+  /** 1000 per step (kB, MB) instead of 1024 (KB, MB). Default false. */
+  si?: boolean | undefined;
+}
+
+const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB", "PB"] as const;
+const SI_BYTE_UNITS = ["B", "kB", "MB", "GB", "TB", "PB"] as const;
+
+/**
+ * A size for people: "0 B", "512 B", "1.5 KB", "12 MB". Binary steps (1024)
+ * with the KB/MB labels every OS and browser uses by default, or SI steps
+ * with `si`. Whole bytes stay whole; a negative or non-finite size is "".
+ */
+export function formatBytes(
+  bytes: number,
+  { decimals = 1, si = false }: FormatBytesOptions = {},
+): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return "";
+  const step = si ? 1000 : 1024;
+  const units = si ? SI_BYTE_UNITS : BYTE_UNITS;
+  let value = bytes;
+  let unit = 0;
+  while (value >= step && unit < units.length - 1) {
+    value /= step;
+    unit++;
+  }
+  if (unit === 0) return `${Math.round(value)} B`;
+  // A value that rounds up to the next step reads better as that step.
+  if (Number(value.toFixed(decimals)) >= step && unit < units.length - 1) {
+    value /= step;
+    unit++;
+  }
+  return `${Number(value.toFixed(decimals))} ${units[unit]}`;
+}
+
 export interface CompactCountOptions {
   /** Below this, the count is grouped in full. Default 10,000. */
   threshold?: number | undefined;
