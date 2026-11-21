@@ -869,7 +869,7 @@ export class GatewayObject extends DurableObject<Env> {
 - A close resumes the session, so Discord replays what was missed, after 1, 2, 5, 15 then 60 seconds. 4007 and 4009 mean the resume was refused, so the session is dropped and the next connect identifies fresh. 4004 and 4010 to 4014 cannot fix themselves (a bad token, a shard mismatch, the Message Content intent left off in the developer portal): those park the link as `failed` rather than hammering Discord with an identify it will keep refusing.
 - `onDispatch` sees every dispatch unless `dispatch` names the ones to pass. It must not throw: a rejection is reported and swallowed, because one bad event should not take the socket down with it. Pair it with `discordRest` from `workers-start/discord` to answer.
 - `status()` reports the phase, the last close reason and whether a session is stored, for a status page. The session id itself is not handed out.
-- `discover` and `open` default to `fetch`, and either can be replaced for a test.
+- `discover` and `open` default to `fetch`, and either can be replaced for a test. The default `discover` sends Discord's `DiscordBot (url, version)` user agent and gives up after 10 seconds; the default `open` makes the upgrade over `https://`, since a Worker's `fetch` refuses `wss://`.
 
 ## Secret check
 

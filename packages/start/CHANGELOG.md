@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.18.1 (2026-11-21)
+
+- `workers-start/discord/gateway`: the default `open` upgrades over `https://` in place of the `wss://` URL Discord hands out, which a Worker's `fetch` refuses, so a gateway with no `open` of its own now connects in production. The default `discover` sends Discord's `DiscordBot (url, version)` user agent and times out after 10 seconds.
+
 ## 0.18.0 (2026-11-21)
 
 - `workers-start/bytes`: `toHex`, `toBase64`, `toBase64Url` and their readers, which answer `undefined` on anything malformed rather than throwing, plus `utf8`, `fromUtf8`, `randomBytes`, `randomHex`, `randomId`, `sha256`, `sha256Hex`, `sha256Base64Url`, `hmacSha256` and `timingSafeEqual`. `workers-start/webhooks` keeps exporting `timingSafeEqual`, now from here.

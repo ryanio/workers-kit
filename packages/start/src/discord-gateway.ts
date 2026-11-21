@@ -62,6 +62,11 @@ const DEFAULT_WEDGED_MS = 60_000;
 const DEFAULT_RETRY_FAILED_MS = 3_600_000;
 const DEFAULT_KEY = "gateway";
 const GATEWAY_BOT_URL = "https://discord.com/api/v10/gateway/bot";
+const USER_AGENT = "DiscordBot (https://github.com/ryanio/workers-kit, 1)";
+const DISCOVER_TIMEOUT_MS = 10_000;
+
+/** A Worker's `fetch` makes the websocket upgrade over http(s), not ws(s). */
+const upgradeUrl = (url: string): string => url.replace(/^ws(s?):/i, "http$1:");
 
 /** Where the link is, as `status` reports it and storage keeps it. */
 export type GatewayPhase =
@@ -154,9 +159,16 @@ export interface DiscordGatewayOptions {
   dispatch?: readonly string[] | undefined;
   /** Sent in the identify as the OS, browser and device. Default "workers". */
   identity?: string | undefined;
-  /** Defaults to the `gateway/bot` endpoint over `fetch`. */
+  /**
+   * Defaults to the `gateway/bot` endpoint over `fetch`, with Discord's
+   * `DiscordBot (url, version)` user agent and a 10 second timeout.
+   */
   discover?: (() => Promise<string | null>) | undefined;
-  /** Defaults to a websocket upgrade over `fetch`, accepted and returned. */
+  /**
+   * Defaults to a websocket upgrade over `fetch`, accepted and returned. The
+   * `wss://` URL Discord hands out is fetched as `https://`, since a Worker's
+   * `fetch` refuses the `wss:` scheme.
+   */
   open?: ((url: string) => Promise<GatewaySocket | null>) | undefined;
   /** Default `console`. Pass a `createLogger` logger to get the fields into Workers Logs. */
   log?: GatewayLog | undefined;
@@ -333,7 +345,11 @@ export function discordGateway(options: DiscordGatewayOptions): DiscordGateway {
     }
     try {
       const response = await doFetch(GATEWAY_BOT_URL, {
-        headers: { authorization: `Bot ${options.token}` },
+        headers: {
+          authorization: `Bot ${options.token}`,
+          "user-agent": USER_AGENT,
+        },
+        signal: AbortSignal.timeout(DISCOVER_TIMEOUT_MS),
       });
       if (!response.ok) {
         log.warn?.("discord gateway: gateway/bot refused", {
@@ -353,7 +369,9 @@ export function discordGateway(options: DiscordGatewayOptions): DiscordGateway {
     if (options.open) {
       return options.open(url);
     }
-    const response = await doFetch(url, { headers: { upgrade: "websocket" } });
+    const response = await doFetch(upgradeUrl(url), {
+      headers: { upgrade: "websocket" },
+    });
     const opened = (response as { webSocket?: unknown }).webSocket as
       | (GatewaySocket & { accept(): void })
       | null

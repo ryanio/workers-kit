@@ -521,6 +521,35 @@ describe("discordGateway", () => {
     expect(slow.lastOp(2)).toBeUndefined();
   });
 
+  it("discovers with Discord's user agent and upgrades over https, by default", async () => {
+    const calls: { url: string; init: RequestInit | undefined }[] = [];
+    const accepted = Object.assign(socket, { accept: vi.fn() });
+    build({
+      discover: undefined,
+      open: undefined,
+      fetch: async (url: string, init?: RequestInit) => {
+        calls.push({ url, init });
+        if (url.includes("/gateway/bot")) {
+          return Response.json({ url: "wss://gateway.discord.gg" });
+        }
+        return { status: 101, webSocket: accepted } as unknown as Response;
+      },
+    });
+    await link.tick(true);
+
+    const [bot, upgrade] = calls;
+    const botHeaders = new Headers(bot?.init?.headers);
+    expect(botHeaders.get("authorization")).toBe("Bot a-bot-token");
+    expect(botHeaders.get("user-agent")).toMatch(/^DiscordBot \(/);
+    expect(bot?.init?.signal).toBeInstanceOf(AbortSignal);
+    expect(upgrade?.url).toBe("https://gateway.discord.gg/?v=10&encoding=json");
+    expect(new Headers(upgrade?.init?.headers).get("upgrade")).toBe(
+      "websocket",
+    );
+    expect(accepted.accept).toHaveBeenCalledOnce();
+    expect((await link.status()).socket).toBe(true);
+  });
+
   it("reports no session id, only whether one is stored", async () => {
     await goLive();
     const status = await link.status();
