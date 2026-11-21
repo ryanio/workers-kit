@@ -17,6 +17,7 @@ Read the package's AGENTS.md before changing it. This file has what every packag
 - `biome.json`, `knip.json`, `.gitignore`, `.nvmrc`, `.githooks/`: one copy for the whole repo. `knip.json` lists each package's entry points; a new entry point goes there too.
 - `scripts/doc-refs/`: synced from `~/dev/doc-refs` (edit it there and run `npm run sync`); checks that paths named in these docs exist.
 - `scripts/check-lockfile-platforms.mjs`: fails when the lockfile loses the Linux binaries CI needs.
+- `scripts/check-package-list.mjs`: fails when a package is missing from the list at the top of this file or, once public, from the root README package table and install lines.
 - `scripts/check-consumers.mjs`: derives each package's consumer list from the apps beside this checkout and fails when a package's AGENTS.md leaves one out. `--write` updates the lines. It finds no apps in CI, so it only really checks on a machine that has them.
 - `.github/workflows/ci.yml`: the gate on Node 22 and 24. `.github/workflows/release.yml`: publishes each package whose version is new.
 
@@ -33,7 +34,7 @@ Read the package's AGENTS.md before changing it. This file has what every packag
 
 ```bash
 npm install
-npm run check                              # doc refs, consumer lists, lockfile, biome, then tsc, build and tests per package, then knip
+npm run check                              # doc refs, consumer lists, package lists, lockfile, biome, then tsc, build and tests per package, then knip
 npm run check:consumers -- --write         # update each package's consumer list from the apps beside this checkout
 npm run check -w packages/start            # one package: tsc, build, tests
 npm test -w packages/jobs                  # one package's tests
@@ -50,6 +51,34 @@ A release is a version bump on main. `.github/workflows/release.yml` runs on eve
 1. Bump `version` in the package's `package.json` and add a dated `## <version> (YYYY-MM-DD)` section to its `CHANGELOG.md`, renaming `## Unreleased` if it is there. A change that waits for the next release goes under `## Unreleased`.
 2. Run `npm run check`, commit both and push to main.
 
-A new package starts with `"private": true`, which the workflow skips. npm can only attach a trusted publisher to a name that exists, so the owner publishes a placeholder `0.0.0` of the name once, adds the trusted publisher (`npm trust github <name> --repo ryanio/workers-kit --file release.yml --env npm --allow-publish --allow-stage-publish`), and then the package drops `private` and releases from CI like the others.
-
 Never tag by hand or run `npm publish` locally. The npm page shows the README of the published version, so a README-only fix reaches it at the next release; a commit that changes only docs carries `[skip ci]` in its title.
+
+## Adding a package
+
+npm attaches a trusted publisher only to a name that already exists, so a new package goes out in three stages: build it private, have the owner claim the name, then release it from CI.
+
+### 1. Build it private
+
+1. Create `packages/<dir>` with the same shape as an existing package: `package.json` (version `0.0.0`, `"private": true`, `publishConfig.access: "public"`, `exports`, `files`, `engines`, the `build`, `typecheck`, `test`, `check` and `prepack` scripts), `tsconfig.json`, `tsconfig.build.json`, `vitest.config.ts`, `src/`, `test/`, `LICENSE`, a `README.md`, a `CHANGELOG.md` with an `## Unreleased` section, and an `AGENTS.md` with a `- Consumers:` line naming the apps that should move onto it.
+2. Add its entry points to `knip.json`.
+3. Add it to the package list at the top of this file. `npm run check:packages` fails until it is there.
+4. Run `npm install` at the root so the lockfile picks it up, then `npm run check`, commit and push. The release workflow skips it while it is private.
+
+### 2. Claim the name (owner, once, with 2FA)
+
+Run this from a scratch directory, not the package, so the code does not go out as `0.0.0`. The directory holds only a `package.json` (name, version `0.0.0`, license, repository) and a one-line `README.md`:
+
+```bash
+npm publish --access public
+npm trust github <name> --repo ryanio/workers-kit --file release.yml --env npm --allow-publish --allow-stage-publish
+```
+
+Each command opens an npm sign-in in the browser. npm may record the placeholder as `0.0.0-stage` instead of `0.0.0`; either one claims the name. Check with `npm view <name> versions` and `npm trust list <name>`. This is the only time anything is published by hand.
+
+### 3. Release it from CI
+
+1. In `packages/<dir>/package.json`, remove `"private": true` and set `version` to `0.1.0`. Rename `## Unreleased` in its CHANGELOG to `## 0.1.0 (YYYY-MM-DD)`.
+2. Drop any "still private" notes from its AGENTS.md and from the package list here.
+3. Add a row for it to the package table in the root `README.md` (name linked to its README, then the version badge, one line on what a developer would reach for it for, and what it needs installed beside it) and an `npm install <name>` line. `npm run check:packages` fails until both are there.
+4. Run `npm run check`, commit and push. The release workflow publishes `0.1.0`, tags it and opens the GitHub release.
+5. Move the apps on its `- Consumers:` line onto it.
