@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.19.0 (2026-11-21)
+
+- `discordGateway`: `reconnect({ fresh })` closes the socket and connects now, resuming the session or identifying anew, and restarts a parked link. `onChange(status)` runs after every phase change, for alerts. `saveSeq: "heartbeat"` writes the sequence number with the heartbeat instead of on every event. The state and status carry the bot's own `userId` from READY, kept across resumes. `GUILDS` joins the intent constants. `fetch` and `random` are read at each call, so stubs installed after construction apply.
+
 ## 0.18.3 (2026-11-21)
 
 - The token, cache and Discord gateway helpers read `Date.now` at each call rather than once at construction, so fake timers set up after construction apply.

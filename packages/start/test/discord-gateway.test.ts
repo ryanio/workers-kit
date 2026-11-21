@@ -13,6 +13,7 @@ import type {
 import {
   discordGateway,
   GUILD_MESSAGES,
+  GUILDS,
   MESSAGE_CONTENT,
 } from "../src/discord-gateway.js";
 
@@ -548,6 +549,113 @@ describe("discordGateway", () => {
     );
     expect(accepted.accept).toHaveBeenCalledOnce();
     expect((await link.status()).socket).toBe(true);
+  });
+
+  it("keeps the bot's own user id from READY across a resume", async () => {
+    await link.tick(true);
+    socket.deliver(hello());
+    await settle();
+    socket.deliver({
+      op: 0,
+      s: 1,
+      t: "READY",
+      d: {
+        session_id: "sess_1",
+        resume_gateway_url: "wss://resume.discord.gg",
+        user: { id: "bot_42" },
+      },
+    });
+    await settle();
+    expect(state().userId).toBe("bot_42");
+
+    socket = new FakeSocket();
+    build();
+    await link.tick(true);
+    socket.deliver(hello());
+    await settle();
+    socket.deliver({ op: 0, s: 2, t: "RESUMED", d: {} });
+    await settle();
+    expect((await link.status()).userId).toBe("bot_42");
+  });
+
+  it("reconnects on demand, resuming the session unless asked for a fresh one", async () => {
+    await goLive();
+    const first = socket;
+    socket = new FakeSocket();
+    await link.reconnect();
+    expect(first.closed).not.toBeNull();
+    expect(open).toHaveBeenLastCalledWith(
+      "wss://resume.discord.gg/?v=10&encoding=json",
+    );
+    expect(state().session).toBe("sess_1");
+
+    socket = new FakeSocket();
+    await link.reconnect({ fresh: true });
+    expect(state().session).toBeNull();
+    expect(discover).toHaveBeenCalled();
+    socket.deliver(hello());
+    await settle();
+    expect(socket.lastOp(2)).toBeDefined();
+    expect(socket.lastOp(6)).toBeUndefined();
+  });
+
+  it("restarts a parked link when asked to reconnect", async () => {
+    await goLive();
+    socket.hangUp(4014, "disallowed intents");
+    await settle();
+    expect(state().phase).toBe("failed");
+    socket = new FakeSocket();
+    await link.reconnect({ fresh: true });
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(state().phase).toBe("connecting");
+  });
+
+  it("tells onChange about every phase change, and survives it throwing", async () => {
+    const phases: string[] = [];
+    const error = vi.fn();
+    build({
+      onChange: (status: { phase: string }) => {
+        phases.push(status.phase);
+        throw new Error("alert service down");
+      },
+      log: { info: () => {}, warn: () => {}, error },
+    });
+    await goLive();
+    expect(phases).toEqual(["connecting", "live"]);
+    expect(error).toHaveBeenCalledWith(
+      "discord gateway: onChange failed",
+      expect.anything(),
+    );
+  });
+
+  it("writes the sequence with the heartbeat, not every event, when asked", async () => {
+    build({ saveSeq: "heartbeat" });
+    await goLive();
+    const put = vi.spyOn(storage, "put");
+    socket.deliver({ op: 0, s: 2, t: "MESSAGE_CREATE", d: { id: "m1" } });
+    socket.deliver({ op: 0, s: 3, t: "MESSAGE_CREATE", d: { id: "m2" } });
+    await settle();
+    expect(put).not.toHaveBeenCalled();
+    expect(dispatched).toHaveLength(2);
+    expect((await link.status()).seq).toBe(3);
+
+    await link.alarm();
+    expect(put).toHaveBeenCalledOnce();
+    expect(state().seq).toBe(3);
+    expect(socket.lastOp(1)).toEqual({ op: 1, d: 3 });
+  });
+
+  it("writes the sequence on every event by default", async () => {
+    await goLive();
+    const put = vi.spyOn(storage, "put");
+    socket.deliver({ op: 0, s: 2, t: "MESSAGE_CREATE", d: { id: "m1" } });
+    await settle();
+    expect(put).toHaveBeenCalledOnce();
+    expect(state().seq).toBe(2);
+  });
+
+  it("has the GUILDS intent", () => {
+    expect(GUILDS).toBe(1);
   });
 
   it("reports no session id, only whether one is stored", async () => {

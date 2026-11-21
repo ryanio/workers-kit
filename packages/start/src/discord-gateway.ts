@@ -41,6 +41,8 @@
  * mean to resume from goes out with 4900 instead.
  */
 
+/** Guilds, channels and roles: the create, update and delete events for each. */
+export const GUILDS = 1 << 0;
 /** `GUILD_MESSAGES`, for MESSAGE_CREATE in a server. */
 export const GUILD_MESSAGES = 1 << 9;
 /** `GUILD_MEMBERS`, a privileged intent: turn it on in the developer portal first. */
@@ -96,6 +98,12 @@ export interface GatewayState {
   lastEventAt: number | null;
   /** The last close or failure, for a status page. */
   why: string | null;
+  /**
+   * The bot's own user id, from READY. Kept across resumes, which bring no
+   * second READY, so a bot can still tell its own messages apart after the
+   * object is evicted.
+   */
+  userId: string | null;
 }
 
 /** What `status()` reports. The session id itself is not handed out. */
@@ -184,6 +192,21 @@ export interface DiscordGatewayOptions {
   key?: string | undefined;
   /** For tests. */
   now?: (() => number) | undefined;
+  /**
+   * Called after every phase change with the new status, for an alert or a
+   * metric: `attempt` counts closes in a row, so `status.attempt >= 3` is three
+   * failed reconnects. A handler that throws is logged and ignored.
+   */
+  onChange?: ((status: GatewayStatus) => void | Promise<void>) | undefined;
+  /**
+   * When the sequence number and last-event time reach storage. `"dispatch"`
+   * (the default) writes on every event, so a resume after an eviction never
+   * replays one. `"heartbeat"` keeps them in memory and writes with the
+   * heartbeat, which saves a storage write per event on a busy bot; an
+   * eviction then resumes from the last heartbeat and Discord replays the
+   * events since, so handlers must tolerate a repeat.
+   */
+  saveSeq?: "dispatch" | "heartbeat" | undefined;
   /** For tests. Discord asks for the first heartbeat at a random point in the interval. */
   random?: (() => number) | undefined;
   fetch?:
@@ -202,6 +225,12 @@ export interface DiscordGateway {
   status(): Promise<GatewayStatus>;
   /** Every frame from the socket goes here. Only a custom `open` needs to call it. */
   frame(socket: GatewaySocket, text: string): Promise<void>;
+  /**
+   * Closes the socket and connects again now, for an admin button. It resumes
+   * the stored session unless `fresh` is true, which drops the session and
+   * identifies anew. Either way it also restarts a link parked as failed.
+   */
+  reconnect(options?: { fresh?: boolean }): Promise<GatewayStatus>;
 }
 
 const FRESH: GatewayState = {
@@ -215,6 +244,7 @@ const FRESH: GatewayState = {
   attempt: 0,
   lastEventAt: null,
   why: null,
+  userId: null,
 };
 
 const NO_SESSION = { session: null, resumeUrl: null, seq: null } as const;
@@ -275,14 +305,16 @@ export function discordGateway(options: DiscordGatewayOptions): DiscordGateway {
   const storage = options.storage;
   const key = options.key ?? DEFAULT_KEY;
   const now = options.now ?? (() => Date.now());
-  const random = options.random ?? Math.random;
+  const random = options.random ?? (() => Math.random());
   const log = options.log ?? console;
   const backoff = options.backoffMs ?? DEFAULT_BACKOFF_MS;
   const staleMs = options.staleMs ?? DEFAULT_STALE_MS;
   const wedgedMs = options.wedgedMs ?? DEFAULT_WEDGED_MS;
   const retryFailedMs = options.retryFailedMs ?? DEFAULT_RETRY_FAILED_MS;
   const identity = options.identity ?? "workers";
-  const doFetch = options.fetch ?? fetch;
+  const doFetch = (input: string, init?: RequestInit): Promise<Response> =>
+    (options.fetch ?? fetch)(input, init);
+  const saveEachDispatch = (options.saveSeq ?? "dispatch") === "dispatch";
 
   let state: GatewayState | null = null;
   let socket: GatewaySocket | null = null;
@@ -307,12 +339,16 @@ export function discordGateway(options: DiscordGatewayOptions): DiscordGateway {
 
   const set = async (patch: Partial<GatewayState>): Promise<void> => {
     const current = await load();
-    state = {
-      ...current,
-      ...patch,
-      ...(patch.phase && patch.phase !== current.phase ? { since: now() } : {}),
-    };
+    const moved = patch.phase !== undefined && patch.phase !== current.phase;
+    state = { ...current, ...patch, ...(moved ? { since: now() } : {}) };
     await storage.put(key, state);
+    if (moved && options.onChange) {
+      try {
+        await options.onChange(await status());
+      } catch (error) {
+        log.error?.("discord gateway: onChange failed", { error });
+      }
+    }
   };
 
   const later = (ms: number): Promise<void> => storage.setAlarm(now() + ms);
@@ -540,13 +576,20 @@ export function discordGateway(options: DiscordGatewayOptions): DiscordGateway {
               typeof data.resume_gateway_url === "string"
                 ? data.resume_gateway_url
                 : null,
+            userId:
+              isRecord(data.user) && typeof data.user.id === "string"
+                ? data.user.id
+                : current.userId,
             attempt: 0,
             why: null,
           });
         } else if (parsed.t === "RESUMED") {
           await set({ ...patch, phase: "live", attempt: 0, why: null });
-        } else {
+        } else if (saveEachDispatch) {
           await set(patch);
+        } else {
+          // Held in memory until the heartbeat writes the whole state.
+          state = { ...current, ...patch };
         }
         if (parsed.t !== null) {
           await announce({
@@ -649,6 +692,19 @@ export function discordGateway(options: DiscordGatewayOptions): DiscordGateway {
   return {
     status,
     frame,
+
+    async reconnect({ fresh = false } = {}) {
+      drop(RESUME_CLOSE, fresh ? "reconnect, fresh session" : "reconnect");
+      await set({
+        phase: "reconnecting",
+        interval: null,
+        attempt: 0,
+        why: fresh ? "reconnect asked, fresh session" : "reconnect asked",
+        ...(fresh ? NO_SESSION : {}),
+      });
+      await connect();
+      return status();
+    },
 
     async tick(on) {
       const current = await load();
