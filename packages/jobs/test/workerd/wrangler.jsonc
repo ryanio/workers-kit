@@ -20,5 +20,9 @@
       "class_name": "JobWorkflow"
     }
   ],
+  "durable_objects": {
+    "bindings": [{ "name": "JOB_LOCK", "class_name": "JobLockObject" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["JobLockObject"] }],
   "triggers": { "crons": ["0 13 * * *", "*/15 * * * *"] }
 }

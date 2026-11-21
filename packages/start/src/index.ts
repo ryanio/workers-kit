@@ -22,6 +22,24 @@ export type {
   ReadTextOptions,
 } from "./body.js";
 export { bodyProblem, isJsonType, readJson, readText } from "./body.js";
+export {
+  fromBase64,
+  fromBase64Url,
+  fromHex,
+  fromUtf8,
+  hmacSha256,
+  randomBytes,
+  randomHex,
+  randomId,
+  sha256,
+  sha256Base64Url,
+  sha256Hex,
+  timingSafeEqual,
+  toBase64,
+  toBase64Url,
+  toHex,
+  utf8,
+} from "./bytes.js";
 export type {
   CachedEntry,
   CachedKv,
@@ -36,6 +54,14 @@ export {
   withEdgeCache,
   withoutBrowserMaxAge,
 } from "./cache.js";
+export type { CookieOptions } from "./cookies.js";
+export {
+  appendCookie,
+  clearCookie,
+  parseCookies,
+  readCookie,
+  serializeCookie,
+} from "./cookies.js";
 export type { Cors, CorsOptions } from "./cors.js";
 export { cors } from "./cors.js";
 export type {
@@ -51,6 +77,25 @@ export {
   MessageFlags,
   pong,
 } from "./discord.js";
+export type {
+  DiscordGateway,
+  DiscordGatewayOptions,
+  GatewayDispatch,
+  GatewayLog,
+  GatewayPhase,
+  GatewaySocket,
+  GatewayState,
+  GatewayStatus,
+  GatewayStorage,
+} from "./discord-gateway.js";
+export {
+  DIRECT_MESSAGES,
+  discordGateway,
+  GUILD_MEMBERS,
+  GUILD_MESSAGE_REACTIONS,
+  GUILD_MESSAGES,
+  MESSAGE_CONTENT,
+} from "./discord-gateway.js";
 export type {
   EntryOptions,
   FetchHandler,
@@ -68,6 +113,47 @@ export {
   wantsMarkdown,
   withHeaders,
 } from "./entry.js";
+export type {
+  CompactCountOptions,
+  CountedOptions,
+  DateLike,
+  FitWordsOptions,
+  ListOfOptions,
+  SlugifyOptions,
+  TimeAgoOptions,
+  TruncateOptions,
+  UsdOptions,
+  WrapWordsOptions,
+} from "./format.js";
+export {
+  aboutDuration,
+  capitalize,
+  compactCount,
+  counted,
+  DAY_MS,
+  fitWords,
+  formatCount,
+  fullDate,
+  HOUR_MS,
+  listOf,
+  MINUTE_MS,
+  numberWord,
+  ordinal,
+  percent,
+  plural,
+  SECOND_MS,
+  slugify,
+  timeAgo,
+  toMillis,
+  truncate,
+  usd,
+  utcDate,
+  utcDay,
+  utcStamp,
+  WEEK_MS,
+  w3cDate,
+  wrapWords,
+} from "./format.js";
 export type {
   Ga4DateRange,
   Ga4FilterExpression,
@@ -208,8 +294,36 @@ export {
   validDsn,
   workerSentryOptions,
 } from "./sentry.js";
-export type { RobotsOptions, RobotsRule, SitemapEntry } from "./seo.js";
-export { escapeXml, robotsTxt, sitemapXml } from "./seo.js";
+export type {
+  LlmsLink,
+  LlmsOptions,
+  LlmsSection,
+  RobotsOptions,
+  RobotsRule,
+  SitemapEntry,
+  SitemapIndexEntry,
+} from "./seo.js";
+export {
+  escapeXml,
+  llmsTxt,
+  robotsTxt,
+  sitemapIndexXml,
+  sitemapXml,
+} from "./seo.js";
+export type {
+  IssuedSession,
+  ReadSession,
+  SessionCookie,
+  SessionCookieOptions,
+  SessionEnvelope,
+} from "./tokens.js";
+export {
+  sessionCookie,
+  signatureOf,
+  signValue,
+  verifySignature,
+  verifyValue,
+} from "./tokens.js";
 export type {
   DiscordVerifyOptions,
   HmacVerifyOptions,
@@ -217,12 +331,7 @@ export type {
   TimestampOptions,
   WebhookErrorOptions,
 } from "./webhooks.js";
-export {
-  timingSafeEqual,
-  verifyDiscord,
-  verifyHmac,
-  verifySvix,
-} from "./webhooks.js";
+export { verifyDiscord, verifyHmac, verifySvix } from "./webhooks.js";
 export type { WorkersModule } from "./workers.js";
 export {
   afterResponse,

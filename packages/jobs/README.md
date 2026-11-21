@@ -308,21 +308,70 @@ type JobLease = { renew?(): Promise<boolean>; release(): Promise<void> };
 - When the lease has `renew` and the lock sets `renewEveryMs`, the package renews it on that interval while the run goes on. That lets the lease itself be short, so a crashed run's lease lapses on its own soon after, while a live run keeps it. Renewal stops one interval short of `holdMs`, when `renew` resolves `false` (the lease moved on, logged as `jobs.lock_lost`), and at release. A renewal that throws is retried on the next beat. The run goes on in every case.
 - A lock that throws fails open: the run goes ahead unguarded and `jobs.lock_failed` is logged. A singleton key function that throws counts as the lock throwing. A failed release is logged (`jobs.lock_release_failed`) and does not change the run's result. To count blind runs, catch inside `acquire` and return a lease whose `release` does nothing.
 
+`durableObjectLock` is that lock over a Durable Object, and `leaseStore` is the lease logic for the object to hold. The object itself stays in the app, because it has to extend the runtime's base class:
+
 ```ts
-// A Durable Object lease with a 90 second TTL, renewed every 30 seconds.
-lock: (env) => ({
-  renewEveryMs: 30_000,
-  async acquire(key, { job }) {
-    const stub = env.SCHEDULER_LOCK.get(env.SCHEDULER_LOCK.idFromName(job));
-    const grant = await stub.acquire(key, 90_000);
-    if (!grant.acquired) return null;
-    return {
-      renew: () => stub.renew(key, grant.token, 90_000),
-      release: () => stub.release(key, grant.token),
-    };
-  },
-}),
+import { DurableObject } from "cloudflare:workers";
+import { leaseStore } from "workers-jobs";
+
+export class JobLockObject extends DurableObject<Env> {
+  private store = leaseStore(this.ctx.storage);
+
+  acquire = (key: string, leaseMs: number) => this.store.acquire(key, leaseMs);
+  renew = (key: string, token: string, leaseMs: number) =>
+    this.store.renew(key, token, leaseMs);
+  release = (key: string, token: string) => this.store.release(key, token);
+  alarm = () => this.store.sweep();
+}
 ```
+
+```ts
+import { durableObjectLock } from "workers-jobs";
+
+const jobs = createJobs({
+  // ...
+  lock: (env) => durableObjectLock(env.JOB_LOCK),
+});
+```
+
+- Every lease has a TTL and there is no way to take one without. A run that dies holding a key never releases it, so the clock is the only thing that can free it; without a TTL one crash wedges a job until the next deploy, which is worse than the pile-up the lease exists to prevent.
+- The TTL measures liveness, not run length. A live holder renews on `renewEveryMs` (10 seconds by default, against a lease of three intervals), so the lease only has to outlast a gap between heartbeats rather than the longest run the job could honestly have. That is what lets a dead holder's key come back in about half a minute. The lease is capped at the job's own `holdMs`, since a lease outliving the run it guards would wedge the key past the point the job calls itself stale.
+- Renewal needs room to happen: `createJobs` stops renewing one interval short of `staleAfter`, so a job whose `staleAfter` is not more than twice `renewEveryMs` never renews at all. Its lease is then simply its `staleAfter`, which is correct but is not a liveness lease: a run that dies holds the key for the whole `staleAfter` rather than for a renewal interval. Keep `staleAfter` well above twice `renewEveryMs`, or lower `renewEveryMs` for a job that is honestly that short.
+- `renew` and `release` are token-matched. A run whose lease lapsed mid-flight has already lost the key to whoever took it over: its late release does nothing rather than handing a third run the key, and its late renewal cannot evict the holder that replaced it. A matching token on a lapsed row is the other case, and renews, since any taker would have overwritten the token.
+- One object instance per key by default, so contention on a busy job never serializes an unrelated one. `instanceName` puts several keys in one instance.
+- The `alarm` sweep is storage hygiene only: `acquire` already treats a lapsed row as free, so deleting one can never change who holds a key. It is there because a keyed singleton keys on things that are never reused, so a run that dies without releasing leaves a row nothing will ever overwrite.
+- Every await inside `acquire`, `renew` and `release` is a storage call, and the object's input gate holds back new events while one is in flight, so two acquires cannot both read "free" before either writes. Any other I/O added inside those calls opens that gate and needs `blockConcurrencyWhile` back.
+
+### A cron loop in a Durable Object
+
+A Cron Trigger fires in whatever data center Cloudflare picks, often twice in a slot about thirty seconds apart, and promises no timing at all: it can stop firing one Worker's crons for hours. `alarmRunner` answers both from one object.
+
+```ts
+import { DurableObject } from "cloudflare:workers";
+import { alarmRunner, runnerCall } from "workers-jobs";
+
+export class Runner extends DurableObject<Env> {
+  private loop = alarmRunner(this.ctx.storage, {
+    everyMs: 60_000,
+    gapMs: 45_000,
+    stuckMs: 5 * 60_000,
+    run: (at) => sweep(this.env, at),
+  });
+
+  fetch = (request: Request) => this.loop.fetch(request);
+  alarm = () => this.loop.alarm();
+}
+
+// In the Worker's scheduled handler
+await runnerCall(env.RUNNER, "sweep")(`/run?at=${event.scheduledTime}`);
+```
+
+- Every run starts in one object, one at a time, and reads what the last one wrote. Two runs in two data centers would each read state from before the other's writes and do the same work twice, and a lock kept in KV cannot stop that, because the lock has the same lag as the state.
+- A call that lands within `gapMs` of the last run's start is skipped, which is what makes the second firing of a slot free. A run still going after `stuckMs` is taken as dead and the next call starts anyway, since an object evicted mid-run leaves no other way back.
+- With `everyMs` the object keeps its own alarm on the marks of that grid (`nextTick`): every call in re-arms a missing one, and each alarm sets the next before it runs, so a run that throws cannot end the loop. A Durable Object alarm is promised at least once, with retries, which is the floor under the cron. Leave `everyMs` out for an object only the cron calls into.
+- Three paths on `fetch`: `/ran` answers when the last run started plus whatever `status` adds (`ranAt`, read by `ranAt(call)`, which an uptime sweep can watch), `/arm` only re-arms the alarm, and anything else is one run, at `?at=` or now. The run's return value is the response JSON; `undefined` answers 204.
+- `run` goes through the guard: the runner applies it, so the dedupe is a property of the object and not something each body has to remember. A skipped call answers `{ "skipped": "early" }` or `{ "skipped": "busy" }`, and `loop.run(at)` hands the outcome back for an object that drives the loop itself. Errors, thrown or rejected, are caught and passed to `onError`.
+- `guarded: false` leaves the guard to the body, which then calls `guard.start` itself: for a run that wants the guard around only part of its work, or that reports a skip its own way. `runGuard` is the guard on its own for the same reason.
 
 ### `around`
 
@@ -410,7 +459,7 @@ It takes these options:
 - `retention`
 - `statusOf`
 - `around`: see [`around`](#around).
-- `lock`: `(env) => JobLock`, for singletons (see [Singletons on your own lock](#singletons-on-your-own-lock)).
+- `lock`: `(env) => JobLock`, for singletons (see [Singletons on your own lock](#singletons-on-your-own-lock)). `durableObjectLock(namespace)` is one over a Durable Object.
 - `onFinish`: gets `{ job, status, env, runId, error }`.
 - `backstop`: `{ everyMs, graceMs, firstRun }`.
 - `log`

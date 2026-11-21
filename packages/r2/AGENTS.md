@@ -9,7 +9,7 @@
 
 ## Rules
 
-- Consumers: none yet. Written for calvin (`apps/api/src/services/storage/r2.ts`), sitewise (`apps/api/src/lib/r2-sign.ts`) and glyphbots (`apps/site/src/shared/storage/r2.ts`), all in `~/dev`. Before adding a feature, search them for hand-rolled versions of it; after a release, move them onto it.
+- Consumers: calvin, glyphbots and sitewise (all in `~/dev`). Before adding a feature, search them for hand-rolled versions of it; after a release, move them onto it.
 - The package is `"private": true` until its npm name has a trusted publisher (see the repo's AGENTS.md, Releases).
 - `aws4fetch` is the only peer and there are no runtime dependencies.
 - `putUrl` always signs with `allHeaders: true`. Without it aws4fetch signs only `host` in query mode, and the content type becomes a suggestion a client can ignore.

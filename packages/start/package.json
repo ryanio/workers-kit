@@ -1,6 +1,6 @@
 {
   "name": "workers-start",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "description": "The parts every app on Cloudflare Workers ends up writing: the TanStack Start entry, edge and value caches, Cloudflare Access, Google service accounts, Sentry options, mail, rate limiting, outbound HTTP with retries, security headers, CORS, capped bodies, webhook signatures, structured logs, and Discord and X clients. No dependencies.",
   "license": "MIT",
   "author": "Ryan Ghods",
@@ -35,7 +35,12 @@
     "logging",
     "discord",
     "x-api",
-    "oauth1"
+    "oauth1",
+    "cookies",
+    "session",
+    "hmac",
+    "base64url",
+    "discord-gateway"
   ],
   "type": "module",
   "sideEffects": false,
@@ -154,6 +159,31 @@
       "types": "./dist/x.d.ts",
       "import": "./dist/x.js",
       "default": "./dist/x.js"
+    },
+    "./bytes": {
+      "types": "./dist/bytes.d.ts",
+      "import": "./dist/bytes.js",
+      "default": "./dist/bytes.js"
+    },
+    "./cookies": {
+      "types": "./dist/cookies.d.ts",
+      "import": "./dist/cookies.js",
+      "default": "./dist/cookies.js"
+    },
+    "./tokens": {
+      "types": "./dist/tokens.d.ts",
+      "import": "./dist/tokens.js",
+      "default": "./dist/tokens.js"
+    },
+    "./format": {
+      "types": "./dist/format.d.ts",
+      "import": "./dist/format.js",
+      "default": "./dist/format.js"
+    },
+    "./discord/gateway": {
+      "types": "./dist/discord-gateway.d.ts",
+      "import": "./dist/discord-gateway.js",
+      "default": "./dist/discord-gateway.js"
     },
     "./package.json": "./package.json"
   },

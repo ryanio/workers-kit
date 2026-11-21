@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { robotsTxt, sitemapXml } from "../src/seo.js";
+import { llmsTxt, robotsTxt, sitemapIndexXml, sitemapXml } from "../src/seo.js";
 
 describe("sitemapXml", () => {
   it("writes one element per line and leaves out missing fields", () => {
@@ -87,5 +87,144 @@ Sitemap: https://www.example.com/sitemap.xml
     ).toBe(
       "User-Agent: *\nAllow: /\n\nSitemap: https://a.test/1.xml\nSitemap: https://a.test/2.xml\n",
     );
+  });
+});
+
+describe("sitemapIndexXml", () => {
+  it("writes one sitemap element each, with lastmod only where there is one", () => {
+    expect(
+      sitemapIndexXml([
+        {
+          url: "https://example.com/sitemap-pages.xml",
+          lastModified: new Date("2026-11-01T00:00:00Z"),
+        },
+        { url: "https://example.com/sitemap-posts.xml?page=2&x=1" },
+      ]),
+    ).toBe(`<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<sitemap>
+<loc>https://example.com/sitemap-pages.xml</loc>
+<lastmod>2026-11-01T00:00:00.000Z</lastmod>
+</sitemap>
+<sitemap>
+<loc>https://example.com/sitemap-posts.xml?page=2&amp;x=1</loc>
+</sitemap>
+</sitemapindex>
+`);
+  });
+
+  it("is a valid empty index rather than nothing", () => {
+    expect(sitemapIndexXml([])).toBe(`<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+</sitemapindex>
+`);
+  });
+});
+
+describe("llmsTxt", () => {
+  it("writes the title, summary, details and link sections", () => {
+    expect(
+      llmsTxt({
+        title: "Example",
+        summary: "What the site is, in one line.",
+        details: ["A first paragraph.", "A second one."],
+        sections: [
+          {
+            heading: "Docs",
+            links: [
+              {
+                title: "Getting started",
+                url: "https://example.com/docs/start.md",
+                notes: "Install and first request.",
+              },
+              { title: "Reference", url: "https://example.com/docs/api.md" },
+            ],
+          },
+        ],
+      }),
+    ).toBe(`# Example
+
+> What the site is, in one line.
+
+A first paragraph.
+
+A second one.
+
+## Docs
+
+- [Getting started](https://example.com/docs/start.md): Install and first request.
+- [Reference](https://example.com/docs/api.md)
+`);
+  });
+
+  it("leaves out a section with no links, so an empty query writes no heading", () => {
+    expect(
+      llmsTxt({
+        title: "Example",
+        sections: [
+          { heading: "Posts", links: [] },
+          {
+            heading: "Pages",
+            links: [{ title: "About", url: "https://example.com/about" }],
+          },
+        ],
+      }),
+    ).toBe(`# Example
+
+## Pages
+
+- [About](https://example.com/about)
+`);
+  });
+
+  it("writes a section's paragraphs, then its bullets, then its links", () => {
+    // What an agent-facing index actually holds: the rules it must follow, not
+    // only a list of URLs.
+    expect(
+      llmsTxt({
+        title: "Flock",
+        sections: [
+          {
+            heading: "When to use",
+            body: ["Use it when your operator asked you to.", "Best fits:"],
+            items: ["Answering the daily call.", "Nothing else."],
+            links: [{ title: "The call", url: "https://example.com/call" }],
+          },
+        ],
+      }),
+    ).toBe(`# Flock
+
+## When to use
+
+Use it when your operator asked you to.
+
+Best fits:
+
+- Answering the daily call.
+- Nothing else.
+- [The call](https://example.com/call)
+`);
+  });
+
+  it("takes a single paragraph as a string", () => {
+    expect(
+      llmsTxt({
+        title: "Example",
+        sections: [{ heading: "About", body: "One line." }],
+      }),
+    ).toBe("# Example\n\n## About\n\nOne line.\n");
+  });
+
+  it("leaves out a section with no prose, bullets or links at all", () => {
+    expect(
+      llmsTxt({
+        title: "Example",
+        sections: [{ heading: "Empty", body: [""], items: [], links: [] }],
+      }),
+    ).toBe("# Example\n");
+  });
+
+  it("is a title on its own when there is nothing else", () => {
+    expect(llmsTxt({ title: "Example" })).toBe("# Example\n");
   });
 });

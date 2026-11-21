@@ -1,3 +1,22 @@
+export type {
+  AlarmRunner,
+  AlarmRunnerOptions,
+  AlarmStorage,
+  RunAnswer,
+  RunGuard,
+  RunGuardOptions,
+  RunnerNamespace,
+  RunOutcome,
+  RunStorage,
+} from "./alarm.js";
+export {
+  alarmRunner,
+  armAlarm,
+  nextTick,
+  ranAt,
+  runGuard,
+  runnerCall,
+} from "./alarm.js";
 export {
   CronError,
   defaultGraceMs,
@@ -31,6 +50,16 @@ export {
   type Jobs,
   type JobsOptions,
 } from "./jobs.js";
+export type {
+  AcquireResult,
+  DurableObjectLockOptions,
+  LeaseNamespace,
+  LeaseStorage,
+  LeaseStore,
+  LeaseStoreOptions,
+  LeaseStub,
+} from "./lease.js";
+export { durableObjectLock, leaseStore } from "./lease.js";
 export {
   DEFAULT_COLUMNS,
   type LedgerColumns,

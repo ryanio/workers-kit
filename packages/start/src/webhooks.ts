@@ -12,6 +12,8 @@
  * WebCrypto only, so it runs in workerd, the browser and Node 22.
  */
 
+import { fromBase64, fromHex, timingSafeEqual, utf8 } from "./bytes.js";
+
 export interface WebhookErrorOptions {
   /**
    * Called when the secret or key is missing or will not import. A bad
@@ -55,27 +57,12 @@ export interface HmacVerifyOptions extends WebhookErrorOptions {
   signedPayload?: ((body: string, timestamp: string) => string) | undefined;
 }
 
-const encoder = new TextEncoder();
 const DEFAULT_TOLERANCE_SECONDS = 300;
 const ED25519_KEY_BYTES = 32;
 const ED25519_SIGNATURE_BYTES = 64;
 
-/**
- * Compares two strings or byte arrays in time that depends only on their
- * length. Strings are compared as UTF-8. Lengths are not secret, so unequal
- * lengths return false at once.
- */
-export function timingSafeEqual(
-  a: string | Uint8Array,
-  b: string | Uint8Array,
-): boolean {
-  const x = typeof a === "string" ? encoder.encode(a) : a;
-  const y = typeof b === "string" ? encoder.encode(b) : b;
-  if (x.length !== y.length) return false;
-  let diff = 0;
-  for (let i = 0; i < x.length; i++) diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
-  return diff === 0;
-}
+/** Re-exported so `workers-start/webhooks` stays one import for a verify. */
+export { timingSafeEqual };
 
 /**
  * Checks a Discord interaction: the Ed25519 signature in
@@ -125,7 +112,7 @@ export async function verifyDiscord(
       "Ed25519",
       key,
       signature,
-      encoder.encode(timestamp + body),
+      utf8(timestamp + body),
     );
     return ok ? body : null;
   } catch {
@@ -171,7 +158,7 @@ export async function verifyHmac(
   try {
     key = await crypto.subtle.importKey(
       "raw",
-      typeof secret === "string" ? encoder.encode(secret) : bytes(secret),
+      typeof secret === "string" ? utf8(secret) : bytes(secret),
       { name: "HMAC", hash: algorithm },
       false,
       ["sign"],
@@ -184,7 +171,7 @@ export async function verifyHmac(
     const signed = options.signedPayload
       ? options.signedPayload(body, timestamp)
       : body;
-    const mac = await crypto.subtle.sign("HMAC", key, encoder.encode(signed));
+    const mac = await crypto.subtle.sign("HMAC", key, utf8(signed));
     return timingSafeEqual(new Uint8Array(mac), given) ? body : null;
   } catch {
     return null;
@@ -254,7 +241,7 @@ export async function verifySvix(
       await crypto.subtle.sign(
         "HMAC",
         key,
-        encoder.encode(`${id}.${Number(timestamp)}.${body}`),
+        utf8(`${id}.${Number(timestamp)}.${body}`),
       ),
     );
     let ok = false;
@@ -300,20 +287,12 @@ function bytes(value: Uint8Array): Uint8Array<ArrayBuffer> {
   return Uint8Array.from(value);
 }
 
+// Both keep the "empty is not a signature" rule the senders' formats imply, so
+// a blank header or secret reports a fault instead of importing a zero-byte key.
 function hexBytes(hex: string): Uint8Array<ArrayBuffer> | null {
-  if (!/^(?:[0-9a-fA-F]{2})+$/.test(hex)) return null;
-  const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++)
-    out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  return out;
+  return hex === "" ? null : (fromHex(hex) ?? null);
 }
 
 function base64Bytes(text: string): Uint8Array<ArrayBuffer> | null {
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(text) || text.length % 4 === 1)
-    return null;
-  try {
-    return Uint8Array.from(atob(text), (ch) => ch.charCodeAt(0));
-  } catch {
-    return null;
-  }
+  return text === "" ? null : (fromBase64(text) ?? null);
 }

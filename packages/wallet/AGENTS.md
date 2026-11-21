@@ -11,7 +11,7 @@
 
 ## Rules
 
-- Consumers: none yet. The apps with hand-rolled copies to move onto it, all in `~/dev`: flock (`apps/site/src/claims.ts`), coral (`~/dev/coral/packages/worker/src/lib/wallet-signature.ts`), musegod (`apps/web/src/terrakin.ts`), glyphbots (`apps/site/src/shared/utils/siwe.ts`).
+- Consumers: coral, flock, glyphbots and musegod (all in `~/dev`). Before adding a feature, search them for hand-rolled versions of it; after a release, move them onto it.
 - `viem` is the only peer dependency. No runtime dependencies of its own.
 - `undefined` from `verifyWalletSignature` means the chain could not answer, and `false` means it answered no. Keep the two apart: callers map them to 503 and 403. Turning one into the other is a breaking change.
 - A plain account's signature never calls the client. Only a signature that does not recover to the address goes to the chain.

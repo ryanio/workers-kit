@@ -8,6 +8,10 @@
       "entry": ["src/*.ts", "test/**/*.ts"],
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
+    "packages/cards": {
+      "entry": ["src/index.ts", "test/**/*.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
     "packages/jobs": {
       "entry": ["src/{index,testing,sqlite}.ts", "test/**/*.ts"],
       "project": ["src/**/*.ts", "test/**/*.ts"]

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.0 (2026-11-21)
+
+- `alarmRunner` runs a cron loop inside a Durable Object: one run at a time from one place, a skip for the second firing of a slot, a run taken as dead after `stuckMs`, and the object's own alarm on an `everyMs` grid as a floor under a cron that stops firing. The runner applies the guard itself, so the dedupe does not depend on each body remembering to; `guarded: false` hands it back to the body. `runGuard` is the guard on its own, with `nextTick`, `armAlarm`, `runnerCall` and `ranAt` around it.
+- `leaseStore` is the TTL lease a singleton job takes, for a Durable Object to hold, and `durableObjectLock` is the `JobLock` that talks to it. Renew and release are token-matched, so a run whose lease lapsed cannot hand a third run the key or evict the holder that replaced it, and a sweep clears rows nothing will ever overwrite.
+
 ## 0.8.0 (2026-11-20)
 
 - `workers-jobs/testing/sqlite`: `readMigrations(dir, { skip, foreignKeysOff })` reads an app's migrations folder (every `.sql` file, sorted by name, inside the foreign key pragmas) as DDL for `sqliteD1`, replacing the loader each app wrote for its tests.

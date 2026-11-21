@@ -103,3 +103,116 @@ export function robotsTxt(options: RobotsOptions = {}): string {
     ? `${groups}\n\n${footer.join("\n")}\n`
     : `${groups}\n`;
 }
+
+/** One `<sitemap>` in a sitemap index. */
+export interface SitemapIndexEntry {
+  /** Absolute URL of a sitemap. Escaped for XML on output. */
+  url: string;
+  /** A Date is written as an ISO timestamp, a string as given. */
+  lastModified?: Date | string;
+}
+
+/**
+ * A `<sitemapindex>`, for a site past the 50,000 URL or 50 MB limit of one
+ * sitemap, or one that simply splits its sitemaps by kind. The index is what
+ * `robotsTxt`'s `sitemap` should point at once there is more than one.
+ */
+export function sitemapIndexXml(entries: readonly SitemapIndexEntry[]): string {
+  const sitemaps = entries.map((entry) => {
+    const lines = ["<sitemap>", `<loc>${escapeXml(entry.url)}</loc>`];
+    if (entry.lastModified !== undefined && entry.lastModified !== "") {
+      const lastmod =
+        entry.lastModified instanceof Date
+          ? entry.lastModified.toISOString()
+          : entry.lastModified;
+      lines.push(`<lastmod>${escapeXml(lastmod)}</lastmod>`);
+    }
+    lines.push("</sitemap>");
+    return lines.join("\n");
+  });
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ...sitemaps,
+    "</sitemapindex>",
+    "",
+  ].join("\n");
+}
+
+/** One link in an `llms.txt` section. */
+export interface LlmsLink {
+  title: string;
+  /** Absolute, so an agent that fetched the file from anywhere can follow it. */
+  url: string;
+  /** A sentence after the link, telling an agent what it will find there. */
+  notes?: string;
+}
+
+export interface LlmsSection {
+  heading: string;
+  /** Paragraphs under the heading, before any list. */
+  body?: string | readonly string[];
+  /** Plain bullets, for a list that is not links: limits, steps, what fits. */
+  items?: readonly string[];
+  links?: readonly LlmsLink[];
+}
+
+export interface LlmsOptions {
+  /** The site or product name, the one H1 the format allows. */
+  title: string;
+  /** The blockquote under the title: one sentence on what this is. */
+  summary?: string;
+  /** Paragraphs between the summary and the first section. */
+  details?: string | readonly string[];
+  /**
+   * `## heading`, then its paragraphs, bullets and links in that order. A
+   * section with none of the three is left out, so an empty query writes no
+   * heading.
+   */
+  sections?: readonly LlmsSection[];
+}
+
+/**
+ * An `llms.txt` body: the agent-facing index of a site, as
+ * [llmstxt.org](https://llmstxt.org) lays it out. One H1, an optional
+ * blockquote summary, free paragraphs, then `##` sections of links.
+ *
+ * Serve it at `/llms.txt` as `text/plain`. It is for the links an agent should
+ * read, which is rarely the same set a sitemap carries: the docs, the API
+ * description, the Markdown of the pages that matter, and not every tag page.
+ */
+export function llmsTxt(options: LlmsOptions): string {
+  const blocks: string[] = [`# ${options.title}`];
+  if (options.summary) {
+    blocks.push(`> ${options.summary}`);
+  }
+  for (const paragraph of list(options.details)) {
+    if (paragraph !== "") {
+      blocks.push(paragraph);
+    }
+  }
+  for (const section of list(options.sections)) {
+    const paragraphs = list(section.body).filter((line) => line !== "");
+    const items = section.items ?? [];
+    const links = section.links ?? [];
+    if (paragraphs.length === 0 && items.length === 0 && links.length === 0) {
+      continue;
+    }
+    blocks.push(`## ${section.heading}`);
+    for (const paragraph of paragraphs) {
+      blocks.push(paragraph);
+    }
+    const bullets = [
+      ...items.map((item) => `- ${item}`),
+      ...links.map((link) =>
+        link.notes
+          ? `- [${link.title}](${link.url}): ${link.notes}`
+          : `- [${link.title}](${link.url})`,
+      ),
+    ];
+    if (bullets.length > 0) {
+      blocks.push(bullets.join("\n"));
+    }
+  }
+  return `${blocks.join("\n\n")}\n`;
+}

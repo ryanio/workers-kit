@@ -2,11 +2,12 @@
 
 `workers-kit` is an npm workspaces monorepo of TypeScript libraries for Cloudflare Workers. Each package in `packages/` is its own npm package with its own version, README, CHANGELOG and AGENTS.md:
 
-- [`packages/start`](packages/start/AGENTS.md): `workers-start`, zero-dependency helpers for apps on Workers (TanStack Start entry, caches, Access, Google, Sentry, mail, rate limits, HTTP, security headers, CORS, webhooks, bodies, logging).
-- [`packages/jobs`](packages/jobs/AGENTS.md): `workers-jobs`, background jobs on Cron Triggers and Workflows.
+- [`packages/start`](packages/start/AGENTS.md): `workers-start`, zero-dependency helpers for apps on Workers (TanStack Start entry, caches, Access, Google, Sentry, mail, rate limits, HTTP, security headers, CORS, webhooks, bodies, logging, bytes, cookies, signed tokens, formatting, the Discord gateway).
+- [`packages/jobs`](packages/jobs/AGENTS.md): `workers-jobs`, background jobs on Cron Triggers and Workflows, with the Durable Object cron loop and lease.
 - [`packages/r2`](packages/r2/AGENTS.md): `workers-r2`, presigned R2 URLs on aws4fetch.
 - [`packages/wallet`](packages/wallet/AGENTS.md): `workers-wallet`, wallet signatures and SIWE on viem.
 - [`packages/api`](packages/api/AGENTS.md): `workers-api`, Hono APIs with problem responses, an Access guard, spec and types generation and spec checks.
+- [`packages/cards`](packages/cards/AGENTS.md): `workers-cards`, link preview cards on satori and resvg. Still `private`, so the release workflow skips it.
 
 Read the package's AGENTS.md before changing it. This file has what every package shares.
 

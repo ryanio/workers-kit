@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.18.0 (2026-11-21)
+
+- `workers-start/bytes`: `toHex`, `toBase64`, `toBase64Url` and their readers, which answer `undefined` on anything malformed rather than throwing, plus `utf8`, `fromUtf8`, `randomBytes`, `randomHex`, `randomId`, `sha256`, `sha256Hex`, `sha256Base64Url`, `hmacSha256` and `timingSafeEqual`. `workers-start/webhooks` keeps exporting `timingSafeEqual`, now from here.
+- `workers-start/cookies`: `readCookie`, `parseCookies`, `serializeCookie`, `clearCookie` and `appendCookie` on plain `Request` and `Response` objects. `clearCookie` keeps the attributes a browser matches a cookie on, which is what makes a sign-out take. A name or attribute that would inject further attributes throws.
+- `workers-start/tokens`: `signValue` and `verifyValue` carry a signed JSON payload a stranger can hold and hand back, fail-closed on every count, with exactly one valid token string per payload (base64url has slack in it, and accepting a variant would let an app that retires a token by its string be replayed); `signatureOf` and `verifySignature` are the detached form, for an unsubscribe link or a tracked redirect. `sessionCookie` is a signed session cookie with a sliding expiry: `issue`, `read` with a ready refresh cookie, and `clear`.
+- `workers-start/format`: `plural`, `counted`, `formatCount`, `compactCount`, `numberWord`, `ordinal`, `usd`, `percent`, `timeAgo`, `utcDate`, `utcStamp`, `fullDate`, `utcDay`, `w3cDate`, `aboutDuration`, `listOf`, `capitalize`, `slugify`, `truncate`, `wrapWords` and `fitWords`. `toMillis` reads a timestamp with no zone as UTC, which is what SQLite's `datetime()` returns and what otherwise shows up as hours of drift on a fresh row.
+- `workers-start/discord/gateway`: `discordGateway` holds one gateway websocket from a Durable Object. It identifies or resumes, heartbeats on the object's alarm, backs off 1, 2, 5, 15 then 60 seconds across reconnects, drops the session when Discord refuses the resume (4007, 4009), and parks on a close only a person can fix (4004, 4010 to 4014) until the next hourly tick. `tick(on)` is the Worker's cron, `alarm()` the object's alarm.
+- `workers-start/seo`: `sitemapIndexXml` for a site past one sitemap, and `llmsTxt` for the agent-facing index of a site, whose sections carry paragraphs and plain bullets as well as links.
+
 ## 0.17.0 (2026-11-21)
 
 - `withRetry({ retryAfterMs })` reads a wait from an app's own error type, treated like `Retry-After`.

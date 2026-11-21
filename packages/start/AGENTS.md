@@ -15,13 +15,17 @@
 - `src/sentry.ts`: Sentry options and filters, with no SDK import. `src/mail.ts`: the mailers over Email Sending and Resend.
 - `src/rate-limit.ts`: the rate limiting binding with hashed keys and the 429 answer.
 - `src/http.ts`: `fetchJson` and `withRetry`. `src/security.ts`, `src/cors.ts`: response headers. `src/body.ts`: capped request bodies. `src/webhooks.ts`: webhook signatures. `src/log.ts`: structured logging. `src/discord.ts`, `src/x.ts`: API clients on `http.ts`.
+- `src/bytes.ts`: hex, base64, base64url, digests, HMACs and `timingSafeEqual`. `webhooks.ts` and `tokens.ts` both sign through it; nothing else in `src/` should carry its own encoder.
+- `src/cookies.ts`: cookie strings. `src/tokens.ts`: the signed-value envelope and `sessionCookie`, on `bytes.ts` and `cookies.ts`.
+- `src/format.ts`: counts, plurals, relative times, UTC stamps, money, slugs and wrapping. Pure and locale-free.
+- `src/discord-gateway.ts`: the `workers-start/discord/gateway` entry, one gateway websocket's lifecycle for a Durable Object to hold.
 - `src/access.ts`: Cloudflare Access JWT checks and the key cache. `src/access-testing.ts`: the `workers-start/access/testing` entry, a fake Access team for tests.
 - `src/check-bundle.ts`, `src/check-bundle-cli.ts`: the secret check and its `workers-start-check-bundle` bin.
 - `test/`: Node tests. The CLI and package tests run the built `dist/`, so `npm test` builds first.
 
 ## Rules
 
-- Consumers: 123shoot, calvin, coral, glyphbots, guild, gwei, ryanio-site and sitewise (all in `~/dev`). Before adding a feature, search them for hand-rolled versions of it; after a release, move them onto it. The README's "What is in it" table lists every entry point and must stay current.
+- Consumers: 123shoot, calvin, coral, flock, glyphbots, guild, gwei, musegod, ryanio-site, sitewise, terrakin and wompworld (all in `~/dev`). Before adding a feature, search them for hand-rolled versions of it; after a release, move them onto it. The README's "What is in it" table lists every entry point and must stay current.
 - No runtime dependencies, and no import of a third-party SDK: `sentry.ts` returns plain options, `mail.ts` takes the binding or uses `fetch`. Only `check-bundle*` may import `node:` modules; every other entry point runs in workerd and the browser.
 - Nothing imports `cloudflare:workers` statically. `src/workers.ts` imports it through a variable specifier.
 - Changing a response header, status or default path rule is a breaking change for apps that compared their output against production. That is a major version with a CHANGELOG note.
