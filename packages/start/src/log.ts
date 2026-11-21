@@ -221,12 +221,13 @@ function clean(
 
 /**
  * The default sink: `console.error` for errors, `console.warn` for warnings,
- * `console.log` for the rest. A sink that adds behaviour, such as reporting
+ * `console.debug` for debug and `console.log` for info. A sink that adds behaviour, such as reporting
  * errors to Sentry, calls this for the console part.
  */
 export function consoleSink(entry: LogEntry): void {
   if (entry.level === "error") console.error(entry);
   else if (entry.level === "warn") console.warn(entry);
+  else if (entry.level === "debug") console.debug(entry);
   else console.log(entry);
 }
 

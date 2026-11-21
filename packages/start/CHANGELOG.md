@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.21.1 (2026-11-21)
+
+- `createLogger`'s default writer (`consoleSink`) writes debug entries with `console.debug` instead of `console.log`, so a Sentry console integration that forwards `console.log` no longer sends debug lines, and Workers Logs shows them at debug level.
+
 ## 0.21.0 (2026-11-21)
 
 - `fullDate(value, { month: "short" })` writes "9 Mar 2026"; `timeAgo` takes the same `month` for its fallback past 30 days.

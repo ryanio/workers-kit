@@ -274,9 +274,14 @@ describe("quiet loggers and the console writer", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const out = vi.spyOn(console, "log").mockImplementation(() => {});
+    const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
     consoleSink({ level: "error", scope: "a", msg: "x" });
     consoleSink({ level: "warn", scope: "a", msg: "y" });
+    consoleSink({ level: "info", scope: "a", msg: "i" });
     consoleSink({ level: "debug", scope: "a", msg: "z" });
+    // Its own console method, so a Sentry integration that forwards
+    // console.log does not pick up debug lines.
+    expect(debug).toHaveBeenCalledOnce();
     expect(error).toHaveBeenCalledWith({
       level: "error",
       scope: "a",
