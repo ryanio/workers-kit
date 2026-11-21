@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 (2026-11-21)
+
+- Docs: a cursor is not signed and anyone can write one, so it positions a page and never decides what the caller may see. The README said `decodeCursor` refused cursors this API did not issue; it refuses only ones that will not decode or fail the schema.
+
 ## 0.2.0 (2026-11-20)
 
 - `accessGuard` marks admitted responses `cache-control: no-store` too, not only refusals; pass `noStore: false` to leave them alone.

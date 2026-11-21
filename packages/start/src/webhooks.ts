@@ -12,6 +12,7 @@
  * WebCrypto only, so it runs in workerd, the browser and Node 22.
  */
 
+import { readText } from "./body.js";
 import { fromBase64, fromHex, timingSafeEqual, utf8 } from "./bytes.js";
 
 export interface WebhookErrorOptions {
@@ -20,7 +21,17 @@ export interface WebhookErrorOptions {
    * request never calls it.
    */
   onError?: ((error: Error) => void) | undefined;
+  /**
+   * The largest body read, in bytes. A larger one is refused (the verifier
+   * returns null) without being buffered, since the signature can only be
+   * checked after the whole body is read. Default 1 MiB for Discord and Svix,
+   * 25 MiB for HMAC senders (GitHub's own cap).
+   */
+  maxBytes?: number | undefined;
 }
+
+const SMALL_BODY_BYTES = 1024 * 1024;
+const LARGE_BODY_BYTES = 25 * 1024 * 1024;
 
 export interface TimestampOptions {
   /** How far the signed timestamp may be from the clock, either way. Default 300. */
@@ -91,7 +102,7 @@ export async function verifyDiscord(
   const timestamp = request.headers.get("x-signature-timestamp");
   if (!signature || signature.length !== ED25519_SIGNATURE_BYTES) return null;
   if (!timestamp || !withinWindow(timestamp, options)) return null;
-  const body = await readBody(request);
+  const body = await readBody(request, options.maxBytes ?? SMALL_BODY_BYTES);
   if (body === null) return null;
 
   let key: CryptoKey;
@@ -151,7 +162,7 @@ export async function verifyHmac(
     timestamp = request.headers.get(options.timestampHeader) ?? "";
     if (!withinWindow(timestamp, options)) return null;
   }
-  const body = await readBody(request);
+  const body = await readBody(request, options.maxBytes ?? LARGE_BODY_BYTES);
   if (body === null) return null;
 
   let key: CryptoKey;
@@ -220,7 +231,7 @@ export async function verifySvix(
     if (sig && sig.length > 0) candidates.push(sig);
   }
   if (candidates.length === 0) return null;
-  const body = await readBody(request);
+  const body = await readBody(request, options.maxBytes ?? SMALL_BODY_BYTES);
   if (body === null) return null;
 
   let key: CryptoKey;
@@ -260,9 +271,13 @@ function withinWindow(timestamp: string, options: TimestampOptions): boolean {
   return Math.abs(nowSeconds - Number(timestamp)) <= tolerance;
 }
 
-async function readBody(request: Request): Promise<string | null> {
+async function readBody(
+  request: Request,
+  maxBytes: number,
+): Promise<string | null> {
   try {
-    return await request.text();
+    const read = await readText(request, { maxBytes });
+    return read.ok ? read.value : null;
   } catch {
     return null;
   }

@@ -1,7 +1,8 @@
 /**
  * Opaque page cursors: any JSON value, base64url encoded. Clients pass them
  * back unchanged and never read them, so the server can change what a cursor
- * holds without a breaking change.
+ * holds without a breaking change. They are not signed, so anyone can write
+ * one: a cursor positions a page and never decides what the caller may see.
  */
 
 interface Schema<T> {
@@ -19,7 +20,8 @@ export function encodeCursor(value: unknown): string {
 }
 
 /**
- * The value a cursor holds, or null for one this API did not issue. With a
+ * The value a cursor holds, or null for one that will not decode. It is not
+ * proof this API issued it: anyone can encode a cursor. With a
  * schema (any object with `safeParse`, such as a Zod schema) the value must
  * also match it.
  */

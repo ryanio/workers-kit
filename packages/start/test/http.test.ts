@@ -56,6 +56,25 @@ describe("fetchJson", () => {
     expect(waits).toEqual([250, 2000]);
   });
 
+  it("does not follow a redirect with the caller's authorization on it", async () => {
+    const s = server(Response.json({}), Response.json({}), Response.json({}));
+    await fetchJson("https://api.test/x", {
+      fetch: s.fetch,
+      headers: { authorization: "Bearer t" },
+    });
+    await fetchJson("https://api.test/x", { fetch: s.fetch });
+    await fetchJson("https://api.test/x", {
+      fetch: s.fetch,
+      headers: { authorization: "Bearer t" },
+      redirect: "follow",
+    });
+    expect(s.calls.map((call) => call.init?.redirect)).toEqual([
+      "manual",
+      "follow",
+      "follow",
+    ]);
+  });
+
   it("reads Discord's retry_after from a JSON 429", async () => {
     const waits: number[] = [];
     const s = server(

@@ -37,8 +37,13 @@ describe("readCookie", () => {
 });
 
 describe("parseCookies", () => {
-  it("reads every cookie, last value winning", () => {
-    expect(parseCookies("a=1; b=2; a=3")).toEqual({ a: "3", b: "2" });
+  it("reads every cookie, first value winning, as readCookie does", () => {
+    const header = "a=1; b=2; a=3";
+    expect(parseCookies(header)).toEqual({ a: "1", b: "2" });
+    const request = new Request("https://x.test/", {
+      headers: { cookie: header },
+    });
+    expect(readCookie(request, "a")).toBe(parseCookies(header).a);
   });
 
   it("skips a part with no name or no equals sign", () => {

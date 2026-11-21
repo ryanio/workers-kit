@@ -457,3 +457,50 @@ describe("timingSafeEqual", () => {
     expect(timingSafeEqual("", "")).toBe(true);
   });
 });
+
+describe("a body past the cap", () => {
+  /** A chunked body with no content-length, counting how much was pulled. */
+  const streamed = (total: number) => {
+    const chunk = new Uint8Array(64 * 1024);
+    let pulled = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (pulled >= total) {
+          controller.close();
+          return;
+        }
+        pulled += chunk.byteLength;
+        controller.enqueue(chunk);
+      },
+    });
+    return { body, pulled: () => pulled };
+  };
+
+  it("is refused without being read to the end, and without calling onError", async () => {
+    const onError = vi.fn();
+    const big = streamed(8 * 1024 * 1024);
+    const request = new Request("https://x.test/hook", {
+      method: "POST",
+      body: big.body,
+      headers: {
+        "svix-id": "msg_1",
+        "svix-timestamp": String(NOW_S),
+        "svix-signature": "v1,AAAA",
+      },
+      duplex: "half",
+    } as RequestInit);
+    expect(await verifySvix(request, SVIX_SECRET, { now, onError })).toBeNull();
+    expect(big.pulled()).toBeLessThanOrEqual(1024 * 1024 + 2 * 64 * 1024);
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("reads a body under a raised cap", async () => {
+    const request = await svixRequest();
+    expect(
+      await verifySvix(request, SVIX_SECRET, { now, maxBytes: 10 }),
+    ).toBeNull();
+    expect(await verifySvix(await svixRequest(), SVIX_SECRET, { now })).toBe(
+      BODY,
+    );
+  });
+});

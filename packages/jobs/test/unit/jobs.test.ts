@@ -643,6 +643,62 @@ describe("config errors fail at load time", () => {
   });
 });
 
+describe("job ids that could share instance ids", () => {
+  it("refuses an event job id that is another plus a dash on the same lane", () => {
+    const wf = { default: () => fakeWorkflow().binding };
+    const pay = defineJob(
+      { id: "pay", retries: 1, event: "user/created", key: (d) => d.userId },
+      async () => null,
+    );
+    const payOut = defineJob(
+      { id: "pay-out", retries: 1, cron: "0 14 * * *" },
+      async () => null,
+    );
+    const payment = defineJob(
+      { id: "payment", retries: 1, cron: "0 15 * * *" },
+      async () => null,
+    );
+    expect(() => createJobs({ jobs: [pay, payOut], workflows: wf })).toThrow(
+      /"pay" and "pay-out"/,
+    );
+    expect(() => createJobs({ jobs: [payOut, pay], workflows: wf })).toThrow(
+      /"pay" and "pay-out"/,
+    );
+    expect(() =>
+      createJobs({ jobs: [pay, payment], workflows: wf }),
+    ).not.toThrow();
+  });
+
+  it("allows the pair on different lanes, or when the shorter one is a cron", () => {
+    const wf = {
+      crons: () => fakeWorkflow().binding,
+      events: () => fakeWorkflow().binding,
+    };
+    const pay = defineJob(
+      { id: "pay", retries: 1, event: "user/created", key: (d) => d.userId },
+      async () => null,
+    );
+    const payOut = defineJob(
+      { id: "pay-out", retries: 1, cron: "0 14 * * *" },
+      async () => null,
+    );
+    expect(() =>
+      createJobs({ jobs: [pay, payOut], workflows: wf }),
+    ).not.toThrow();
+    const sync = defineJob(
+      { id: "sync", retries: 1, cron: "0 13 * * *" },
+      async () => null,
+    );
+    const syncUsers = defineJob(
+      { id: "sync-users", retries: 1, cron: "0 14 * * *" },
+      async () => null,
+    );
+    expect(() =>
+      createJobs({ jobs: [sync, syncUsers], workflows: wf }),
+    ).not.toThrow();
+  });
+});
+
 describe("a job with a schema", () => {
   // A Standard Schema by hand, so the test needs no validation library: it
   // reads `{ count: "<digits>" }` and outputs `{ count: number }`.

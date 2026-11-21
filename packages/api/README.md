@@ -96,7 +96,7 @@ const at = cursor ? decodeCursor(cursor, Cursor) : null;
 if (cursor && !at) return problem(c, 400, { code: "invalid_request", detail: "That cursor is not valid." });
 ```
 
-A cursor is any JSON value, base64url encoded. Clients pass it back unchanged, so what it holds can change without breaking them. `decodeCursor` returns null for anything this API did not issue, or that fails the schema.
+A cursor is any JSON value, base64url encoded. Clients pass it back unchanged, so what it holds can change without breaking them. `decodeCursor` returns null for anything that will not decode or fails the schema. A cursor is not signed: anyone can write one, so it holds only where the next page starts (an id, a timestamp), never a tenant, an owner or anything else that decides what the caller may see. Scope the query by the caller's own identity and use the cursor only to position within it. When a cursor must carry something the client may not change, sign it with `signValue` and `verifyValue` from `workers-start/tokens`.
 
 ## Cloudflare Access
 

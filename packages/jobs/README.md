@@ -174,7 +174,7 @@ it("the jobs and wrangler.toml agree", () => {
 
 ### Instance ids and dedup
 
-Every instance id is `<job>-<key>`, cleaned to the characters Workflows accepts (anything else becomes `_`). An id longer than 100 keeps its first 87 characters and ends in a hash of the whole id, so two long keys never share an id. A cron's key is its slot, `YYYYMMDDHHmm` in UTC. An event job's key comes from its `key` function. When `create()` is refused because the id exists, `sendEvent` and `scheduled` count a duplicate and do nothing else. So a cron fired twice in one slot runs once, and an event sent twice for the same key runs once.
+Every instance id is `<job>-<key>`. An id already in the characters Workflows accepts (letters, digits, `_` and `-`) and at most 100 long is used as it is. Otherwise every other character becomes `_` and the id ends in `-` and a hash of the raw `<job>-<key>`, so `a.b@c.com` and `a_b@c.com` never share an id, and an id past 100 keeps its first 87 characters before that hash. `createJobs` refuses an event job whose id plus `-` starts another job's id on the same lane (`pay` and `pay-out`), since `pay` with key `out-1` and `pay-out` with key `1` would both be `pay-out-1`. A cron's key is its slot, `YYYYMMDDHHmm` in UTC. An event job's key comes from its `key` function. When `create()` is refused because the id exists, `sendEvent` and `scheduled` count a duplicate and do nothing else. So a cron fired twice in one slot runs once, and an event sent twice for the same key runs once.
 
 The `key` function is required for every event job, because the right key depends on the work:
 

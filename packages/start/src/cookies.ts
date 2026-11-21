@@ -34,7 +34,12 @@ export interface CookieOptions {
   partitioned?: boolean | undefined;
 }
 
-/** Every cookie in a `Cookie` header, percent-decoded, last value winning. */
+/**
+ * Every cookie in a `Cookie` header, percent-decoded. When a name appears
+ * twice the first value wins, as in `readCookie`: browsers send the cookie
+ * with the longest path first, and a sibling subdomain can only add a second
+ * one after it, so reading the last would let it override the real one.
+ */
 export function parseCookies(
   header: string | null | undefined,
 ): Record<string, string> {
@@ -51,7 +56,9 @@ export function parseCookies(
     if (name === "") {
       continue;
     }
-    out[name] = decode(part.slice(eq + 1).trim());
+    if (!Object.hasOwn(out, name)) {
+      out[name] = decode(part.slice(eq + 1).trim());
+    }
   }
   return out;
 }

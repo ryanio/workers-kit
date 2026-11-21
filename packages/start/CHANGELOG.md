@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.20.0 (2026-11-21)
+
+- Security: `verifyDiscord`, `verifySvix` and `verifyHmac` read the body through the capped reader, so a large unsigned body is refused without being buffered. `maxBytes` defaults to 1 MiB for Discord and Svix and 25 MiB for HMAC senders.
+- Security: the logger redacts `apiKey`, `privateKey`, `secretKey`, `secretAccessKey`, `jwt`, `assertion` (Access's `cf-access-jwt-assertion`), `session`, `sessionId`, `signature` and `credential` by default, matches plurals (`cookies`, `secrets`), logs a `Headers` or `Map` as an object redacted by key, and redacts a `[name, value]` pair by its name, which is what `[...request.headers]` gives.
+- Security: `clientKey` counts an IPv6 client by its /64, since a client can send from any address in it. New `ipNetwork(ip)` and `clientIp(request)`. Rate limit keys for IPv6 clients change once.
+- Security: `fetchJson` does not follow a redirect when the request carries an `authorization` header unless `redirect` is given; the Google calls never follow one with the bearer token.
+- Security: `parseCookies` takes the first value of a repeated name, as `readCookie` does, so a cookie tossed from a sibling subdomain cannot override the real one.
+- `discordGateway`: an INVALID_SESSION counts toward `attempt` like a close, so a run of them reaches an `onChange` alert.
+- Security: a Resend address whose display name holds an address special (`<`, `,`, `@`) is sent with the name quoted.
+
 ## 0.19.0 (2026-11-21)
 
 - `discordGateway`: `reconnect({ fresh })` closes the socket and connects now, resuming the session or identifying anew, and restarts a parked link. `onChange(status)` runs after every phase change, for alerts. `saveSeq: "heartbeat"` writes the sequence number with the heartbeat instead of on every event. The state and status carry the bot's own `userId` from READY, kept across resumes. `GUILDS` joins the intent constants. `fetch` and `random` are read at each call, so stubs installed after construction apply.

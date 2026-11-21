@@ -654,6 +654,22 @@ describe("discordGateway", () => {
     expect(state().seq).toBe(2);
   });
 
+  it("counts invalid sessions in a row toward attempt, and READY resets it", async () => {
+    await goLive();
+    for (let i = 1; i <= 3; i++) {
+      socket.deliver({ op: 9, d: false });
+      await settle();
+      expect(state().attempt).toBe(i);
+      socket = new FakeSocket();
+      await link.alarm();
+      socket.deliver(hello());
+      await settle();
+    }
+    socket.deliver(ready());
+    await settle();
+    expect(state().attempt).toBe(0);
+  });
+
   it("has the GUILDS intent", () => {
     expect(GUILDS).toBe(1);
   });

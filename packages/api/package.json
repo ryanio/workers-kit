@@ -1,6 +1,6 @@
 {
   "name": "workers-api",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "The API setup every Hono app on Cloudflare Workers rebuilds: RFC 9457 problem responses, a validation hook, opaque cursors, a Cloudflare Access guard, a spec and client types generator with a drift check, and a test that the spec matches the routes.",
   "license": "MIT",
   "author": "Ryan Ghods",

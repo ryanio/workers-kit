@@ -22,7 +22,7 @@ Check this list before writing a helper in an app. Anything generic to TanStack 
 | `workers-start/google`          | `googleAccessToken`, `parseServiceAccount`, `ga4RunReport`, `ga4BatchRunReports`, `ga4Rows`, `inListFilter`, `searchConsoleQuery`                                                                                   | Google APIs as a service account: cached tokens, GA4 reports, Search Console                             |
 | `workers-start/sentry`          | `workerSentryOptions`, `browserSentryOptions`, `dropLocalEvents`, `isBrowserNoise`, `BROWSER_DENY_URLS`, `sentryReportUri`, `sentryConnectSource`                                                                   | Sentry options for a Worker and its pages: off without a DSN, no local events, no browser noise          |
 | `workers-start/mail`            | `cloudflareMailer`, `resendMailer`, `recordingMailer`, `MailError`, `escapeHtml`                                                                                                                                    | One `send` over Email Sending or Resend, text and HTML always, and a fake for tests                      |
-| `workers-start/rate-limit`      | `rateLimit`, `clientKey`, `checkRateLimit`, `tooManyRequests`, `rateLimitHeaders`                                                                                                                                   | The rate limiting binding with hashed client keys, fail-open reporting and one 429 answer                |
+| `workers-start/rate-limit`      | `rateLimit`, `clientKey`, `clientIp`, `ipNetwork`, `checkRateLimit`, `tooManyRequests`, `rateLimitHeaders`                                                                                                          | The rate limiting binding with hashed client keys, fail-open reporting and one 429 answer                |
 | `workers-start/body`            | `bodyProblem`, `isJsonType`, `readJson`, `readText`                                                                                                                                                                 | Request bodies read under a byte cap, JSON type checked, schema run, failures as problems                |
 | `workers-start/log`             | `createLogger`, `requestId`                                                                                                                                                                                         | Structured logs for Workers Logs, with redaction and request ids                                         |
 | `workers-start/webhooks`        | `timingSafeEqual`, `verifyDiscord`, `verifyHmac`, `verifySvix`                                                                                                                                                      | Webhook signatures (Discord, HMAC senders, Svix and Resend) checked in constant time with replay windows |
@@ -378,6 +378,7 @@ await mail.send({
 ```
 
 - `cloudflareMailer(env.BINDING)` uses the binding's structured form; its senders and recipients must be allowed in the binding's wrangler config. `resendMailer({ apiKey })` posts to the Resend API with `fetch`, no SDK.
+- A `{ name, email }` address whose name holds `<`, `,`, `@` or another address special is sent with the name quoted, so a user-chosen name cannot add recipients or a reply address.
 - A failure throws `MailError` with Resend's `status` and a `permanent` flag (a 4xx other than 409 and 429), so a job step can retry only what might succeed.
 - `listUnsubscribeUrl` adds `List-Unsubscribe` and the one-click `List-Unsubscribe-Post` header. `headers` adds any others, such as `In-Reply-To`.
 - `recordingMailer()` applies the same checks and keeps every message in `sent`, for tests. `escapeHtml` escapes text for an HTML body.
@@ -398,7 +399,7 @@ const limited = await rateLimit(request, env.API_LIMIT, API, {
 if (limited) return limited;
 ```
 
-- The client is counted by `clientKey(request, { salt })`: a SHA-256 of the salt and `cf-connecting-ip`, so no raw IP reaches the binding or a log. Pass `key` to count by something else, such as an API key or a join code. Keys are prefixed with the policy name.
+- The client is counted by `clientKey(request, { salt })`: a SHA-256 of the salt and the client's network, so no raw IP reaches the binding or a log. The network is `ipNetwork(ip)`: an IPv4 address as it is, an IPv6 address cut to its /64, since a client on IPv6 can send from any address in its /64 and a limit per address would be a limit per request. `clientIp(request)` is the raw `cf-connecting-ip`, or null, for an app that needs the address itself. Pass `key` to count by something else, such as an API key or a join code. Keys are prefixed with the policy name.
 - A limited request gets a 429 problem (`application/problem+json`, `code: "rate_limited"`) with `Retry-After`, `RateLimit-Policy` and `RateLimit` (the IETF rate limit headers) and `cache-control: no-store`. `detail` replaces the sentence, and `text: true` answers plain text with the same headers, for pages people read.
 - A missing binding, or one that throws, lets the request through and calls `onUnbound` once per isolate: failing closed would take a site down over a config slip, and staying quiet would hide it.
 - `allowVerifiedBots: true` lets Cloudflare-verified crawlers (`cf.verifiedBotCategory` or `cf.botManagement.verifiedBot`) through uncounted.
@@ -430,6 +431,7 @@ const price = await fetchJson<{ usd: number }>(
 - The body is parsed: JSON when the response says so, else text, else null when empty. A body with no content type or `text/plain` that starts with `{` or `[` is tried as JSON too (as `new Response(JSON.stringify(x))` in a test makes), and stays text when it does not parse. A status outside 2xx throws `HttpError` with `status`, `url`, the parsed `body` and `retryAfter`; its message names the upstream's reason (`api.x.com answered 402: Out of credits.`) when the body carries one.
 - `new HttpError(status, url, body, retryAfter, { message })` keeps the caller's own wording in place of the built message. `url` may be any string; the built message names its host when it parses as a URL, else the string itself.
 - `maxBytes` refuses a response body past that size with `ResponseTooLarge`, for upstreams the app does not trust.
+- A request that carries an `authorization` header does not follow redirects (`redirect: "manual"`), so the credential never reaches wherever a 3xx points; the 3xx comes back as an `HttpError`. Pass `redirect: "follow"` to follow one anyway.
 - `withRetry(fn, options)` retries any async work the same way, and `transient(err)` says whether an error is worth retrying.
 
 ## Security headers
@@ -588,6 +590,7 @@ const event = await verifySvix(request, env.RESEND_WEBHOOK_SECRET, { onError });
 ```
 
 - Each check reads the raw body once and returns it as text when the signature holds, or null when it does not. Parse the returned text, not the request: the signature is over the exact bytes sent, and the body can only be read once.
+- The body is read through the same capped reader as `readText`, so a body past `maxBytes` (default 1 MiB for Discord and Svix, 25 MiB for `verifyHmac`, GitHub's own cap) is a null without being buffered. The signature can only be checked once the whole body is in, so without the cap anyone could make the isolate buffer a body near the request limit.
 - Bad input (a missing header, malformed hex or base64, a wrong signature, a stale timestamp) is a null, never a throw. Every comparison runs in constant time, and `timingSafeEqual(a, b)` is exported for strings or bytes.
 - A missing or malformed secret or key also gives null, and calls `onError`. A forged request never does, so a secret pasted with a stray character shows up in the logs instead of looking like an attacker being turned away.
 - Answer null with 401, never 500. Senders retry a 5xx, so a 500 makes a forged or stale request come back again and again.
@@ -618,7 +621,7 @@ try {
 ```
 
 - Each call writes one object to `console.log` (debug and info), `console.warn` or `console.error`: `{ level, scope, msg, ...base, ...fields }`. A field named `level`, `scope` or `msg` never replaces those three.
-- Values under sensitive keys become `"[redacted]"` at any depth, arrays included. A key matches when its last words are an entry's words, ignoring case and separators, so `token` covers `accessToken` and `x-auth-token` but not `tokenCount`. The default list is `email`, `ip`, `ipAddress`, `token`, `authorization`, `password`, `secret` and `cookie`; `redact` replaces it.
+- Values under sensitive keys become `"[redacted]"` at any depth, arrays included. A key matches when its last words are an entry's words, ignoring case and separators, so `token` covers `accessToken` and `x-auth-token` but not `tokenCount`. Plurals match too (`cookies`, `secrets`). The default list is `email`, `ip`, `ipAddress`, `token`, `authorization`, `password`, `secret`, `cookie`, `apiKey`, `privateKey`, `secretKey`, `secretAccessKey`, `jwt`, `assertion` (Access's `cf-access-jwt-assertion`), `session`, `sessionId`, `signature` and `credential`; `redact` replaces it. A `Headers` or `Map` is logged as an object and redacted by key, and a `[name, value]` pair (what `[...request.headers]` gives) is redacted by its name.
 - `mask` keeps part of a value instead of redacting all of it: `mask: { email: (v) => "***@" + String(v).split("@")[1], userId: (v) => String(v).slice(0, 8) }`. Its keys match the way `redact` entries do, and a mask wins over redaction for its key. A mask that throws writes `"[redacted]"`.
 - An `Error` becomes `{ name, message, stack }`, with its `cause` serialised the same way. `stacks: false` leaves `stack` out of every Error and cause, for logs that should stay small. Dates become ISO strings, bigints strings, and a cycle `"[circular]"`. Nesting past 8 levels is cut off as `"[truncated]"`.
 - `level` (default `info`) drops anything below it. `log.child(fields)` returns a logger that adds `fields` to every entry and keeps the level, redaction and sink.
@@ -800,6 +803,7 @@ if (found.refreshCookie) response.headers.append("set-cookie", found.refreshCook
 - `read` hands back a `refreshCookie` once `refreshAfterMs` has passed (a sixth of the life by default), so an active visitor never meets the expiry. Attach it verbatim; leaving it off only means they sign in again sooner. An app that revokes by epoch should mint its own with `issue` from the epoch it just read, so a revoke racing a refresh cannot be re-stamped into the future.
 - A missing `secret` refuses every session and calls `onError`, which is the right failure for a binding that did not make it into an environment: closed, and loud.
 - `signValue` and `verifyValue` are the layer under it, for anything else a stranger holds: a wallet-link nonce, a credits proof, a one-shot upload grant. `signatureOf` and `verifySignature` are the detached form, where the message is already in the URL and only the proof has to travel.
+- `readCookie` and `parseCookies` take the first value when a name appears twice. A browser sends the cookie with the longest path first, and a sibling subdomain can only add a second one after it, so reading the last would let it override the real one. A `__Host-` name rules the second one out.
 - `clearCookie` repeats the `path`, `domain` and `partitioned` the cookie was written with. A browser matches on those, and a clear that does not match them does nothing at all.
 
 ## Formatting

@@ -239,7 +239,9 @@ export type {
 } from "./rate-limit.js";
 export {
   checkRateLimit,
+  clientIp,
   clientKey,
+  ipNetwork,
   rateLimit,
   rateLimitHeaders,
   rateLimitProblem,

@@ -11,6 +11,47 @@ afterEach(() => {
 });
 
 describe("createLogger", () => {
+  it("redacts the credentials a request's headers carry, in every shape they get logged", () => {
+    const { entries, sink } = capture();
+    const headers = new Headers({
+      "cf-access-jwt-assertion": "eyJ.jwt.sig",
+      "x-api-key": "k_live",
+      authorization: "Bearer leaked",
+      accept: "text/html",
+    });
+    createLogger("a", { sink }).error("upstream failed", {
+      headers,
+      pairs: [...headers],
+      plain: Object.fromEntries(headers),
+      apiKey: "k1",
+      privateKey: "0xabc",
+      jwt: "j",
+      signature: "s",
+      sessionId: "sid",
+      cookies: "a=1",
+      secrets: ["s1"],
+      map: new Map([["token", "t"]]),
+    });
+    const text = JSON.stringify(entries[0]);
+    for (const leaked of [
+      "eyJ.jwt.sig",
+      "k_live",
+      "Bearer leaked",
+      "k1",
+      "0xabc",
+      '"j"',
+      '"s"',
+      "sid",
+      "a=1",
+      "s1",
+      '"t"',
+    ]) {
+      expect(text).not.toContain(leaked);
+    }
+    expect(text).toContain("text/html");
+    expect(entries[0]?.headers).toMatchObject({ accept: "text/html" });
+  });
+
   it("hands the sink the original Error and fields beside the cleaned entry", () => {
     const seen: { entry: LogEntry; raw: Record<string, unknown> }[] = [];
     const error = new Error("boom");

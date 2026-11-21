@@ -67,19 +67,38 @@ export const DEFAULT_REDACT = [
   "password",
   "secret",
   "cookie",
+  "apiKey",
+  "privateKey",
+  "secretKey",
+  "secretAccessKey",
+  "jwt",
+  "assertion",
+  "session",
+  "sessionId",
+  "signature",
+  "credential",
 ];
 
 const RANK: Record<LogLevel, number> = { debug: 0, info: 1, warn: 2, error: 3 };
 
 const MAX_DEPTH = 8;
 
-/** Splits `accessToken`, `x-auth-token` and `IP_ADDRESS` into lowercase words. */
+/**
+ * Splits `accessToken`, `x-auth-token` and `IP_ADDRESS` into lowercase words,
+ * each without a plural `s`, so `cookies` matches `cookie` and `secrets`
+ * matches `secret`.
+ */
 function words(key: string): string[] {
   return key
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .toLowerCase()
     .split(/[^a-z0-9]+/)
-    .filter(Boolean);
+    .filter(Boolean)
+    .map((word) =>
+      word.length > 2 && word.endsWith("s") && !word.endsWith("ss")
+        ? word.slice(0, -1)
+        : word,
+    );
 }
 
 function endsWith(parts: string[], pattern: string[]): boolean {
@@ -141,6 +160,10 @@ function field(
   return clean(item, rules, depth, seen);
 }
 
+function isHeaders(value: object): value is Headers {
+  return typeof Headers !== "undefined" && value instanceof Headers;
+}
+
 function clean(
   value: unknown,
   rules: Rules,
@@ -161,8 +184,22 @@ function clean(
         out.cause = clean(value.cause, rules, depth + 1, seen);
       return out;
     }
-    if (Array.isArray(value))
+    if (isHeaders(value) || value instanceof Map) {
+      // Both stringify to `{}`, so their entries are logged as an object,
+      // and redacted by key like one.
+      const out: LogFields = {};
+      for (const [key, item] of value.entries()) {
+        out[String(key)] = field(String(key), item, rules, depth + 1, seen);
+      }
+      return out;
+    }
+    if (Array.isArray(value)) {
+      // `[...request.headers]` is a list of `[name, value]` pairs, so a
+      // two-item array led by a string is redacted as a key and its value.
+      if (value.length === 2 && typeof value[0] === "string")
+        return [value[0], field(value[0], value[1], rules, depth + 1, seen)];
       return value.map((item) => clean(item, rules, depth + 1, seen));
+    }
     const out: LogFields = {};
     for (const [key, item] of Object.entries(value)) {
       out[key] = field(key, item, rules, depth + 1, seen);

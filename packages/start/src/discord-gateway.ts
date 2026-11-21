@@ -557,6 +557,9 @@ export function discordGateway(options: DiscordGatewayOptions): DiscordGateway {
           phase: "reconnecting",
           interval: null,
           why: "invalid session",
+          // Counts toward `attempt` like a close, so a run of refusals
+          // reaches an `onChange` alert; READY or RESUMED resets it.
+          attempt: current.attempt + 1,
           ...(resumable ? {} : NO_SESSION),
         });
         await later(

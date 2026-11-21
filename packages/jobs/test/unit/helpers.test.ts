@@ -72,7 +72,21 @@ describe("jobEnv", () => {
 describe("instanceId", () => {
   it("leaves an id of 100 characters or fewer as it was", () => {
     expect(instanceId("send-welcome", "usr_a")).toBe("send-welcome-usr_a");
-    expect(instanceId("job", "a.b@c")).toBe("job-a_b_c");
+  });
+
+  it("gives keys that differ only in replaced characters different ids", () => {
+    const dotted = instanceId("welcome", "a.b@c.com");
+    const underscored = instanceId("welcome", "a_b@c.com");
+    expect(dotted).not.toBe(underscored);
+    expect(dotted).toMatch(/^welcome-a_b_c_com-[0-9a-f]{12}$/);
+    expect(instanceId("welcome", "a_b_c_com")).toBe("welcome-a_b_c_com");
+    expect(instanceId("welcome", "a.b@c.com")).toBe(dotted);
+  });
+
+  it("keeps a cleaned id that is long within 100 characters", () => {
+    const id = instanceId("job", `${"é".repeat(95)}`);
+    expect(id).toHaveLength(100);
+    expect(id).toMatch(/^[a-zA-Z0-9_-]+$/);
   });
 
   it("gives two long keys with the same first 100 characters different ids, each 100 long", () => {

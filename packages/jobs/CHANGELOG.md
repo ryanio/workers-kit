@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.0 (2026-11-21)
+
+- Security: an instance id whose job or key needed characters replaced now ends in a hash of the raw `<job>-<key>`, so `a.b@c.com` and `a_b@c.com` no longer share an id and one cannot silently dedupe the other. Ids of keys that needed no replacing are unchanged; an event sent before and after upgrading with such a key can run twice once.
+- Security: `createJobs` refuses an event job whose id plus `-` starts another job's id on the same lane, since their instance ids could collide.
+
 ## 0.10.0 (2026-11-21)
 
 - `leaseStore` takes `keyPrefix` (default `"lease:"`), so an app moving from its own lock object keeps seeing and sweeping the rows that object wrote. An empty prefix throws.

@@ -244,6 +244,23 @@ export function createJobs<Env, Ev extends EventMap = EventMap>(
   const cronJobs = new Map<string, string[]>();
   for (const job of options.jobs) {
     if (byId.has(job.id)) throw new Error(`two jobs have the id "${job.id}"`);
+    for (const other of byId.values()) {
+      // On one lane, event job `pay` with key `out-1` and job `pay-out` with
+      // key `1` would share the instance id `pay-out-1`, so one job's key
+      // could block the other's run. A cron's key is digits only, so only an
+      // event job as the shorter id can collide.
+      const [short, long] =
+        other.id.length < job.id.length ? [other, job] : [job, other];
+      if (
+        short.event &&
+        long.id.startsWith(`${short.id}-`) &&
+        !!short.inline === !!long.inline &&
+        (short.inline || workflowName(short) === workflowName(long))
+      )
+        throw new Error(
+          `job ids "${short.id}" and "${long.id}" can share instance ids on one lane: rename one, or run them on different Workflows`,
+        );
+    }
     byId.set(job.id, job);
     const wf = workflowName(job);
     if (!job.inline && !options.workflows[wf])

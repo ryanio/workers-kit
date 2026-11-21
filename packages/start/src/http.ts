@@ -270,6 +270,11 @@ export async function fetchJson<T = unknown>(
       ...init,
       method,
       headers,
+      // A redirect followed with the caller's credentials would hand them to
+      // wherever it points, so a request that carries an `authorization`
+      // header answers a 3xx as it is unless the caller chose otherwise.
+      redirect:
+        init.redirect ?? (headers.has("authorization") ? "manual" : "follow"),
       body: payload ?? null,
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     });

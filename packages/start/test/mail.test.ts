@@ -108,6 +108,28 @@ describe("resendMailer", () => {
     });
   });
 
+  it("quotes a display name that would otherwise add addresses", async () => {
+    const calls: RequestInit[] = [];
+    const mail = resendMailer({
+      apiKey: "re_test",
+      fetch: async (_url, init) => {
+        calls.push(init ?? {});
+        return Response.json({ id: "re-2" });
+      },
+    });
+    await mail.send({
+      ...message,
+      replyTo: {
+        email: "u@example.com",
+        name: 'Eve <evil@x.test>, "b"@y.test\r\nBcc: z@z.test',
+      },
+    });
+    const body = JSON.parse(String(calls[0]?.body));
+    expect(body.reply_to).toBe(
+      '"Eve <evil@x.test>, b@y.testBcc: z@z.test" <u@example.com>',
+    );
+  });
+
   it("throws a MailError that knows a permanent failure from a retryable one", async () => {
     const failing = (status: number) =>
       resendMailer({

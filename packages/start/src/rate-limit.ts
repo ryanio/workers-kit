@@ -34,19 +34,60 @@ export interface RateLimitPolicy extends RateLimitWindow {
 const encoder = new TextEncoder();
 
 /**
+ * The client's IP as Cloudflare saw it (`cf-connecting-ip`), or `null` for a
+ * request without one (a test, a service binding). Only trust it on a Worker
+ * that Cloudflare fronts: anything else can send the header itself.
+ */
+export function clientIp(request: Request): string | null {
+  return request.headers.get("cf-connecting-ip")?.trim() || null;
+}
+
+/**
+ * The network a client limit should count: an IPv4 address as it is, an IPv6
+ * address cut to its /64, and an IPv4-mapped IPv6 address as its IPv4. A
+ * client on IPv6 holds at least a /64 and can send from any address in it,
+ * so a limit per full address is a limit per request.
+ */
+export function ipNetwork(ip: string): string {
+  const address = ip
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "");
+  if (!address.includes(":")) return address;
+  const mapped = /^(?:0*:)*:?ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(address);
+  if (mapped?.[1]) return mapped[1];
+  const [head = "", tail] = address.split("%")[0]?.split("::") ?? [];
+  const front = head ? head.split(":") : [];
+  const back = tail ? tail.split(":") : [];
+  const groups =
+    tail === undefined
+      ? front
+      : [
+          ...front,
+          ...Array(Math.max(0, 8 - front.length - back.length)).fill("0"),
+          ...back,
+        ];
+  return `${groups
+    .slice(0, 4)
+    .map((group) => (Number.parseInt(group, 16) || 0).toString(16))
+    .join(":")}::/64`;
+}
+
+/**
  * A stable, anonymous key for the client: the SHA-256 of `salt` and the
- * client IP (`cf-connecting-ip`), hex, 32 characters. Without an IP (a
- * request from a test or a service binding) the key is `anon`.
+ * client's network (`ipNetwork` of `cf-connecting-ip`, so an IPv6 client counts
+ * as its /64), hex, 32 characters. Without an IP (a request from a test or a
+ * service binding) the key is `anon`.
  */
 export async function clientKey(
   request: Request,
   { salt = "" }: { salt?: string } = {},
 ): Promise<string> {
-  const ip = request.headers.get("cf-connecting-ip")?.trim();
+  const ip = clientIp(request);
   if (!ip) return "anon";
   const digest = await crypto.subtle.digest(
     "SHA-256",
-    encoder.encode(`${salt}\n${ip}`),
+    encoder.encode(`${salt}\n${ipNetwork(ip)}`),
   );
   return [...new Uint8Array(digest).slice(0, 16)]
     .map((b) => b.toString(16).padStart(2, "0"))

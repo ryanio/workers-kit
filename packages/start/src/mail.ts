@@ -80,12 +80,20 @@ function headersFor(message: MailMessage): Record<string, string> {
   return headers;
 }
 
-const formatAddress = (a: MailAddress) =>
-  typeof a === "string"
-    ? a
-    : a.name
-      ? `${a.name.replace(/["\\]/g, "")} <${a.email}>`
-      : a.email;
+/**
+ * `Name <email>`. A name with RFC 5322 specials in it (`<`, `,`, `@` and the
+ * like) is quoted, so a user-chosen name such as `x <a@b>, c@d` stays a name
+ * rather than adding addresses. Quotes, backslashes and line breaks are
+ * dropped, since they could close the quoting.
+ */
+const formatAddress = (a: MailAddress) => {
+  if (typeof a === "string") return a;
+  const name = a.name?.replace(/["\\\r\n]/g, "").trim();
+  if (!name) return a.email;
+  return /[()<>[\]:;@,.]/.test(name)
+    ? `"${name}" <${a.email}>`
+    : `${name} <${a.email}>`;
+};
 
 /** The `send_email` binding, structurally, so this module needs no Workers types. */
 export interface SendEmailBinding {

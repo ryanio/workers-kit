@@ -224,6 +224,8 @@ async function googleJson<T>(
 ): Promise<T> {
   const res = await fetcher(url, {
     method: "POST",
+    // Never follow a redirect with the bearer token on it.
+    redirect: "manual",
     headers: {
       authorization: `Bearer ${token}`,
       "content-type": "application/json",

@@ -8,15 +8,19 @@ const UNSAFE = /[^a-zA-Z0-9_-]/g;
 const MAX_ID = 100;
 
 /**
- * `<job>-<key>`, in the characters Workflows accepts, at most 100 long. Other
- * characters become `_`. An id past 100 keeps its first 87 characters and
- * ends in `-` and a 12-character hash of the whole id, so two long keys that
- * share a prefix still get different ids. Ids of 100 or fewer are unchanged.
+ * `<job>-<key>`, in the characters Workflows accepts, at most 100 long. An id
+ * already in those characters and at most 100 long is used as it is. Any other
+ * character becomes `_`, and then the id ends in `-` and a 12-character hash
+ * of the raw `<job>-<key>`, so `a.b@c` and `a_b@c` never share an id. An id
+ * past 100 keeps its first 87 characters and ends in the same hash, so two
+ * long keys that share a prefix still get different ids.
  */
 export function instanceId(job: string, key: string): string {
-  const id = `${job}-${key}`.replace(UNSAFE, "_");
-  if (id.length <= MAX_ID) return id;
-  return `${id.slice(0, MAX_ID - 13)}-${hash12(`${job}-${key}`)}`;
+  const raw = `${job}-${key}`;
+  const id = raw.replace(UNSAFE, "_");
+  if (id === raw && id.length <= MAX_ID) return id;
+  const suffix = `-${hash12(raw)}`;
+  return id.slice(0, MAX_ID - suffix.length) + suffix;
 }
 
 /** 48 bits of FNV-1a over the UTF-16 code units, as 12 hex characters. Stable across runtimes. */
