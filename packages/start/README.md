@@ -36,6 +36,7 @@ Check this list before writing a helper in an app. Anything generic to TanStack 
 | `workers-start/cookies`         | `readCookie`, `parseCookies`, `serializeCookie`, `clearCookie`, `appendCookie`                                                                                                                                      | Cookies on plain `Request` and `Response` objects, and a clear a browser will honour                     |
 | `workers-start/tokens`          | `signValue`, `verifyValue`, `signatureOf`, `verifySignature`, `sessionCookie`                                                                                                                                       | Signed payloads a stranger can hold, and a session cookie with a sliding expiry                          |
 | `workers-start/format`          | `plural`, `counted`, `compactCount`, `formatBytes`, `timeAgo`, `dateTime`, `visitorTimeZone`, `utcStamp`, `usd`, `slugify`, `truncate`, `wrapWords` and the rest                                                    | Counts, plurals, relative times, UTC stamps, money, slugs and word wrapping                              |
+| `workers-start/local-time`      | `localTime`, `localizeTimes`, `watchLocalTimes`, `LOCAL_TIME_SCRIPT`                                                                                                                                                | Dates in the reader's time zone on pages cached for everyone                                             |
 | `workers-start/discord/gateway` | `discordGateway`, the intent constants                                                                                                                                                                              | One Discord gateway websocket from a Durable Object: identify, heartbeat, resume, back off               |
 | `workers-start/accept`          | `parseAccept`, `quality`                                                                                                                                                                                            | Accept header parsing                                                                                    |
 | `workers-start/check-bundle`    | `workers-start-check-bundle` (bin)                                                                                                                                                                                  | Fails a build that would ship a local secret                                                             |
@@ -876,6 +877,22 @@ dateTime(row.created_at, { timeZone }); // "20 Nov 2026, 22:30 EST"
 timeAgo(row.created_at, { timeZone }); // "3h ago", or the date in their zone past 30 days
 // in the browser: { timeZone: "local" }
 ```
+
+### Dates on pages cached for everyone
+
+An edge-cached or static page is rendered once for every visitor, so it cannot carry one visitor's zone. Write the date with `localTime` on the server, which gives a `<time>` holding the UTC date (still a true date without JavaScript), and let the browser rewrite it in the reader's zone:
+
+```ts
+import { LOCAL_TIME_SCRIPT, localTime } from "workers-start/local-time";
+
+// server
+html += `Posted ${localTime(post.createdAt)}`; // "date", or "datetime", "ago", "year"
+html += `<script>${LOCAL_TIME_SCRIPT}</script>`; // once, at the end of the page
+```
+
+- A bundled page imports `localizeTimes(document)` instead of the script text, and `watchLocalTimes(document)` to cover content added later (infinite scroll, client navigation). `LOCAL_TIME_SCRIPT` does both.
+- `{ order: "mdy" }` writes "Nov 20, 2026". The script is self-contained, and its test checks it writes what the functions write.
+- A page under a Content Security Policy needs the script's hash or a nonce, or the script served as a file.
 
 - A date argument is an ISO string, epoch milliseconds or a `Date`. Anything unparseable gives an empty string rather than `Invalid Date`, so a bad row leaves a gap in the page instead of a mark across it.
 - `toMillis` reads a timestamp with no zone as UTC. `Date.parse` already does that for `2026-11-20`, but not for `2026-11-20 14:03:00`, which SQLite's `datetime()` returns and which otherwise reads hours out on a fresh row.

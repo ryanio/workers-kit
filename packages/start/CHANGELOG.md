@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.27.0 (2026-11-21)
+
+- `workers-start/local-time`: `localTime(value, kind)` writes a `<time data-local>` with the UTC date for a page cached for everyone, and `localizeTimes`, `watchLocalTimes` or the self-contained `LOCAL_TIME_SCRIPT` rewrite it in the reader's zone in the browser.
+
 ## 0.26.0 (2026-11-21)
 
 - `fullDate` and `dateTime` take `order: "mdy"` for the US order ("Nov 20, 2026") and `weekday` ("Fri, 20 Nov 2026"); `timeAgo` takes `order` for its fallback date.
