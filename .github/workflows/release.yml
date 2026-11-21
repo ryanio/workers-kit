@@ -68,7 +68,19 @@ jobs:
             name=$(node -p "require('./$dir/package.json').name")
             version=$(node -p "require('./$dir/package.json').version")
             tag="$name@$version"
-            npm publish --workspace "$dir" --provenance
+            # npm's metadata can lag a publish by minutes, so a run right
+            # after another one can see a version as new that the other run
+            # just published. That version is skipped, not a failure.
+            status=0
+            npm publish --workspace "$dir" --provenance > publish.log 2>&1 || status=$?
+            cat publish.log
+            if [ "$status" -ne 0 ]; then
+              if grep -q "cannot publish over the previously published" publish.log; then
+                echo "$tag was published by an earlier run, skipped"
+                continue
+              fi
+              exit "$status"
+            fi
             awk -v v="$version" '$0 ~ "^## "v" " {on=1; next} /^## / {on=0} on' "$dir/CHANGELOG.md" > notes.md
             git tag "$tag" "$GITHUB_SHA"
             git push origin "$tag"
