@@ -317,11 +317,18 @@ import { leaseStore } from "workers-jobs";
 export class JobLockObject extends DurableObject<Env> {
   private store = leaseStore(this.ctx.storage);
 
-  acquire = (key: string, leaseMs: number) => this.store.acquire(key, leaseMs);
-  renew = (key: string, token: string, leaseMs: number) =>
-    this.store.renew(key, token, leaseMs);
-  release = (key: string, token: string) => this.store.release(key, token);
-  alarm = () => this.store.sweep();
+  acquire(key: string, leaseMs: number) {
+    return this.store.acquire(key, leaseMs);
+  }
+  renew(key: string, token: string, leaseMs: number) {
+    return this.store.renew(key, token, leaseMs);
+  }
+  release(key: string, token: string) {
+    return this.store.release(key, token);
+  }
+  alarm() {
+    return this.store.sweep();
+  }
 }
 ```
 
@@ -338,6 +345,7 @@ const jobs = createJobs({
 - The TTL measures liveness, not run length. A live holder renews on `renewEveryMs` (10 seconds by default, against a lease of three intervals), so the lease only has to outlast a gap between heartbeats rather than the longest run the job could honestly have. That is what lets a dead holder's key come back in about half a minute. The lease is capped at the job's own `holdMs`, since a lease outliving the run it guards would wedge the key past the point the job calls itself stale.
 - Renewal needs room to happen: `createJobs` stops renewing one interval short of `staleAfter`, so a job whose `staleAfter` is not more than twice `renewEveryMs` never renews at all. Its lease is then simply its `staleAfter`, which is correct but is not a liveness lease: a run that dies holds the key for the whole `staleAfter` rather than for a renewal interval. Keep `staleAfter` well above twice `renewEveryMs`, or lower `renewEveryMs` for a job that is honestly that short.
 - `renew` and `release` are token-matched. A run whose lease lapsed mid-flight has already lost the key to whoever took it over: its late release does nothing rather than handing a third run the key, and its late renewal cannot evict the holder that replaced it. A matching token on a lapsed row is the other case, and renews, since any taker would have overwritten the token.
+- Rows are stored under `lease:<key>`. An app moving from its own lock object passes `keyPrefix` with the prefix that object wrote (`leaseStore(this.ctx.storage, { keyPrefix: "lock:" })`), so a lease held across the deploy is still seen and its old rows are still swept.
 - One object instance per key by default, so contention on a busy job never serializes an unrelated one. `instanceName` puts several keys in one instance.
 - The `alarm` sweep is storage hygiene only: `acquire` already treats a lapsed row as free, so deleting one can never change who holds a key. It is there because a keyed singleton keys on things that are never reused, so a run that dies without releasing leaves a row nothing will ever overwrite.
 - Every await inside `acquire`, `renew` and `release` is a storage call, and the object's input gate holds back new events while one is in flight, so two acquires cannot both read "free" before either writes. Any other I/O added inside those calls opens that gate and needs `blockConcurrencyWhile` back.

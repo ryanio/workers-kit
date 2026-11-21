@@ -241,7 +241,7 @@ export function sessionCookie<T>(
 ): SessionCookie<T> {
   const ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
   const refreshAfterMs = options.refreshAfterMs ?? Math.floor(ttlMs / 6);
-  const now = options.now ?? Date.now;
+  const now = options.now ?? (() => Date.now());
   // `maxAge` and `expires` come from `ttlMs`, so an override of either is
   // dropped rather than shipped beside the one this computes.
   const { maxAge: _maxAge, expires: _expires, ...given } = options.cookie ?? {};

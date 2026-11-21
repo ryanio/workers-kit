@@ -43,7 +43,7 @@
 import type { JobLease, JobLock } from "./types.js";
 
 /** Storage-key prefix, so a lease row is never confused with other object state. */
-const KEY_PREFIX = "lease:";
+const DEFAULT_KEY_PREFIX = "lease:";
 
 /**
  * The longest lease the store will hand out, an hour. Nothing guarded by one
@@ -88,6 +88,13 @@ export interface LeaseStoreOptions {
   now?: (() => number) | undefined;
   /** Default an hour. A longer lease than this is a caller bug and throws. */
   maxLeaseMs?: number | undefined;
+  /**
+   * Prefix on every lease row's storage key, so the rows never collide with
+   * other state in the object. Default `"lease:"`. Set it to the prefix an
+   * existing lock object already writes, so leases held across the switch are
+   * still seen and old rows are still swept.
+   */
+  keyPrefix?: string | undefined;
   /** Called when a stored row will not parse. It is then treated as absent. */
   onBadRow?: ((key: string) => void) | undefined;
 }
@@ -134,19 +141,31 @@ function parseLease(value: unknown): Lease | null {
  *     export class JobLockObject extends DurableObject<Env> {
  *       private store = leaseStore(this.ctx.storage);
  *
- *       acquire = (key: string, leaseMs: number) => this.store.acquire(key, leaseMs);
- *       renew = (key: string, token: string, leaseMs: number) =>
- *         this.store.renew(key, token, leaseMs);
- *       release = (key: string, token: string) => this.store.release(key, token);
- *       alarm = () => this.store.sweep();
+ *       acquire(key: string, leaseMs: number) {
+ *         return this.store.acquire(key, leaseMs);
+ *       }
+ *       renew(key: string, token: string, leaseMs: number) {
+ *         return this.store.renew(key, token, leaseMs);
+ *       }
+ *       release(key: string, token: string) {
+ *         return this.store.release(key, token);
+ *       }
+ *       alarm() {
+ *         return this.store.sweep();
+ *       }
  *     }
  */
 export function leaseStore(
   storage: LeaseStorage,
   options: LeaseStoreOptions = {},
 ): LeaseStore {
-  const now = options.now ?? Date.now;
+  const now = options.now ?? (() => Date.now());
   const maxLeaseMs = options.maxLeaseMs ?? MAX_LEASE_MS;
+  const keyPrefix = options.keyPrefix ?? DEFAULT_KEY_PREFIX;
+  if (keyPrefix === "") {
+    // An empty prefix would make the sweep list, and delete, every row in the object.
+    throw new Error("job lease: keyPrefix must not be empty");
+  }
 
   const check = (what: string, key: string, leaseMs: number): void => {
     if (key === "" || key.length > MAX_KEY_LENGTH) {
@@ -190,7 +209,7 @@ export function leaseStore(
       // reporting a caller bug as contention would read as a healthy skip
       // forever.
       check("acquire", key, leaseMs);
-      const storageKey = KEY_PREFIX + key;
+      const storageKey = keyPrefix + key;
       const at = now();
       const held = await read(storageKey);
       if (held !== null && held.expiresAt > at) {
@@ -207,7 +226,7 @@ export function leaseStore(
 
     async renew(key, token, leaseMs) {
       check("renew", key, leaseMs);
-      const storageKey = KEY_PREFIX + key;
+      const storageKey = keyPrefix + key;
       const held = await read(storageKey);
       if (held === null || held.token !== token) {
         return false;
@@ -219,7 +238,7 @@ export function leaseStore(
     },
 
     async release(key, token) {
-      const storageKey = KEY_PREFIX + key;
+      const storageKey = keyPrefix + key;
       const held = await read(storageKey);
       if (held === null || held.token !== token) {
         return;
@@ -229,7 +248,7 @@ export function leaseStore(
 
     async sweep() {
       const at = now();
-      const rows = await storage.list({ prefix: KEY_PREFIX });
+      const rows = await storage.list({ prefix: keyPrefix });
       const dead: string[] = [];
       let earliestLive: number | null = null;
       for (const [storageKey, value] of rows) {

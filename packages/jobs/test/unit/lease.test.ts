@@ -175,6 +175,43 @@ describe("leaseStore", () => {
     },
   );
 
+  it("sees and sweeps rows under the prefix an older lock object wrote", async () => {
+    const clock = { now: START };
+    const storage = fakeStorage();
+    storage.rows.set("lock:daily", { expiresAt: START + 60_000, token: "old" });
+    storage.rows.set("lock:gone", {
+      expiresAt: START - 120_000,
+      token: "dead",
+    });
+    storage.rows.set("other", { keep: true });
+    const store = leaseStore(storage, {
+      keyPrefix: "lock:",
+      now: () => clock.now,
+    });
+
+    expect(await store.acquire("daily", 30_000)).toEqual({ acquired: false });
+    await store.sweep();
+    expect(storage.rows.has("lock:gone")).toBe(false);
+    expect(storage.rows.has("lock:daily")).toBe(true);
+    expect(storage.rows.has("other")).toBe(true);
+    expect(() => leaseStore(storage, { keyPrefix: "" })).toThrow(/keyPrefix/);
+  });
+
+  it("reads Date.now at each call, so fake timers set after construction apply", async () => {
+    const storage = fakeStorage();
+    const store = leaseStore(storage);
+    vi.useFakeTimers({ now: START });
+    try {
+      token(await store.acquire("daily", 30_000));
+      vi.setSystemTime(START + 31_000);
+      expect((await store.acquire("daily", 30_000)).acquired).toBe(true);
+      const [row] = storage.rows.values() as Iterable<{ expiresAt: number }>;
+      expect(row?.expiresAt).toBe(START + 61_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   describe("sweep", () => {
     const seed = async (store: LeaseStore, clock: { now: number }) => {
       clock.now = START;

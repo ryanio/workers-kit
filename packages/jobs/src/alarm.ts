@@ -101,7 +101,7 @@ export function runGuard(
   storage: RunStorage,
   options: RunGuardOptions,
 ): RunGuard {
-  const now = options.now ?? Date.now;
+  const now = options.now ?? (() => Date.now());
   let since: number | null = null;
 
   return {
@@ -211,7 +211,7 @@ export function alarmRunner(
   storage: RunStorage & AlarmStorage,
   options: AlarmRunnerOptions,
 ): AlarmRunner {
-  const now = options.now ?? Date.now;
+  const now = options.now ?? (() => Date.now());
   const guard = runGuard(storage, options);
 
   const run = async (at: number): Promise<RunAnswer> => {

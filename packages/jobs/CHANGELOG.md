@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.0 (2026-11-21)
+
+- `leaseStore` takes `keyPrefix` (default `"lease:"`), so an app moving from its own lock object keeps seeing and sweeping the rows that object wrote. An empty prefix throws.
+- `leaseStore` and the alarm loop read `Date.now` at each call rather than once at construction, so fake timers set up after construction apply.
+- The `leaseStore` example uses class methods, the shape Durable Object RPC is documented for.
+
 ## 0.9.0 (2026-11-21)
 
 - `alarmRunner` runs a cron loop inside a Durable Object: one run at a time from one place, a skip for the second firing of a slot, a run taken as dead after `stuckMs`, and the object's own alarm on an `everyMs` grid as a floor under a cron that stops firing. The runner applies the guard itself, so the dedupe does not depend on each body remembering to; `guarded: false` hands it back to the body. `runGuard` is the guard on its own, with `nextTick`, `armAlarm`, `runnerCall` and `ranAt` around it.

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.18.3 (2026-11-21)
+
+- The token, cache and Discord gateway helpers read `Date.now` at each call rather than once at construction, so fake timers set up after construction apply.
+
 ## 0.18.2 (2026-11-21)
 
 - `createLogger`: `sink` gets a second argument, the fields as the call passed them before redaction and Error serialising, so a sink can hand the original `Error` to an error tracker such as Sentry and keep its grouping.

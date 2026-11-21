@@ -172,7 +172,7 @@ export async function cachedEntry<T>(
   compute: () => Promise<T>,
   options: CachedOptions,
 ): Promise<CachedEntry<T>> {
-  const now = options.now ?? Date.now;
+  const now = options.now ?? (() => Date.now());
   const freshMs = options.freshSeconds * 1000;
   const staleMs = (options.staleSeconds ?? 0) * 1000;
   const keepSeconds = Math.max(
@@ -296,7 +296,7 @@ export async function peekCached<T>(
         ),
       )
     : undefined;
-  const now = options.now ?? Date.now;
+  const now = options.now ?? (() => Date.now());
   const freshMs = options.freshSeconds * 1000;
   let envelope: Envelope<T> | null = hit
     ? ((await hit.json()) as Envelope<T>)

@@ -274,7 +274,7 @@ function parseFrame(raw: string): Frame | null {
 export function discordGateway(options: DiscordGatewayOptions): DiscordGateway {
   const storage = options.storage;
   const key = options.key ?? DEFAULT_KEY;
-  const now = options.now ?? Date.now;
+  const now = options.now ?? (() => Date.now());
   const random = options.random ?? Math.random;
   const log = options.log ?? console;
   const backoff = options.backoffMs ?? DEFAULT_BACKOFF_MS;

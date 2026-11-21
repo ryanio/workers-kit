@@ -149,6 +149,20 @@ describe("sessionCookie", () => {
     expect(found?.envelope.exp).toBe(start + 30 * DAY);
   });
 
+  it("reads Date.now at each call, so fake timers set after construction apply", async () => {
+    const session = build({ now: 0 }, { now: undefined });
+    vi.useFakeTimers({ now: start });
+    try {
+      const { cookie } = await session.issue({ uid: "usr_1" });
+      const found = await session.read(
+        withCookie(cookie.split(";")[0] as string),
+      );
+      expect(found?.envelope.exp).toBe(start + 30 * DAY);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("is not signed in once the cookie is past its expiry", async () => {
     const clock = { now: start };
     const session = build(clock);
