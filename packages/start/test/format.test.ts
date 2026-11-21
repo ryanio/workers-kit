@@ -486,3 +486,31 @@ describe("time zones", () => {
     expect(isTimeZone("local")).toBe(false);
   });
 });
+
+describe("date order and weekday", () => {
+  const late = Date.parse("2026-11-21T03:30:00Z");
+
+  it("writes the US order and a weekday that agrees with the zone's day", () => {
+    expect(fullDate(late, { order: "mdy", month: "short" })).toBe(
+      "Nov 21, 2026",
+    );
+    expect(
+      fullDate(late, {
+        timeZone: "America/New_York",
+        order: "mdy",
+        weekday: "short",
+        month: "short",
+      }),
+    ).toBe("Fri, Nov 20, 2026");
+    expect(fullDate(late, { weekday: "long" })).toBe(
+      "Saturday, 21 November 2026",
+    );
+    expect(
+      dateTime(late, {
+        timeZone: "America/New_York",
+        order: "mdy",
+        clock: "12h",
+      }),
+    ).toBe("Nov 20, 2026, 10:30 PM EST");
+  });
+});

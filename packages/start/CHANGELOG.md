@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.26.0 (2026-11-21)
+
+- `fullDate` and `dateTime` take `order: "mdy"` for the US order ("Nov 20, 2026") and `weekday` ("Fri, 20 Nov 2026"); `timeAgo` takes `order` for its fallback date.
+
 ## 0.25.0 (2026-11-21)
 
 - `fullDate` and `timeAgo` take `timeZone` (an IANA name, `"local"`, or `"UTC"`, the default), so a date a person reads can be in their zone. An unknown zone falls back to UTC.

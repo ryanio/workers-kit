@@ -277,6 +277,8 @@ export interface TimeAgoOptions {
   month?: DateOptions["month"];
   /** The zone the fallback date is read in, as `fullDate` takes it. */
   timeZone?: DateOptions["timeZone"];
+  /** The order of the fallback date, as `fullDate` takes it. */
+  order?: DateOptions["order"];
 }
 
 /**
@@ -306,7 +308,11 @@ export function timeAgo(
   if (elapsed < (options.absoluteAfterMs ?? 30 * DAY_MS)) {
     return `${Math.floor(elapsed / DAY_MS)}d ago`;
   }
-  return fullDate(then, { month: options.month, timeZone: options.timeZone });
+  return fullDate(then, {
+    month: options.month,
+    timeZone: options.timeZone,
+    order: options.order,
+  });
 }
 
 /** "2026-11-20", in UTC. */
@@ -334,6 +340,38 @@ export interface DateOptions {
    * browser. An unknown name falls back to UTC.
    */
   timeZone?: string | undefined;
+  /** "20 Nov 2026" (`dmy`, default) or "Nov 20, 2026" (`mdy`, the US order). */
+  order?: "dmy" | "mdy" | undefined;
+  /** Lead with the weekday: "Fri, 20 Nov 2026" (`short`) or "Friday, 20 Nov 2026" (`long`). */
+  weekday?: "short" | "long" | undefined;
+}
+
+const WEEKDAYS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
+
+/** The date part every date helper writes, in the order and with the weekday asked for. */
+function datePart(
+  { year, month, day }: ZonedParts,
+  options: DateOptions,
+  defaultMonth: DateOptions["month"],
+): string {
+  const name = monthName(month, options.month ?? defaultMonth);
+  const date =
+    options.order === "mdy"
+      ? `${name} ${day}, ${year}`
+      : `${day} ${name} ${year}`;
+  if (!options.weekday) return date;
+  // The weekday of the calendar date itself, so it agrees with the zone's day.
+  const index = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  const weekday = WEEKDAYS[index] ?? "";
+  return `${options.weekday === "short" ? weekday.slice(0, 3) : weekday}, ${date}`;
 }
 
 interface ZonedParts {
@@ -413,8 +451,7 @@ export function fullDate(
   if (ms === null) {
     return "";
   }
-  const { year, month, day } = zoned(ms, options.timeZone);
-  return `${day} ${monthName(month, options.month)} ${year}`;
+  return datePart(zoned(ms, options.timeZone), options, "long");
 }
 
 export interface DateTimeOptions extends DateOptions {
@@ -436,13 +473,14 @@ export function dateTime(
   if (ms === null) {
     return "";
   }
-  const { year, month, day, hour, minute } = zoned(ms, options.timeZone);
+  const parts = zoned(ms, options.timeZone);
+  const { hour, minute } = parts;
   const mm = String(minute).padStart(2, "0");
   const time =
     options.clock === "12h"
       ? `${hour % 12 || 12}:${mm} ${hour < 12 ? "AM" : "PM"}`
       : `${String(hour).padStart(2, "0")}:${mm}`;
-  const date = `${day} ${monthName(month, options.month ?? "short")} ${year}`;
+  const date = datePart(parts, options, "short");
   if (options.zoneName === false) return `${date}, ${time}`;
   return `${date}, ${time} ${zoneLabel(ms, options.timeZone)}`;
 }
