@@ -253,6 +253,36 @@ export function discordRest(options: DiscordRestOptions = {}): DiscordRest {
 }
 
 /** How an interaction is answered (the `type` of an interaction response). */
+/**
+ * How Discord shows a `<t:...>` timestamp, each in the reader's own zone and
+ * language: `t` "22:30", `T` "22:30:00", `d` "20/11/2026", `D` "20 November
+ * 2026", `f` "20 November 2026 22:30" (Discord's default), `F` with the
+ * weekday, `R` "3 hours ago".
+ */
+export type DiscordTimeStyle = "t" | "T" | "d" | "D" | "f" | "F" | "R";
+
+/**
+ * Discord's timestamp markup for a moment: `<t:1795254600:R>`. Every reader
+ * sees it in their own time zone, so a message or embed description never
+ * has to pick one. Takes epoch milliseconds, an ISO string or a Date; an
+ * unreadable value gives "". Embed titles and footers do not render it: use
+ * the embed's `timestamp` field there.
+ */
+export function discordTime(
+  value: number | string | Date | null | undefined,
+  style: DiscordTimeStyle = "f",
+): string {
+  if (value === null || value === undefined || value === "") return "";
+  const ms =
+    value instanceof Date
+      ? value.getTime()
+      : typeof value === "number"
+        ? value
+        : Date.parse(value);
+  if (!Number.isFinite(ms)) return "";
+  return `<t:${Math.floor(ms / 1000)}:${style}>`;
+}
+
 export const InteractionResponseType = {
   Pong: 1,
   ChannelMessageWithSource: 4,

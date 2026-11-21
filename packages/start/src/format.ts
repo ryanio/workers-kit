@@ -454,6 +454,19 @@ export function fullDate(
   return datePart(zoned(ms, options.timeZone), options, "long");
 }
 
+/** "November 2026", or "Nov 2026" with `month: "short"`, read in `timeZone` (UTC by default). */
+export function monthYear(
+  value: DateLike | null | undefined,
+  options: Pick<DateOptions, "month" | "timeZone"> = {},
+): string {
+  const ms = toMillis(value);
+  if (ms === null) {
+    return "";
+  }
+  const { year, month } = zoned(ms, options.timeZone);
+  return `${monthName(month, options.month)} ${year}`;
+}
+
 export interface DateTimeOptions extends DateOptions {
   /** "2:03 PM" (`12h`) or "14:03" (`24h`, default). */
   clock?: "12h" | "24h" | undefined;

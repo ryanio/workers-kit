@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.28.0 (2026-11-21)
+
+- `discordTime(value, style)` in `workers-start/discord` writes Discord's `<t:...>` timestamp markup, shown in each reader's zone.
+- `monthYear(value, { month, timeZone })` in `workers-start/format`: "November 2026".
+
 ## 0.27.0 (2026-11-21)
 
 - `workers-start/local-time`: `localTime(value, kind)` writes a `<time data-local>` with the UTC date for a page cached for everyone, and `localizeTimes`, `watchLocalTimes` or the self-contained `LOCAL_TIME_SCRIPT` rewrite it in the reader's zone in the browser.

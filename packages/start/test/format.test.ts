@@ -12,6 +12,7 @@ import {
   fullDate,
   isTimeZone,
   listOf,
+  monthYear,
   numberWord,
   ordinal,
   percent,
@@ -512,5 +513,16 @@ describe("date order and weekday", () => {
         clock: "12h",
       }),
     ).toBe("Nov 20, 2026, 10:30 PM EST");
+  });
+});
+
+describe("monthYear", () => {
+  it("names the month and year in the zone", () => {
+    const late = Date.parse("2026-12-01T03:30:00Z");
+    expect(monthYear(late)).toBe("December 2026");
+    expect(
+      monthYear(late, { timeZone: "America/New_York", month: "short" }),
+    ).toBe("Nov 2026");
+    expect(monthYear("nope")).toBe("");
   });
 });

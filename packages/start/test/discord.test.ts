@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   deferred,
   discordRest,
+  discordTime,
   InteractionResponseType,
   interactionResponse,
   pong,
@@ -206,5 +207,20 @@ describe("interaction responses", () => {
     );
     expect(res.headers.get("content-type")).toContain("application/json");
     expect(await res.json()).toEqual({ type: 4, data: { content: "hi" } });
+  });
+});
+
+describe("discordTime", () => {
+  it("writes Discord's timestamp markup in whole seconds", () => {
+    const ms = Date.parse("2026-11-21T03:30:00.900Z");
+    expect(discordTime(ms)).toBe(`<t:${Math.floor(ms / 1000)}:f>`);
+    expect(discordTime("2026-11-21T03:30:00Z", "R")).toBe(
+      `<t:${Date.parse("2026-11-21T03:30:00Z") / 1000}:R>`,
+    );
+    expect(discordTime(new Date(ms), "D")).toBe(
+      `<t:${Math.floor(ms / 1000)}:D>`,
+    );
+    expect(discordTime("not a date")).toBe("");
+    expect(discordTime(null)).toBe("");
   });
 });

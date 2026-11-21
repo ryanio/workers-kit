@@ -71,10 +71,12 @@ export type {
   DiscordRequestOptions,
   DiscordRest,
   DiscordRestOptions,
+  DiscordTimeStyle,
 } from "./discord.js";
 export {
   deferred,
   discordRest,
+  discordTime,
   InteractionResponseType,
   interactionResponse,
   MessageFlags,
@@ -146,6 +148,7 @@ export {
   isTimeZone,
   listOf,
   MINUTE_MS,
+  monthYear,
   numberWord,
   ordinal,
   percent,
