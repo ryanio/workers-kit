@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.18.2 (2026-11-21)
+
+- `createLogger`: `sink` gets a second argument, the fields as the call passed them before redaction and Error serialising, so a sink can hand the original `Error` to an error tracker such as Sentry and keep its grouping.
+
 ## 0.18.1 (2026-11-21)
 
 - `workers-start/discord/gateway`: the default `open` upgrades over `https://` in place of the `wss://` URL Discord hands out, which a Worker's `fetch` refuses, so a gateway with no `open` of its own now connects in production. The default `discover` sends Discord's `DiscordBot (url, version)` user agent and times out after 10 seconds.

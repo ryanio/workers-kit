@@ -11,6 +11,22 @@ afterEach(() => {
 });
 
 describe("createLogger", () => {
+  it("hands the sink the original Error and fields beside the cleaned entry", () => {
+    const seen: { entry: LogEntry; raw: Record<string, unknown> }[] = [];
+    const error = new Error("boom");
+    createLogger("a", {
+      base: { app: "shop" },
+      sink: (entry, raw) => seen.push({ entry, raw }),
+    }).error("failed", { error, token: "secret" });
+
+    const [{ entry, raw }] = seen as [(typeof seen)[number]];
+    expect(raw.error).toBe(error);
+    expect(raw.token).toBe("secret");
+    expect(raw.app).toBe("shop");
+    expect(entry.error).not.toBeInstanceOf(Error);
+    expect(entry.token).toBe("[redacted]");
+  });
+
   it("writes one object per call to the console method for its level", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});

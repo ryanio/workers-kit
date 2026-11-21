@@ -622,7 +622,7 @@ try {
 - `mask` keeps part of a value instead of redacting all of it: `mask: { email: (v) => "***@" + String(v).split("@")[1], userId: (v) => String(v).slice(0, 8) }`. Its keys match the way `redact` entries do, and a mask wins over redaction for its key. A mask that throws writes `"[redacted]"`.
 - An `Error` becomes `{ name, message, stack }`, with its `cause` serialised the same way. `stacks: false` leaves `stack` out of every Error and cause, for logs that should stay small. Dates become ISO strings, bigints strings, and a cycle `"[circular]"`. Nesting past 8 levels is cut off as `"[truncated]"`.
 - `level` (default `info`) drops anything below it. `log.child(fields)` returns a logger that adds `fields` to every entry and keeps the level, redaction and sink.
-- `sink` receives each entry instead of the console, for tests or another transport.
+- `sink` receives each entry instead of the console, for tests or another transport. Its second argument is the fields as passed, before redaction and Error serialising, so a sink can hand the original Error to an error tracker: `sink: (entry, raw) => { console.log(entry); if (entry.level === "error" && raw.error instanceof Error) Sentry.captureException(raw.error) }`. Never write `raw` out as it is.
 
 `requestId(request)` returns the `cf-ray` header, else `x-request-id`, else a new UUID, so one id ties together every line of a request.
 

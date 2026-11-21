@@ -28,8 +28,14 @@ export interface LoggerOptions {
   redact?: string[];
   /** Fields added to every entry. */
   base?: LogFields;
-  /** Receives each entry instead of the console, for tests or another transport. */
-  sink?: (entry: LogEntry) => void;
+  /**
+   * Receives each entry instead of the console, for tests or another
+   * transport. `raw` is the fields as the call passed them, merged over
+   * `base`, before redaction and Error serialising: it is there to hand the
+   * original `Error` to an error tracker (`Sentry.captureException(raw.error)`),
+   * and should not be written anywhere as it is.
+   */
+  sink?: (entry: LogEntry, raw: LogFields) => void;
   /** The lowest level written. Default `info`. */
   level?: LogLevel;
   /**
@@ -200,18 +206,14 @@ export function createLogger(
 
   const emit = (at: LogLevel, msg: string, fields?: LogFields) => {
     if (RANK[at] < threshold) return;
-    const extra = clean(
-      { ...base, ...fields },
-      rules,
-      0,
-      new WeakSet(),
-    ) as LogFields;
+    const raw: LogFields = { ...base, ...fields };
+    const extra = clean(raw, rules, 0, new WeakSet()) as LogFields;
     const entry: LogEntry = { level: at, scope, msg, ...extra };
     // A field never replaces the three keys every query depends on.
     entry.level = at;
     entry.scope = scope;
     entry.msg = msg;
-    sink(entry);
+    sink(entry, raw);
   };
 
   return {
