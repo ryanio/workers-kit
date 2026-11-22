@@ -59,6 +59,11 @@ test('fenced blocks and placeholders are skipped', () => {
 	assert.deepEqual(run({ 'AGENTS.md': doc }), [])
 })
 
+test('a fence after a blank line ends at its own closing fence', () => {
+	const doc = 'Intro\n\n```bash\nnpm test\n```\n\n`apps/api/gone.ts`\n\n```md\nx\n```\n'
+	assert.deepEqual(run({ 'AGENTS.md': doc }), ['AGENTS.md:7 apps/api/gone.ts'])
+})
+
 test('line-number suffixes and module specifiers resolve', () => {
 	const doc = '`apps/api/src/lib/auth.ts:12-30` `apps/api/src/lib/auth.js` `apps/api/src/lib/auth`'
 	assert.deepEqual(run({ 'AGENTS.md': doc }), [])
