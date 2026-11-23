@@ -34,11 +34,11 @@ export interface SentryEventLike {
   exception?: { values?: { value?: string; type?: string }[] };
 }
 
-/** A synchronous `beforeSend`: the event to send, or null to drop it. */
+/** A `beforeSend`: the event to send, or null to drop it, now or as a promise. */
 export type SentryBeforeSend = (
   event: ErrorEvent,
   hint: EventHint,
-) => ErrorEvent | null;
+) => ErrorEvent | null | PromiseLike<ErrorEvent | null>;
 /** One `ignoreSpans` entry: a span name, a pattern, or a filter on name, op and attributes. */
 export type SentryIgnoreSpan = NonNullable<Options["ignoreSpans"]>[number];
 
@@ -201,15 +201,37 @@ export function sentryConnectSource(
   return parseDsn(dsn)?.origin;
 }
 
+function isThenable(
+  value: ReturnType<SentryBeforeSend>,
+): value is PromiseLike<ErrorEvent | null> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { then?: unknown }).then === "function"
+  );
+}
+
 function chain(...steps: (SentryBeforeSend | undefined)[]): SentryBeforeSend {
-  return (event, hint) => {
-    let current: ErrorEvent | null = event;
-    for (const step of steps) {
+  // Synchronous while every step is, so a dropped event is dropped at once;
+  // from the first step that returns a promise, the rest run after it.
+  const run = (
+    event: ErrorEvent | null,
+    hint: EventHint,
+    from: number,
+  ): ReturnType<SentryBeforeSend> => {
+    let current = event;
+    for (let i = from; i < steps.length; i++) {
+      const step = steps[i];
       if (!step || current === null) continue;
-      current = step(current, hint);
+      const next = step(current, hint);
+      if (isThenable(next)) {
+        return Promise.resolve(next).then((value) => run(value, hint, i + 1));
+      }
+      current = next;
     }
     return current;
   };
+  return (event, hint) => run(event, hint, 0);
 }
 
 interface CommonOptions {

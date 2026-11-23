@@ -84,6 +84,26 @@ describe("workerSentryOptions", () => {
     expect(options).not.toHaveProperty("beforeSendTransaction");
   });
 
+  it("awaits an async beforeSend, as Sentry does", async () => {
+    const options = workerSentryOptions(
+      { SENTRY_DSN: DSN },
+      {
+        beforeSend: async (event) =>
+          event.message === "drop" ? null : { ...event, tags: { late: "1" } },
+      },
+    );
+    expect(options.beforeSend(at("http://localhost/"), {})).toBeNull();
+    await expect(
+      options.beforeSend({ ...at("https://example.com/"), message: "x" }, {}),
+    ).resolves.toMatchObject({ tags: { late: "1" } });
+    await expect(
+      options.beforeSend(
+        { ...at("https://example.com/"), message: "drop" },
+        {},
+      ),
+    ).resolves.toBeNull();
+  });
+
   it("collects no user info, cookies, bodies, query data or AI content by default", () => {
     const options = workerSentryOptions({ SENTRY_DSN: DSN });
     expect(options.dataCollection).toEqual(SENTRY_DATA_COLLECTION);

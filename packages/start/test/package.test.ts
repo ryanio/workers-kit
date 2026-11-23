@@ -37,4 +37,28 @@ describe("built package", () => {
       expect(require.resolve(specifier), specifier).toBeTruthy();
     }
   });
+
+  it("keeps optional peers out of the root entry's types", () => {
+    // An app without @sentry/core or react imports the root entry too, and a
+    // declaration that names a missing peer fails its tsc (TS2307).
+    const pkg = JSON.parse(
+      readFileSync(join(import.meta.dirname, "..", "package.json"), "utf8"),
+    );
+    const peers = Object.keys(pkg.peerDependencies ?? {});
+    const seen = new Set<string>();
+    const reached: string[] = [];
+    const walk = (file: string) => {
+      if (seen.has(file)) return;
+      seen.add(file);
+      const text = readFileSync(join(DIST, file), "utf8");
+      for (const [, spec] of text.matchAll(/from\s+["']([^"']+)["']/g)) {
+        if (!spec) continue;
+        if (spec.startsWith("./"))
+          walk(spec.slice(2).replace(/\.js$/, ".d.ts"));
+        else reached.push(spec);
+      }
+    };
+    walk("index.d.ts");
+    expect(reached.filter((spec) => peers.includes(spec))).toEqual([]);
+  });
 });

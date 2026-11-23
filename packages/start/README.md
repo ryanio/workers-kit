@@ -336,7 +336,7 @@ const queries = await searchConsoleQuery(token, "sc-domain:example.com", {
 
 ## Sentry
 
-`workers-start/sentry` builds the options objects for `@sentry/cloudflare` and a browser SDK without importing either, so it adds nothing to a bundle that skips Sentry. It is written for Sentry 11, and its types come from `@sentry/core` 11, an optional peer that every Sentry 11 SDK already installs.
+`workers-start/sentry` builds the options objects for `@sentry/cloudflare` and a browser SDK without importing either, so it adds nothing to a bundle that skips Sentry. It is written for Sentry 11, and its types come from `@sentry/core` 11, an optional peer that every Sentry 11 SDK already installs. For that reason the root `workers-start` entry leaves it out: import it from `workers-start/sentry`.
 
 ```ts
 import * as Sentry from "@sentry/cloudflare";
@@ -368,7 +368,7 @@ Sentry.init({
 - The browser options also drop requests that never left the device ("Failed to fetch", "Load failed", Firefox's NetworkError), errors from extensions and injected wallets, and a person declining a wallet prompt, and ignore scripts from extension URLs and Google Translate's proxy (`BROWSER_DENY_URLS`). Pass `noise` and `denyUrls` to add patterns, and `keep(event)` to keep an event that reads like noise (a handled capture from a wallet flow, say). The noise check reads the exception value, `message` and `logentry.message`.
 - The Worker options get no message filters: browser wording describes nothing workerd says, so a filter there could only hide a real failure.
 - `sentryReportUri(dsn)` returns the project's CSP report endpoint (`https://<key>@<host>/<projectId>` becomes `https://<host>/api/<projectId>/security/?sentry_key=<key>`), for `contentSecurityPolicy({ reportUri })`. `sentryConnectSource(dsn)` returns `https://<host>` for `connect-src`, which also covers a self-hosted Sentry the `sentry` preset does not. Both return undefined for a missing or invalid DSN.
-- `tracesSampleRate` is left unset unless given, which turns tracing off entirely (a rate of 0 still creates unsampled spans). `release` and `environment` are left unset unless given, so `@sentry/cloudflare` reads `SENTRY_RELEASE` (or `CF_VERSION_METADATA`) and `SENTRY_ENVIRONMENT` itself. `beforeSend` runs after the built-in filters; spread the result to add integrations or a sampler.
+- `tracesSampleRate` is left unset unless given, which turns tracing off entirely (a rate of 0 still creates unsampled spans). `release` and `environment` are left unset unless given, so `@sentry/cloudflare` reads `SENTRY_RELEASE` (or `CF_VERSION_METADATA`) and `SENTRY_ENVIRONMENT` itself. `beforeSend` runs after the built-in filters, and may return a promise; spread the result to add integrations or a sampler.
 
 ## Mail
 

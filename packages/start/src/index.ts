@@ -307,25 +307,6 @@ export {
   withSecurityHeaders,
 } from "./security.js";
 export type {
-  BrowserSentryOptions,
-  SentryEventLike,
-  WorkerSentryOptions,
-} from "./sentry.js";
-export {
-  BROWSER_DENY_URLS,
-  browserSentryOptions,
-  dropLocalEvents,
-  EXTENSION_ERROR,
-  isBrowserNoise,
-  isLocalEvent,
-  NETWORK_ERROR,
-  sentryConnectSource,
-  sentryReportUri,
-  USER_REJECTION,
-  validDsn,
-  workerSentryOptions,
-} from "./sentry.js";
-export type {
   LlmsBlock,
   LlmsItem,
   LlmsLink,

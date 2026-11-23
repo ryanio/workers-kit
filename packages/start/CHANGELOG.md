@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.32.0 (2026-11-22)
+
+- The root `workers-start` entry no longer re-exports `workers-start/sentry`. Its types name `@sentry/core`, an optional peer, so since 0.31.0 an app without Sentry that imported anything from the root failed `tsc` (TS2307), or with `skipLibCheck` saw the Sentry types turn to `any`. Import the Sentry options from `workers-start/sentry`. A test now fails when the root entry's types reach an optional peer.
+- `beforeSend` may be async again, as Sentry 11's own type allows: the chain stays synchronous while every step is, and awaits from the first step that returns a promise. 0.31.0 typed it as synchronous, which failed `tsc` for an async one.
+- Left out of 0.31.0's notes: `browserSentryOptions`' `keep(event)` receives a Sentry `ErrorEvent`, so a predicate written against a looser type may need its parameter type changed.
+
 ## 0.31.0 (2026-11-22)
 
 - `workers-start/sentry` supports Sentry 11 only. The options are typed against `@sentry/core` 11 (an optional peer that every Sentry 11 SDK installs), so `beforeSend` gets a real `ErrorEvent` and `EventHint`. Apps on Sentry 10 upgrade every `@sentry/*` package to 11 first.
