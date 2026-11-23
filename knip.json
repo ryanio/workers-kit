@@ -25,7 +25,7 @@
       "project": ["src/**/*.ts", "test/**/*.ts"]
     },
     "packages/wallet": {
-      "entry": ["src/index.ts", "test/**/*.ts"],
+      "entry": ["src/{index,address}.ts", "test/**/*.ts"],
       "project": ["src/**/*.ts", "test/**/*.ts"]
     }
   }

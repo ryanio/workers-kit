@@ -1,3 +1,4 @@
+export { type ShortAddressOptions, shortAddress } from "./address.js";
 export {
   type RpcRequest,
   rpcSignatureClient,

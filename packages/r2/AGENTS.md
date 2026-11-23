@@ -10,7 +10,6 @@
 ## Rules
 
 - Consumers: calvin, glyphbots and sitewise (all in `~/dev`). Before adding a feature, search them for hand-rolled versions of it; after a release, move them onto it.
-- The package is `"private": true` until its npm name has a trusted publisher (see the repo's AGENTS.md, Releases).
 - `aws4fetch` is the only peer and there are no runtime dependencies.
 - `putUrl` always signs with `allHeaders: true`. Without it aws4fetch signs only `host` in query mode, and the content type becomes a suggestion a client can ignore.
 - A key goes through `encodeKey` before it reaches a URL, on every method. Loosening its checks lets a signature cover a different key than the caller named.

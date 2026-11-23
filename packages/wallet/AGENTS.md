@@ -6,7 +6,8 @@
 
 - `src/signature.ts`: `verifyWalletSignature`, `rpcSignatureClient` and the `SignatureClient` type.
 - `src/siwe.ts`: `parseSiwe`, `checkSiwe` and `verifySiwe`.
-- `src/index.ts`: the only entry point.
+- `src/address.ts`: `shortAddress`, the `workers-wallet/address` entry, which imports no viem.
+- `src/index.ts`: the root entry, everything.
 - `test/signature.test.ts`, `test/siwe.test.ts`: generated keys sign through `privateKeyToAccount`, and a fake `verifyMessage` stands in for the chain. `rpcSignatureClient` tests answer `eth_call` and `eth_chainId` from a fake request function. No test touches the network.
 
 ## Rules
@@ -15,4 +16,3 @@
 - `viem` is the only peer dependency. No runtime dependencies of its own.
 - `undefined` from `verifyWalletSignature` means the chain could not answer, and `false` means it answered no. Keep the two apart: callers map them to 503 and 403. Turning one into the other is a breaking change.
 - A plain account's signature never calls the client. Only a signature that does not recover to the address goes to the chain.
-- The package is `"private": true` until the npm name has a trusted publisher (see the repo's Releases section).

@@ -18,6 +18,7 @@ It has no runtime dependencies. `viem` is a peer.
 | `verifySiwe`            | All three in one call                                                                             |
 | `rpcSignatureClient`    | A `SignatureClient` on your own JSON-RPC function, for an app without a viem client               |
 | `SignatureClient`       | The methods of a viem `PublicClient` the smart wallet check uses                                  |
+| `shortAddress`          | "0x49a3…d2b2" for a person to read, also on `workers-wallet/address`, which imports no viem       |
 
 ## Install
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0 (2026-11-23)
+
+- `shortAddress(value, { head, tail, ellipsis })` writes "0x49a3…d2b2" (6 and 4 by default), and leaves a value too short to shorten whole. It is on the root and on `workers-wallet/address`, which imports no viem, for a page that only shows addresses.
+
 ## 0.2.0 (2026-11-21)
 
 - `checkSiwe`'s `uri` takes a string or a list, and both sides are normalised before the compare: scheme and host lowercased, a trailing slash and a default port dropped. An app can allow its www and bare hosts.
