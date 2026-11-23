@@ -1,0 +1,51 @@
+{
+  "name": "doc-refs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Checks that AGENTS.md, READMEs, skills and other agent docs only name files and slash commands that exist in the repo.",
+  "license": "MIT",
+  "author": "Ryan Ghods",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ryanio/workers-kit.git",
+    "directory": "packages/doc-refs"
+  },
+  "homepage": "https://github.com/ryanio/workers-kit/tree/main/packages/doc-refs#readme",
+  "bugs": {
+    "url": "https://github.com/ryanio/workers-kit/issues"
+  },
+  "keywords": [
+    "agents",
+    "agents-md",
+    "claude-code",
+    "docs",
+    "dead-links",
+    "lint"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "bin": {
+    "doc-refs": "bin/doc-refs.mjs"
+  },
+  "exports": {
+    ".": "./src/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "npm test"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

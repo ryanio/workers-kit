@@ -9,14 +9,13 @@
     "node": ">=22"
   },
   "scripts": {
-    "check": "npm run check:doc-refs && npm run test:doc-refs && npm run check:consumers && npm run check:peers && npm run check:packages && npm run check:lockfile && npm run lint && npm run build -w packages/start && npm run check --workspaces && npm run deadcode",
+    "check": "npm run check:doc-refs && npm run check:consumers && npm run check:peers && npm run check:packages && npm run check:lockfile && npm run lint && npm run build -w packages/start && npm run check --workspaces && npm run deadcode",
     "lint": "biome check",
     "format": "biome check --write",
     "test": "npm test --workspaces",
     "build": "npm run build --workspaces",
     "deadcode": "knip",
-    "check:doc-refs": "node scripts/doc-refs/doc-refs.mjs",
-    "test:doc-refs": "node --test tools/doc-refs/test/*.test.mjs",
+    "check:doc-refs": "node packages/doc-refs/bin/doc-refs.mjs",
     "check:consumers": "node scripts/check-consumers.mjs",
     "check:peers": "node scripts/check-peer-ranges.mjs",
     "check:packages": "node scripts/check-package-list.mjs",

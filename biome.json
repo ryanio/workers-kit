@@ -7,12 +7,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": [
-      "**",
-      "!scripts/doc-refs",
-      "!tools/doc-refs",
-      "!packages/api/test/fixtures"
-    ]
+    "includes": ["**", "!packages/api/test/fixtures"]
   },
   "formatter": {
     "indentStyle": "space"

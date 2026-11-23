@@ -2,11 +2,11 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
     ".": {
-      "entry": [
-        "scripts/*.mjs",
-        "tools/doc-refs/sync.mjs",
-        "tools/doc-refs/test/*.test.mjs"
-      ]
+      "entry": ["scripts/*.mjs"]
+    },
+    "packages/doc-refs": {
+      "entry": ["test/**/*.mjs"],
+      "project": ["bin/**/*.mjs", "src/**/*.mjs", "test/**/*.mjs"]
     },
     "packages/start": {
       "entry": ["src/*.ts", "test/**/*.ts"],

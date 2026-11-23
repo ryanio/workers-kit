@@ -1,10 +1,38 @@
 # doc-refs
 
-It lives in `ryanio/workers-kit` at `tools/doc-refs`, outside the npm workspaces, and is never published. The workers-kit gate runs its tests; `npm run sync` runs from this folder and writes into the repos checked out beside workers-kit.
+[![npm](https://img.shields.io/npm/v/doc-refs?color=f38020&label=npm)](https://www.npmjs.com/package/doc-refs) [![CI](https://github.com/ryanio/workers-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/ryanio/workers-kit/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/ryanio/workers-kit/blob/main/LICENSE)
 
-The shared checker that keeps agent docs pointing at things that exist. It is vendored into 123shoot, calvin, coral, flock, glyphbots, musegod, sitewise, terrakin, wompworld, workers-kit and x.
+A command line check that the docs coding agents read (AGENTS.md, CLAUDE.md, READMEs, skills, slash commands) only name files and commands that still exist. Run it in a repo's gate and a rename that strands a doc fails CI instead of misleading the next agent.
 
-Each repo gets a copy at `scripts/doc-refs/doc-refs.mjs` and runs it as `npm run check:doc-refs`, chained into that repo's gate. Vendoring rather than a package dependency means CI, a worktree or a cloud session in that repo needs no access to this one.
+It runs on Node 22 or later, needs git, and has no dependencies.
+
+## What is in it
+
+| Export / command                         | For                                                                                                   |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `doc-refs` (bin)                         | Checks the git repo holding the current directory. Exit 1 on a broken reference, 2 outside a git repo |
+| `doc-refs --report`                      | The same findings, always exit 0                                                                      |
+| `check`                                  | The check itself, on a file list and a reader you pass, for running it from your own script or test   |
+| `main`                                   | What the bin runs: `main({ cwd, argv })` returns the exit code                                        |
+| `extract`, `trackedTree`, `globToRegExp` | The pieces `check` is built from                                                                      |
+
+## Install
+
+```bash
+npm install --save-dev doc-refs
+```
+
+Add it to the gate:
+
+```json
+{
+  "scripts": {
+    "check:doc-refs": "doc-refs"
+  }
+}
+```
+
+A repo with no package.json can run `npx doc-refs`.
 
 ## What it checks
 
@@ -18,9 +46,9 @@ Three kinds of reference, the ones it can resolve without guessing:
 
 Symbols, constants, npm scripts and flags are not checked. Matching them takes heuristics, and a check that fails CI on a correct doc gets turned off.
 
-## Per-repo config
+## Config
 
-`doc-refs.config.json` sits beside each copy and is never synced:
+`doc-refs.config.json` at the repo root, optional:
 
 ```json
 {
@@ -54,20 +82,4 @@ Symbols, constants, npm scripts and flags are not checked. Matching them takes h
 
 ## Changing it
 
-Edit `lib/doc-refs.mjs`, then:
-
-```bash
-npm test
-```
-
-```bash
-npm run sync
-```
-
-```bash
-npm run report
-```
-
-`sync` writes every copy with a banner holding a hash of its body. A copy edited in place refuses to run, and `sync` refuses to overwrite it: carry the edit into `lib/doc-refs.mjs`, then run `npm run sync -- --force`. `report` runs every repo's copy without failing, which is also how `x` is covered, since it has no package.json or gate of its own. `npm run check` exits 1 if any copy is out of date.
-
-The vendored folder is excluded from each repo's Biome config, because the repos format differently (glyphbots indents with spaces).
+It lives in [`ryanio/workers-kit`](https://github.com/ryanio/workers-kit) at `packages/doc-refs`. Run `npm test -w packages/doc-refs` there; the repo's AGENTS.md has the release steps.

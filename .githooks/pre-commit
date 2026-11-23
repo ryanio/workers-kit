@@ -2,7 +2,8 @@
 # Pre-commit: Biome checks the staged files, then vitest runs, in each package
 # with a staged source, the tests that source can reach through its imports.
 # A staged vitest config runs that package's full suite, and a staged
-# package-lock.json runs every package's full suite.
+# package-lock.json runs every package's full suite. A package with no vitest
+# config runs its `npm test` when any of its files is staged.
 # Typecheck, the build and the full gate stay with `npm run check` and CI.
 
 ROOT=$(git rev-parse --show-toplevel)
@@ -25,6 +26,12 @@ LOCK=$(echo "$STAGED" | grep -qx 'package-lock.json' && echo 1)
 
 for dir in packages/*/; do
   pkg=${dir%/}
+  if ! ls "$pkg"/vitest.config.* >/dev/null 2>&1; then
+    if [ -n "$LOCK" ] || echo "$STAGED" | grep -q "^$pkg/"; then
+      npm test --silent -w "$pkg" || fail "tests in $pkg"
+    fi
+    continue
+  fi
   if [ -n "$LOCK" ] || echo "$STAGED" | grep -qE "^$pkg/vitest\.config\.[cm]?[jt]s$"; then
     (cd "$pkg" && npx vitest run) || fail "tests in $pkg"
     continue
