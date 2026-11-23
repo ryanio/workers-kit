@@ -5,11 +5,13 @@
  *   node sync.mjs           write the copies (repos are siblings of workers-kit)
  *   node sync.mjs --check   exit 1 if any copy differs from lib/, write nothing
  *   node sync.mjs --report  run each repo's copy in report mode
+ *   node sync.mjs --force   also overwrite copies that were edited in place
  *
  * Consumers vendor the file rather than depending on workers-kit, so CI, a
  * worktree or a cloud session needs no access to it. Each copy gets a banner
- * with a hash of its body; the copy refuses to run, and sync refuses to
- * overwrite it, if it was edited in place.
+ * with a hash of its body; the copy refuses to run if it was edited in place,
+ * and sync refuses to overwrite it until the edit is carried into lib/ and
+ * --force is passed.
  * A consumer's doc-refs.config.json sits beside its copy and is never synced.
  */
 import { execFileSync, execSync } from 'node:child_process'
@@ -19,7 +21,7 @@ import { fileURLToPath } from 'node:url'
 import { BANNER_RE, bodyHash, editedInPlace } from './lib/doc-refs.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const DEV = dirname(dirname(dirname(HERE)))
+const DEV = process.env.DOC_REFS_DEV ?? dirname(dirname(dirname(HERE)))
 const FILE = 'doc-refs.mjs'
 let mode = 'write'
 if (process.argv.includes('--check')) {
@@ -72,8 +74,10 @@ for (const { repo, dir } of consumers) {
 		}
 		continue
 	}
-	if (current !== null && editedInPlace(current)) {
-		console.error(`${repo}: ${dir}/${FILE} was edited in place; move the change into lib/ or restore it, then sync again`)
+	if (current !== null && editedInPlace(current) && !process.argv.includes('--force')) {
+		console.error(
+			`${repo}: ${dir}/${FILE} was edited in place; carry the edit into lib/${FILE}, then run \`npm run sync -- --force\``
+		)
 		bad++
 		continue
 	}

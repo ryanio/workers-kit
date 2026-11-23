@@ -90,6 +90,17 @@ test('config ignore and gitignored paths pass', () => {
 	assert.deepEqual(run({ 'AGENTS.md': doc }, { ignore: ['apps/api/example.ts'] }, gitIgnored), [])
 })
 
+test('a gitignored path resolved from the doc folder passes', () => {
+	const doc = '`src/generated/index.ts` `../scripts/gen.ts` `src/gone.ts`'
+	const asked = []
+	const gitIgnored = (paths) => {
+		asked.push(...paths)
+		return new Set(paths.filter((p) => p.startsWith('apps/api/src/generated/') || p === 'apps/scripts/gen.ts'))
+	}
+	assert.deepEqual(run({ 'apps/api/AGENTS.md': doc }, {}, gitIgnored), ['apps/api/AGENTS.md:1 src/gone.ts'])
+	assert.ok(!asked.includes('src/generated/index.ts'), 'a token whose first segment is not top level is not asked from the root')
+})
+
 test('a path through a tracked symlink resolves', () => {
 	const tree = trackedTree(['.agents/skills/sentry/SKILL.md', '.claude/skills'])
 	assert.equal(tree.has('.agents/skills/sentry/SKILL.md'), true)
