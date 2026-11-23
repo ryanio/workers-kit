@@ -265,7 +265,6 @@ export type {
   Mailer,
   MailMessage,
   MailResult,
-  ResendOptions,
   SendEmailBinding,
   SendingEvent,
   SendingEventKind,
@@ -280,7 +279,6 @@ export {
   parseSendingEvent,
   readInbound,
   recordingMailer,
-  resendMailer,
 } from "./mail.js";
 export type {
   RateLimitBinding,

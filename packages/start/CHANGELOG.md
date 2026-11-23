@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.36.0 (2026-11-23)
+
+`workers-start/mail` is Cloudflare Email Service only.
+
+What an app must do:
+
+- `resendMailer` and `ResendOptions` are gone. Send through `cloudflareMailer(env.EMAIL)` with a `[[send_email]]` binding, and read delivery events with `parseSendingEvent` instead of a Resend webhook.
+- `MailMessage.idempotencyKey` is gone; Email Sending has none. Claim a send in the app's own store before it goes out.
+- `MailError` takes `(message, code?)` and no longer has `status` or `body`; `permanent` reads the Email Sending `code`.
+
 ## 0.35.2 (2026-11-23)
 
 - `parseSendingEvent` returns the event's `eventId`, so a consumer can dedupe a redelivered queue message.

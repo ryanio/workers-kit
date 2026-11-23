@@ -21,11 +21,11 @@ Check this list before writing a helper in an app. Anything generic to TanStack 
 | `workers-start/access/testing`  | `createTestAccessTeam`                                                                                                                                                                                                                                                                                                                                                                                                                      | A fake Access team for tests: keys, certs and signed tokens                                                                         |
 | `workers-start/google`          | `googleAccessToken`, `createGoogleAuth`, `parseServiceAccount`, `importServiceAccountKey`, `serviceAccountJwt`, `GoogleApiError`, `ga4RunReport`, `ga4BatchRunReports`, `ga4Rows`, `inListFilter`, `searchConsoleQuery`, `GA4_SCOPE`, `SEARCH_CONSOLE_SCOPE`, `GOOGLE_TOKEN_URL`                                                                                                                                                            | Google APIs as a service account: cached tokens, GA4 reports, Search Console                                                        |
 | `workers-start/sentry`          | `workerSentryOptions`, `browserSentryOptions`, `SENTRY_DATA_COLLECTION`, `dropLocalEvents`, `isLocalEvent`, `LOCAL_SPANS`, `LOCAL_URL`, `isBrowserNoise`, `BROWSER_DENY_URLS`, `NETWORK_ERROR`, `EXTENSION_ERROR`, `USER_REJECTION`, `validDsn`, `sentryReportUri`, `sentryConnectSource`                                                                                                                                                   | Sentry 11 options for a Worker and its pages: off without a DSN, strict data collection, no local events or spans, no browser noise |
-| `workers-start/mail`            | `cloudflareMailer`, `readInbound`, `parseSendingEvent`, `decodeHeaderWords`, `resendMailer`, `recordingMailer`, `checkMessage`, `MailError`, `escapeHtml`, `escapeText`                                                                                                                                                                                                                                                                     | One `send` over Email Sending or Resend, inbound mail and delivery events from Email Service, and a fake for tests                  |
+| `workers-start/mail`            | `cloudflareMailer`, `readInbound`, `parseSendingEvent`, `decodeHeaderWords`, `recordingMailer`, `checkMessage`, `MailError`, `escapeHtml`, `escapeText`                                                                                                                                                                                                                                                                                     | One `send` over Email Sending, inbound mail and delivery events from Email Service, and a fake for tests                            |
 | `workers-start/rate-limit`      | `rateLimit`, `clientKey`, `clientIp`, `ipNetwork`, `checkRateLimit`, `tooManyRequests`, `rateLimitProblem`, `rateLimitHeaders`                                                                                                                                                                                                                                                                                                              | The rate limiting binding with hashed client keys, fail-open reporting and one 429 answer                                           |
 | `workers-start/body`            | `readJson`, `readText`, `readBytes`, `bodyProblem`, `isJsonType`                                                                                                                                                                                                                                                                                                                                                                            | Request bodies read under a byte cap, JSON type checked, schema run, failures as problems                                           |
 | `workers-start/log`             | `createLogger`, `noopLogger`, `consoleSink`, `requestId`, `DEFAULT_REDACT`                                                                                                                                                                                                                                                                                                                                                                  | Structured logs for Workers Logs, with redaction and request ids                                                                    |
-| `workers-start/webhooks`        | `timingSafeEqual`, `verifyDiscord`, `verifyHmac`, `verifySvix`                                                                                                                                                                                                                                                                                                                                                                              | Webhook signatures (Discord, HMAC senders, Svix and Resend) checked in constant time with replay windows                            |
+| `workers-start/webhooks`        | `timingSafeEqual`, `verifyDiscord`, `verifyHmac`, `verifySvix`                                                                                                                                                                                                                                                                                                                                                                              | Webhook signatures (Discord, HMAC senders, Svix) checked in constant time with replay windows                                       |
 | `workers-start/security`        | `contentSecurityPolicy`, `scriptHash`, `securityHeaders`, `withSecurityHeaders`, `applySecurityHeaders`, `securityHeadersMiddleware`, `BASE_CSP`, `CSP_PRESETS`, `DEFAULT_PERMISSIONS`                                                                                                                                                                                                                                                      | Security headers and a Content-Security-Policy builder with presets                                                                 |
 | `workers-start/cors`            | `cors`                                                                                                                                                                                                                                                                                                                                                                                                                                      | CORS with an origin allowlist, preflights and `Vary: Origin`                                                                        |
 | `workers-start/discord`         | `discordRest`, `discordTime`, `escapeMarkdown`, `embedColor`, `interactionResponse`, `deferred`, `pong`, `InteractionResponseType`, `MessageFlags`                                                                                                                                                                                                                                                                                          | A Discord REST client that waits out 429s and times out, plus interaction responses                                                 |
@@ -432,14 +432,12 @@ Sentry.init({
 
 ## Mail
 
-`workers-start/mail` sends over Cloudflare Email Sending or Resend through one `send`, and every message must carry a subject, a recipient, and both a plain text and an HTML body.
+`workers-start/mail` sends over Cloudflare Email Sending through one `send`, and every message must carry a subject, a recipient, and both a plain text and an HTML body.
 
 ```ts
-import { cloudflareMailer, resendMailer } from "workers-start/mail";
+import { cloudflareMailer } from "workers-start/mail";
 
-const mail = env.NOTIFY
-  ? cloudflareMailer(env.NOTIFY)
-  : resendMailer({ apiKey: env.RESEND_API_KEY });
+const mail = cloudflareMailer(env.EMAIL); // [[send_email]] name = "EMAIL"
 
 await mail.send({
   from: { email: "hello@example.com", name: "Example" },
@@ -449,13 +447,12 @@ await mail.send({
   html: "<p>Thanks for signing up.</p>",
   replyTo: "team@example.com",
   listUnsubscribeUrl: "https://example.com/unsubscribe?t=...", // bulk and marketing mail
-  idempotencyKey: "welcome/usr_123", // Resend only
 });
 ```
 
-- `cloudflareMailer(env.BINDING)` uses the binding's structured form. Once the sender's domain is onboarded to Email Sending, a binding with no `allowed_*` restriction sends to any recipient (Workers Paid); before that, only to verified addresses. `resendMailer({ apiKey })` posts to the Resend API with `fetch`, no SDK, and goes away once no app uses it.
-- An address is a bare string, a `Name <email>` string or `{ name, email }`; `cloudflareMailer` sends the named forms as the binding's object form. A `{ name, email }` address whose name holds `<`, `,`, `@` or another address special is sent with the name quoted, so a user-chosen name cannot add recipients or a reply address.
-- A failure throws `MailError` with a `permanent` flag, so a job step can retry only what might succeed. From Resend it carries the `status` (permanent for a 4xx other than 409 and 429); from Email Sending it carries the `code`, permanent for codes such as `E_RECIPIENT_SUPPRESSED` and `E_SENDER_NOT_VERIFIED` but not for `E_RATE_LIMIT_EXCEEDED` or `E_DAILY_LIMIT_EXCEEDED`.
+- `cloudflareMailer(env.BINDING)` uses the binding's structured form. Once the sender's domain is onboarded to Email Sending, a binding with no `allowed_*` restriction sends to any recipient (Workers Paid); before that, only to verified addresses. Email Sending has no idempotency key, so claim a send in your own store before it goes out if a retry must not mail twice.
+- An address is a bare string, a `Name <email>` string or `{ name, email }`; `cloudflareMailer` sends the named forms as the binding's object form, so a user-chosen name stays a name and cannot add recipients or a reply address.
+- A failure throws `MailError` with the Email Sending `code` and a `permanent` flag, so a job step can retry only what might succeed: permanent for codes such as `E_RECIPIENT_SUPPRESSED` and `E_SENDER_NOT_VERIFIED` but not for `E_RATE_LIMIT_EXCEEDED` or `E_DAILY_LIMIT_EXCEEDED`.
 - `listUnsubscribeUrl` adds `List-Unsubscribe` and the one-click `List-Unsubscribe-Post` header. `headers` adds any others, such as `In-Reply-To`.
 - `recordingMailer()` applies the same checks and keeps every message in `sent`, for tests. `escapeHtml` escapes text for an HTML body or attribute (`& < > " '`). `escapeText` escapes only `& < >`, for a text node or for Telegram's HTML mode, and must never go inside an attribute.
 
@@ -691,7 +688,7 @@ await signUp(body.value.email);
 
 ## Webhooks
 
-`workers-start/webhooks` checks signed webhooks on WebCrypto, with no SDK: Discord interactions (Ed25519), plain HMAC signatures (Alchemy, Neynar, GitHub and most others) and Svix (Resend, and any Standard Webhooks sender).
+`workers-start/webhooks` checks signed webhooks on WebCrypto, with no SDK: Discord interactions (Ed25519), plain HMAC signatures (Alchemy, Neynar, GitHub and most others) and Svix (any Standard Webhooks sender).
 
 ```ts
 import { verifyDiscord, verifyHmac, verifySvix } from "workers-start/webhooks";
@@ -721,8 +718,8 @@ const push = await verifyHmac(request, {
   prefix: "sha256=",
 });
 
-// Resend, through Svix
-const event = await verifySvix(request, env.RESEND_WEBHOOK_SECRET, { onError }); // whsec_...
+// Any Svix or Standard Webhooks sender
+const event = await verifySvix(request, env.WEBHOOK_SECRET, { onError }); // whsec_...
 ```
 
 - Each check reads the raw body once and returns it as text when the signature holds, or null when it does not. Parse the returned text, not the request: the body can only be read once. The signature is checked over the bytes as sent, so a body with a BOM or a byte that is not UTF-8 still verifies (with `signedPayload`, over the text it returns).

@@ -1,6 +1,7 @@
 /**
- * One way to send mail from a Worker, over Cloudflare Email Sending (the
- * `send_email` binding) or Resend, with a recording fake for tests. Every
+ * Mail from a Worker over Cloudflare Email Service: sending through the
+ * `send_email` binding, reading inbound Email Routing messages, and delivery
+ * events from Email Sending, with a recording fake for tests. Every
  * message carries both a plain text and an HTML body: some clients show only
  * one, and a message with only HTML scores worse with spam filters.
  */
@@ -25,8 +26,6 @@ export interface MailMessage {
   headers?: Record<string, string>;
   /** Adds `List-Unsubscribe` and one-click `List-Unsubscribe-Post`, for bulk and marketing mail. */
   listUnsubscribeUrl?: string;
-  /** Resend only: repeating a send with the same key within 24 hours sends once. */
-  idempotencyKey?: string;
   attachments?: MailAttachment[];
 }
 
@@ -52,30 +51,21 @@ const PERMANENT_CODES = new Set([
 ]);
 
 /**
- * A send that failed. `permanent` is true when repeating it cannot help: a
- * Resend 4xx other than 409 and 429, or an Email Sending `code` such as
- * `E_RECIPIENT_SUPPRESSED`. Rate and daily limits stay retryable.
+ * A send that failed. `permanent` is true when repeating it cannot help: an
+ * Email Sending `code` such as `E_RECIPIENT_SUPPRESSED`. Rate and daily limits,
+ * other codes and a failure with no code stay retryable.
  */
 export class MailError extends Error {
   override readonly name = "MailError";
   constructor(
     message: string,
-    readonly status?: number,
-    readonly body?: unknown,
     /** The Email Sending error code, such as `E_RECIPIENT_SUPPRESSED`. */
     readonly code?: string,
   ) {
     super(message);
   }
   get permanent(): boolean {
-    if (this.code) return PERMANENT_CODES.has(this.code);
-    return (
-      this.status !== undefined &&
-      this.status >= 400 &&
-      this.status < 500 &&
-      this.status !== 409 &&
-      this.status !== 429
-    );
+    return this.code !== undefined && PERMANENT_CODES.has(this.code);
   }
 }
 
@@ -107,27 +97,12 @@ function headersFor(message: MailMessage): Record<string, string> {
   return headers;
 }
 
-/**
- * `Name <email>`. A name with RFC 5322 specials in it (`<`, `,`, `@` and the
- * like) is quoted, so a user-chosen name such as `x <a@b>, c@d` stays a name
- * rather than adding addresses. Quotes, backslashes and line breaks are
- * dropped, since they could close the quoting.
- */
-const formatAddress = (a: MailAddress) => {
-  if (typeof a === "string") return a;
-  const name = a.name?.replace(/["\\\r\n]/g, "").trim();
-  if (!name) return a.email;
-  return /[()<>[\]:;@,.]/.test(name)
-    ? `"${name}" <${a.email}>`
-    : `${name} <${a.email}>`;
-};
-
 const NAMED_ADDRESS = /^\s*(?:"([^"]*)"|([^<"]*?))\s*<([^<>\s]+@[^<>\s]+)>\s*$/;
 
 /**
  * The binding takes a bare address or `{ email, name }`. A `Name <email>`
- * string becomes the object form, so a display name written the way Resend
- * and RFC 5322 spell it survives the move.
+ * string (RFC 5322's spelling) becomes the object form, so its display name
+ * survives.
  */
 function bindingAddress(
   a: MailAddress,
@@ -186,77 +161,9 @@ export function cloudflareMailer(binding: SendEmailBinding): Mailer {
       } catch (err) {
         throw new MailError(
           `Email Sending failed: ${err instanceof Error ? err.message : String(err)}`,
-          undefined,
-          undefined,
           errorCode(err),
         );
       }
-    },
-  };
-}
-
-export interface ResendOptions {
-  apiKey: string | undefined;
-  fetch?: (url: string, init?: RequestInit) => Promise<Response>;
-  /** Default 10 seconds. */
-  timeoutMs?: number;
-}
-
-/** Sends through the Resend API with `fetch`, no SDK. */
-export function resendMailer(options: ResendOptions): Mailer {
-  const fetcher = options.fetch ?? ((url, init) => fetch(url, init));
-  return {
-    async send(message) {
-      checkMessage(message);
-      if (!options.apiKey) throw new MailError("RESEND_API_KEY is not set.");
-      const headers = headersFor(message);
-      const body: Record<string, unknown> = {
-        from: formatAddress(message.from),
-        to: message.to,
-        subject: message.subject,
-        text: message.text,
-        html: message.html,
-      };
-      if (message.replyTo) body.reply_to = formatAddress(message.replyTo);
-      if (Object.keys(headers).length) body.headers = headers;
-      if (message.attachments?.length) {
-        body.attachments = message.attachments.map((a) => ({
-          filename: a.filename,
-          content: a.content,
-          ...(a.contentType ? { content_type: a.contentType } : {}),
-        }));
-      }
-      let res: Response;
-      try {
-        res = await fetcher("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            authorization: `Bearer ${options.apiKey}`,
-            "content-type": "application/json",
-            ...(message.idempotencyKey
-              ? { "idempotency-key": message.idempotencyKey }
-              : {}),
-          },
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(options.timeoutMs ?? 10_000),
-        });
-      } catch (err) {
-        throw new MailError(
-          `Resend did not answer: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-      const json = (await res.json().catch(() => null)) as {
-        id?: string;
-        message?: string;
-      } | null;
-      if (!res.ok) {
-        throw new MailError(
-          `Resend failed (${res.status}): ${json?.message ?? res.statusText}`,
-          res.status,
-          json,
-        );
-      }
-      return json?.id ? { id: json.id } : {};
     },
   };
 }
