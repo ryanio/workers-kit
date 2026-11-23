@@ -498,7 +498,7 @@ export default {
 };
 ```
 
-An event carries `kind`, `messageId` (match it to the `id` a `cloudflareMailer` send returned), `recipient`, `terminal` (no further events for that recipient), and where present `sender`, `subject`, `domain`, `at`, `smtpStatusCode`, `reason`, `bounceType` and `complaintType`. Cloudflare suppresses hard-bounced and complaining addresses on its own; a send to one fails with `E_RECIPIENT_SUPPRESSED`.
+An event carries `kind`, `eventId` (unique per event, for deduping a redelivery), `messageId` (match it to the `id` a `cloudflareMailer` send returned), `recipient`, `terminal` (no further events for that recipient), and where present `sender`, `subject`, `domain`, `at`, `smtpStatusCode`, `reason`, `bounceType` and `complaintType`. Cloudflare suppresses hard-bounced and complaining addresses on its own; a send to one fails with `E_RECIPIENT_SUPPRESSED`.
 
 ## Rate limiting
 

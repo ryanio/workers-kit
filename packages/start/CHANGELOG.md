@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.35.2 (2026-11-23)
+
+- `parseSendingEvent` returns the event's `eventId`, so a consumer can dedupe a redelivered queue message.
+
 ## 0.35.1 (2026-11-23)
 
 - `cloudflareMailer` sends a `Name <email>` string (`from` or `replyTo`) as the binding's `{ email, name }` form, so senders written for Resend keep their display name.

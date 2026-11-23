@@ -371,6 +371,8 @@ export type SendingEventKind =
 /** One Email Sending delivery event, flattened from the queue message. */
 export interface SendingEvent {
   kind: SendingEventKind;
+  /** Unique per event, for deduping a redelivered queue message. */
+  eventId?: string;
   messageId: string;
   recipient: string;
   sender?: string;
@@ -435,6 +437,8 @@ export function parseSendingEvent(body: unknown): SendingEvent | null {
     recipient,
     terminal: payload.terminal === true,
   };
+  const eventId = str(payload.eventId);
+  if (eventId) result.eventId = eventId;
   const sender = str(payload.sender);
   if (sender) result.sender = sender;
   const subject = str(payload.subject);

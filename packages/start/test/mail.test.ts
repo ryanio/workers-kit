@@ -209,6 +209,7 @@ describe("parseSendingEvent", () => {
       ),
     ).toEqual({
       kind: "bounced",
+      eventId: "e1",
       messageId: "msg-1",
       recipient: "gone@elsewhere.test",
       sender: "hello@example.com",
