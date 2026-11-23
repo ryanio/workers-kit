@@ -258,6 +258,8 @@ export {
   requestId,
 } from "./log.js";
 export type {
+  InboundEmail,
+  InboundMessage,
   MailAddress,
   MailAttachment,
   Mailer,
@@ -265,13 +267,18 @@ export type {
   MailResult,
   ResendOptions,
   SendEmailBinding,
+  SendingEvent,
+  SendingEventKind,
 } from "./mail.js";
 export {
   checkMessage,
   cloudflareMailer,
+  decodeHeaderWords,
   escapeHtml,
   escapeText,
   MailError,
+  parseSendingEvent,
+  readInbound,
   recordingMailer,
   resendMailer,
 } from "./mail.js";

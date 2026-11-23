@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.0 (2026-11-23)
+
+- `readInbound` reads an Email Routing message for an `email()` handler: its raw stream once, under a 25 MiB cap, with the subject decoded and the Message-ID and In-Reply-To headers.
+- `decodeHeaderWords` decodes RFC 2047 encoded words (`B` and `Q`, any charset `TextDecoder` knows) in a header value.
+- `parseSendingEvent` reads an Email Sending delivery event from a Queues event subscription (delivered, deferred, bounced, failed, rejected, complained) into one flat shape.
+- A `cloudflareMailer` failure carries the Email Sending error `code`, and `MailError.permanent` is true for codes a retry cannot fix (`E_RECIPIENT_SUPPRESSED`, `E_SENDER_NOT_VERIFIED` and the like) and false for rate and daily limits.
+
 ## 0.34.3 (2026-11-23)
 
 - `truncate` with `onWord: false` drops a space left before the ellipsis ("hello…", not "hello …"), as the word-break path already did.

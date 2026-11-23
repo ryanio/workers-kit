@@ -21,7 +21,7 @@ Check this list before writing a helper in an app. Anything generic to TanStack 
 | `workers-start/access/testing`  | `createTestAccessTeam`                                                                                                                                                                                                                                                                                                                                                                                                                      | A fake Access team for tests: keys, certs and signed tokens                                                                         |
 | `workers-start/google`          | `googleAccessToken`, `createGoogleAuth`, `parseServiceAccount`, `importServiceAccountKey`, `serviceAccountJwt`, `GoogleApiError`, `ga4RunReport`, `ga4BatchRunReports`, `ga4Rows`, `inListFilter`, `searchConsoleQuery`, `GA4_SCOPE`, `SEARCH_CONSOLE_SCOPE`, `GOOGLE_TOKEN_URL`                                                                                                                                                            | Google APIs as a service account: cached tokens, GA4 reports, Search Console                                                        |
 | `workers-start/sentry`          | `workerSentryOptions`, `browserSentryOptions`, `SENTRY_DATA_COLLECTION`, `dropLocalEvents`, `isLocalEvent`, `LOCAL_SPANS`, `LOCAL_URL`, `isBrowserNoise`, `BROWSER_DENY_URLS`, `NETWORK_ERROR`, `EXTENSION_ERROR`, `USER_REJECTION`, `validDsn`, `sentryReportUri`, `sentryConnectSource`                                                                                                                                                   | Sentry 11 options for a Worker and its pages: off without a DSN, strict data collection, no local events or spans, no browser noise |
-| `workers-start/mail`            | `cloudflareMailer`, `resendMailer`, `recordingMailer`, `checkMessage`, `MailError`, `escapeHtml`, `escapeText`                                                                                                                                                                                                                                                                                                                              | One `send` over Email Sending or Resend, text and HTML always, and a fake for tests                                                 |
+| `workers-start/mail`            | `cloudflareMailer`, `readInbound`, `parseSendingEvent`, `decodeHeaderWords`, `resendMailer`, `recordingMailer`, `checkMessage`, `MailError`, `escapeHtml`, `escapeText`                                                                                                                                                                                                                                                                     | One `send` over Email Sending or Resend, inbound mail and delivery events from Email Service, and a fake for tests                  |
 | `workers-start/rate-limit`      | `rateLimit`, `clientKey`, `clientIp`, `ipNetwork`, `checkRateLimit`, `tooManyRequests`, `rateLimitProblem`, `rateLimitHeaders`                                                                                                                                                                                                                                                                                                              | The rate limiting binding with hashed client keys, fail-open reporting and one 429 answer                                           |
 | `workers-start/body`            | `readJson`, `readText`, `readBytes`, `bodyProblem`, `isJsonType`                                                                                                                                                                                                                                                                                                                                                                            | Request bodies read under a byte cap, JSON type checked, schema run, failures as problems                                           |
 | `workers-start/log`             | `createLogger`, `noopLogger`, `consoleSink`, `requestId`, `DEFAULT_REDACT`                                                                                                                                                                                                                                                                                                                                                                  | Structured logs for Workers Logs, with redaction and request ids                                                                    |
@@ -453,11 +453,52 @@ await mail.send({
 });
 ```
 
-- `cloudflareMailer(env.BINDING)` uses the binding's structured form; its senders and recipients must be allowed in the binding's wrangler config. `resendMailer({ apiKey })` posts to the Resend API with `fetch`, no SDK.
+- `cloudflareMailer(env.BINDING)` uses the binding's structured form. Once the sender's domain is onboarded to Email Sending, a binding with no `allowed_*` restriction sends to any recipient (Workers Paid); before that, only to verified addresses. `resendMailer({ apiKey })` posts to the Resend API with `fetch`, no SDK, and goes away once no app uses it.
 - A `{ name, email }` address whose name holds `<`, `,`, `@` or another address special is sent with the name quoted, so a user-chosen name cannot add recipients or a reply address.
-- A failure throws `MailError` with Resend's `status` and a `permanent` flag (a 4xx other than 409 and 429), so a job step can retry only what might succeed.
+- A failure throws `MailError` with a `permanent` flag, so a job step can retry only what might succeed. From Resend it carries the `status` (permanent for a 4xx other than 409 and 429); from Email Sending it carries the `code`, permanent for codes such as `E_RECIPIENT_SUPPRESSED` and `E_SENDER_NOT_VERIFIED` but not for `E_RATE_LIMIT_EXCEEDED` or `E_DAILY_LIMIT_EXCEEDED`.
 - `listUnsubscribeUrl` adds `List-Unsubscribe` and the one-click `List-Unsubscribe-Post` header. `headers` adds any others, such as `In-Reply-To`.
 - `recordingMailer()` applies the same checks and keeps every message in `sent`, for tests. `escapeHtml` escapes text for an HTML body or attribute (`& < > " '`). `escapeText` escapes only `& < >`, for a text node or for Telegram's HTML mode, and must never go inside an attribute.
+
+### Inbound mail
+
+Email Routing hands each message to the Worker's `email()` handler. A catch-all (`*@example.com`) can send every address on the domain there. `readInbound` reads the message's raw stream once, which is all it allows, and refuses one over 25 MiB (or `maxBytes`) before reading it:
+
+```ts
+import { readInbound } from "workers-start/mail";
+import PostalMime from "postal-mime";
+
+export default {
+  async email(message, env, ctx) {
+    const email = await readInbound(message);
+    // email.from, email.to, email.subject (RFC 2047 decoded), email.messageId, email.inReplyTo, email.raw
+    const parsed = await PostalMime.parse(email.raw); // bodies and attachments
+    ctx.waitUntil(storeInbound(env, email, parsed));
+  },
+};
+```
+
+`readInbound` does not parse MIME, since that would need a dependency: hand `raw` to a parser such as postal-mime for bodies and attachments. `decodeHeaderWords` decodes `=?UTF-8?B?...?=` and `Q` words in any header value. To pass mail on without reading it, `message.forward(address)` sends it to a verified destination.
+
+### Delivery events
+
+Email Sending publishes `cf.email.sending.message.delivered`, `deferred`, `bounced`, `failed`, `rejected` and `complained` events to a queue through a Queues event subscription, one per sending domain. `parseSendingEvent` flattens one, and returns null for anything else on the queue:
+
+```ts
+import { parseSendingEvent } from "workers-start/mail";
+
+export default {
+  async queue(batch, env) {
+    for (const msg of batch.messages) {
+      const event = parseSendingEvent(msg.body);
+      if (event?.kind === "bounced" || event?.kind === "complained")
+        await markUndeliverable(env, event.messageId, event.kind, event.reason);
+      msg.ack();
+    }
+  },
+};
+```
+
+An event carries `kind`, `messageId` (match it to the `id` a `cloudflareMailer` send returned), `recipient`, `terminal` (no further events for that recipient), and where present `sender`, `subject`, `domain`, `at`, `smtpStatusCode`, `reason`, `bounceType` and `complaintType`. Cloudflare suppresses hard-bounced and complaining addresses on its own; a send to one fails with `E_RECIPIENT_SUPPRESSED`.
 
 ## Rate limiting
 
