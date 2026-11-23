@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.34.2 (2026-11-23)
+
+- `mapLimit` takes a function that returns a plain value as well as a promise; it threw "Cannot read properties of undefined (reading 'then')" before.
+
 ## 0.34.1 (2026-11-23)
 
 - `readBytes` returns `Uint8Array<ArrayBuffer>`, so its bytes can be passed on as a `Request` or `Response` body without a cast.

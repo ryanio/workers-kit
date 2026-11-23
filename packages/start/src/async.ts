@@ -18,14 +18,14 @@ export function chunks<T>(items: readonly T[], size: number): T[][] {
 
 /**
  * `fn` over `items` with at most `limit` running at once, the results in
- * input order. The first rejection rejects the whole call, and no item starts
+ * input order. `fn` may return a promise or a plain value. The first rejection rejects the whole call, and no item starts
  * after it; work already running finishes unobserved. A Worker caps how many
  * subrequests are open at once, so this is how a fan-out stays under it.
  */
 export function mapLimit<T, R>(
   items: readonly T[],
   limit: number,
-  fn: (item: T, index: number) => Promise<R>,
+  fn: (item: T, index: number) => R | PromiseLike<R>,
 ): Promise<R[]> {
   if (!(Number.isInteger(limit) && limit >= 1)) {
     throw new RangeError(`limit must be a whole number from 1, not ${limit}`);
@@ -44,7 +44,7 @@ export function mapLimit<T, R>(
       const index = next++;
       let run: Promise<R>;
       try {
-        run = fn(items[index] as T, index);
+        run = Promise.resolve(fn(items[index] as T, index));
       } catch (error) {
         run = Promise.reject(error);
       }

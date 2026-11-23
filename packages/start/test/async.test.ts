@@ -24,6 +24,15 @@ describe("mapLimit", () => {
     expect(peak).toBe(2);
   });
 
+  it("takes a function that returns a plain value or throws", async () => {
+    expect(await mapLimit([1, 2, 3], 2, (n) => n * 2)).toEqual([2, 4, 6]);
+    await expect(
+      mapLimit([1], 1, () => {
+        throw new Error("sync");
+      }),
+    ).rejects.toThrow("sync");
+  });
+
   it("rejects with the first failure and starts nothing after it", async () => {
     const started: number[] = [];
     await expect(
