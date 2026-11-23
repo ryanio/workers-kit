@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.35.1 (2026-11-23)
+
+- `cloudflareMailer` sends a `Name <email>` string (`from` or `replyTo`) as the binding's `{ email, name }` form, so senders written for Resend keep their display name.
+
 ## 0.35.0 (2026-11-23)
 
 - `readInbound` reads an Email Routing message for an `email()` handler: its raw stream once, under a 25 MiB cap, with the subject decoded and the Message-ID and In-Reply-To headers.

@@ -66,6 +66,27 @@ describe("cloudflareMailer", () => {
     });
   });
 
+  it("sends a Name <email> string as the binding's object form", async () => {
+    const seen: { from?: unknown; replyTo?: unknown }[] = [];
+    const mail = cloudflareMailer({
+      send: async (m) => {
+        seen.push(m);
+        return { messageId: "m" };
+      },
+    });
+    await mail.send({
+      ...message,
+      from: "Calvin <hello@calvin.vip>",
+      replyTo: '"Ryan, from Calvin" <ryan@calvin.vip>',
+    });
+    await mail.send({ ...message, from: " noreply@calvin.vip " });
+    expect(seen[0]).toMatchObject({
+      from: { email: "hello@calvin.vip", name: "Calvin" },
+      replyTo: { email: "ryan@calvin.vip", name: "Ryan, from Calvin" },
+    });
+    expect(seen[1]?.from).toBe("noreply@calvin.vip");
+  });
+
   it("wraps a binding failure in a MailError", async () => {
     const mail = cloudflareMailer({
       send: async () => {

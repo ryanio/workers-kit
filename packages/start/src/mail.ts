@@ -122,6 +122,23 @@ const formatAddress = (a: MailAddress) => {
     : `${name} <${a.email}>`;
 };
 
+const NAMED_ADDRESS = /^\s*(?:"([^"]*)"|([^<"]*?))\s*<([^<>\s]+@[^<>\s]+)>\s*$/;
+
+/**
+ * The binding takes a bare address or `{ email, name }`. A `Name <email>`
+ * string becomes the object form, so a display name written the way Resend
+ * and RFC 5322 spell it survives the move.
+ */
+function bindingAddress(
+  a: MailAddress,
+): string | { email: string; name: string } {
+  if (typeof a !== "string") return { email: a.email, name: a.name ?? "" };
+  const m = NAMED_ADDRESS.exec(a);
+  if (!m?.[3]) return a.trim();
+  const name = (m[1] ?? m[2] ?? "").trim();
+  return name ? { email: m[3], name } : m[3];
+}
+
 /** The `send_email` binding, structurally, so this module needs no Workers types. */
 export interface SendEmailBinding {
   // biome-ignore lint/suspicious/noExplicitAny: the binding's builder type lives in @cloudflare/workers-types.
@@ -138,10 +155,7 @@ export function cloudflareMailer(binding: SendEmailBinding): Mailer {
     async send(message) {
       checkMessage(message);
       const headers = headersFor(message);
-      const from =
-        typeof message.from === "string"
-          ? message.from
-          : { email: message.from.email, name: message.from.name ?? "" };
+      const from = bindingAddress(message.from);
       try {
         const result = await binding.send({
           from,
@@ -151,13 +165,7 @@ export function cloudflareMailer(binding: SendEmailBinding): Mailer {
           html: message.html,
           ...(message.replyTo
             ? {
-                replyTo:
-                  typeof message.replyTo === "string"
-                    ? message.replyTo
-                    : {
-                        email: message.replyTo.email,
-                        name: message.replyTo.name ?? "",
-                      },
+                replyTo: bindingAddress(message.replyTo),
               }
             : {}),
           ...(Object.keys(headers).length ? { headers } : {}),

@@ -454,7 +454,7 @@ await mail.send({
 ```
 
 - `cloudflareMailer(env.BINDING)` uses the binding's structured form. Once the sender's domain is onboarded to Email Sending, a binding with no `allowed_*` restriction sends to any recipient (Workers Paid); before that, only to verified addresses. `resendMailer({ apiKey })` posts to the Resend API with `fetch`, no SDK, and goes away once no app uses it.
-- A `{ name, email }` address whose name holds `<`, `,`, `@` or another address special is sent with the name quoted, so a user-chosen name cannot add recipients or a reply address.
+- An address is a bare string, a `Name <email>` string or `{ name, email }`; `cloudflareMailer` sends the named forms as the binding's object form. A `{ name, email }` address whose name holds `<`, `,`, `@` or another address special is sent with the name quoted, so a user-chosen name cannot add recipients or a reply address.
 - A failure throws `MailError` with a `permanent` flag, so a job step can retry only what might succeed. From Resend it carries the `status` (permanent for a 4xx other than 409 and 429); from Email Sending it carries the `code`, permanent for codes such as `E_RECIPIENT_SUPPRESSED` and `E_SENDER_NOT_VERIFIED` but not for `E_RATE_LIMIT_EXCEEDED` or `E_DAILY_LIMIT_EXCEEDED`.
 - `listUnsubscribeUrl` adds `List-Unsubscribe` and the one-click `List-Unsubscribe-Post` header. `headers` adds any others, such as `In-Reply-To`.
 - `recordingMailer()` applies the same checks and keeps every message in `sent`, for tests. `escapeHtml` escapes text for an HTML body or attribute (`& < > " '`). `escapeText` escapes only `& < >`, for a text node or for Telegram's HTML mode, and must never go inside an attribute.
