@@ -14,7 +14,17 @@
  * Release and environment are left unset unless given, so
  * `@sentry/cloudflare` reads `SENTRY_RELEASE` (or `CF_VERSION_METADATA`) and
  * `SENTRY_ENVIRONMENT` from the Worker's env itself.
+ *
+ * Written for Sentry 11. The types come from `@sentry/core`, an optional peer
+ * that every Sentry 11 SDK installs; nothing here is imported at runtime.
  */
+
+import type {
+  DataCollection,
+  ErrorEvent,
+  EventHint,
+  Options,
+} from "@sentry/core";
 
 /** The part of a Sentry event the filters read. */
 export interface SentryEventLike {
@@ -24,11 +34,13 @@ export interface SentryEventLike {
   exception?: { values?: { value?: string; type?: string }[] };
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: each SDK types its events differently; these options must be assignable to all of them.
-type AnyEvent = any;
-type BeforeSend = (event: AnyEvent, hint: AnyEvent) => AnyEvent;
-// biome-ignore lint/suspicious/noExplicitAny: Sentry 10 and 11 type `ignoreSpans` entries differently; these options must be assignable to both.
-type IgnoreSpan = any;
+/** A synchronous `beforeSend`: the event to send, or null to drop it. */
+export type SentryBeforeSend = (
+  event: ErrorEvent,
+  hint: EventHint,
+) => ErrorEvent | null;
+/** One `ignoreSpans` entry: a span name, a pattern, or a filter on name, op and attributes. */
+export type SentryIgnoreSpan = NonNullable<Options["ignoreSpans"]>[number];
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
@@ -57,9 +69,35 @@ export const LOCAL_URL =
  * keeps local traces out. It reads `url.full`, which the request span
  * (`http.server` in a Worker, `pageload` and `navigation` in the browser)
  * carries from its start; ignoring that root span drops its children too.
- * Sentry 10 also applies it to transactions.
  */
-export const LOCAL_SPANS = { attributes: { "url.full": LOCAL_URL } } as const;
+export const LOCAL_SPANS: SentryIgnoreSpan = {
+  attributes: { "url.full": LOCAL_URL },
+};
+
+/** Header, cookie and query names never sent: client addresses, proxies and user names. */
+const SENSITIVE_KEYS = {
+  deny: ["forwarded", "-ip", "remote-", "via", "-user"],
+};
+
+/**
+ * What the options let Sentry collect. Sentry 11 collects user info, cookies,
+ * request and response bodies, database query data and AI inputs and outputs
+ * when `dataCollection` is unset, and cookies hold sessions while bodies hold
+ * webhooks and payments. This turns all of those off and filters headers and
+ * query parameters that name a client address or user. Sentry still strips
+ * values that look like keys and tokens on its own.
+ */
+export const SENTRY_DATA_COLLECTION: DataCollection = {
+  userInfo: false,
+  cookies: false,
+  httpHeaders: { request: SENSITIVE_KEYS, response: SENSITIVE_KEYS },
+  httpBodies: [],
+  urlQueryParams: SENSITIVE_KEYS,
+  genAI: { inputs: false, outputs: false },
+  databaseQueryData: false,
+  queues: false,
+  graphQL: { document: false, variables: false },
+};
 
 /** A `beforeSend` that drops local events and keeps the rest. */
 export function dropLocalEvents<T extends SentryEventLike>(event: T): T | null {
@@ -163,9 +201,9 @@ export function sentryConnectSource(
   return parseDsn(dsn)?.origin;
 }
 
-function chain(...steps: (BeforeSend | undefined)[]): BeforeSend {
+function chain(...steps: (SentryBeforeSend | undefined)[]): SentryBeforeSend {
   return (event, hint) => {
-    let current = event;
+    let current: ErrorEvent | null = event;
     for (const step of steps) {
       if (!step || current === null) continue;
       current = step(current, hint);
@@ -180,9 +218,15 @@ interface CommonOptions {
   /** Left unset by default: an unset rate means no tracing at all, where 0 still creates unsampled spans. */
   tracesSampleRate?: number;
   /** Runs after the built-in filters. */
-  beforeSend?: BeforeSend;
+  beforeSend?: SentryBeforeSend;
   /** More `ignoreSpans` entries, added after `LOCAL_SPANS`. */
-  ignoreSpans?: readonly IgnoreSpan[];
+  ignoreSpans?: readonly SentryIgnoreSpan[];
+  /**
+   * Fields laid over `SENTRY_DATA_COLLECTION`, one by one: `{ userInfo: true }`
+   * turns user info on and keeps the rest strict. A field given replaces the
+   * default's field whole.
+   */
+  dataCollection?: DataCollection;
   /** Tags set on every event, such as `{ runtime: "worker", worker: "api" }`. */
   tags?: Record<string, string>;
   release?: string;
@@ -193,11 +237,9 @@ export interface WorkerSentryOptions {
   dsn: string | undefined;
   enabled: boolean;
   tracesSampleRate?: number;
-  beforeSend: BeforeSend;
-  /** Sentry 10 and earlier, or Sentry 11 with `traceLifecycle: "static"`. */
-  beforeSendTransaction: BeforeSend;
-  /** Sentry 11 with streamed spans, the default. */
-  ignoreSpans: IgnoreSpan[];
+  beforeSend: SentryBeforeSend;
+  ignoreSpans: SentryIgnoreSpan[];
+  dataCollection: DataCollection;
   initialScope?: { tags: Record<string, string> };
   release?: string;
   environment?: string;
@@ -217,8 +259,8 @@ export function workerSentryOptions(
     dsn,
     enabled: dsn !== undefined,
     beforeSend: chain(dropLocalEvents, options.beforeSend),
-    beforeSendTransaction: dropLocalEvents,
     ignoreSpans: [LOCAL_SPANS, ...(options.ignoreSpans ?? [])],
+    dataCollection: { ...SENTRY_DATA_COLLECTION, ...options.dataCollection },
   };
   if (options.tracesSampleRate !== undefined)
     out.tracesSampleRate = options.tracesSampleRate;
@@ -245,7 +287,7 @@ export function browserSentryOptions(
     /** More messages that are noise. */
     noise?: readonly RegExp[];
     /** Events to keep even when they read like noise, such as handled captures from a wallet flow. */
-    keep?: (event: AnyEvent) => boolean;
+    keep?: (event: ErrorEvent) => boolean;
   } = {},
 ): BrowserSentryOptions {
   const dsn = validDsn(options.dsn);
@@ -259,8 +301,8 @@ export function browserSentryOptions(
       if (options.keep?.(event)) return event;
       return isBrowserNoise(event, noise) ? null : event;
     }, options.beforeSend),
-    beforeSendTransaction: dropLocalEvents,
     ignoreSpans: [LOCAL_SPANS, ...(options.ignoreSpans ?? [])],
+    dataCollection: { ...SENTRY_DATA_COLLECTION, ...options.dataCollection },
   };
   if (options.tracesSampleRate !== undefined)
     out.tracesSampleRate = options.tracesSampleRate;

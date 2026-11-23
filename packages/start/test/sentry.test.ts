@@ -2,6 +2,8 @@ import {
   Client,
   type ClientOptions,
   createTransport,
+  type ErrorEvent,
+  type Options,
   resolvedSyncPromise,
   setCurrentClient,
   startSpan,
@@ -12,6 +14,7 @@ import {
   isBrowserNoise,
   isLocalEvent,
   LOCAL_URL,
+  SENTRY_DATA_COLLECTION,
   sentryConnectSource,
   sentryReportUri,
   validDsn,
@@ -19,8 +22,11 @@ import {
 } from "../src/sentry.js";
 
 const DSN = "https://key@o1.ingest.sentry.io/2";
-const at = (url: string) => ({ request: { url } });
-const error = (value: string) => ({ exception: { values: [{ value }] } });
+const at = (url: string): ErrorEvent => ({ type: undefined, request: { url } });
+const error = (value: string): ErrorEvent => ({
+  type: undefined,
+  exception: { values: [{ value }] },
+});
 
 describe("isLocalEvent", () => {
   it("knows local servers and keeps events without a request", () => {
@@ -56,7 +62,7 @@ describe("workerSentryOptions", () => {
         tags: { runtime: "worker" },
         beforeSend: (event) => {
           seen.push(event);
-          return { ...event, scrubbed: true };
+          return { ...event, tags: { scrubbed: "yes" } };
         },
       },
     );
@@ -74,10 +80,51 @@ describe("workerSentryOptions", () => {
       { ...at("https://example.com/"), ...error("Failed to fetch") },
       {},
     );
-    expect(kept).toMatchObject({ scrubbed: true });
-    expect(
-      options.beforeSendTransaction(at("http://127.0.0.1/"), {}),
-    ).toBeNull();
+    expect(kept).toMatchObject({ tags: { scrubbed: "yes" } });
+    expect(options).not.toHaveProperty("beforeSendTransaction");
+  });
+
+  it("collects no user info, cookies, bodies, query data or AI content by default", () => {
+    const options = workerSentryOptions({ SENTRY_DSN: DSN });
+    expect(options.dataCollection).toEqual(SENTRY_DATA_COLLECTION);
+    expect(options.dataCollection).toMatchObject({
+      userInfo: false,
+      cookies: false,
+      httpBodies: [],
+      databaseQueryData: false,
+      genAI: { inputs: false, outputs: false },
+    });
+    expect(options.dataCollection.urlQueryParams).toHaveProperty("deny");
+    expect(options.dataCollection.httpHeaders).toMatchObject({
+      request: { deny: expect.arrayContaining(["forwarded"]) },
+    });
+  });
+
+  it("applies a dataCollection override field by field over the strict default", () => {
+    const options = workerSentryOptions(
+      { SENTRY_DSN: DSN },
+      { dataCollection: { httpBodies: ["incomingRequest"], userInfo: true } },
+    );
+    expect(options.dataCollection).toMatchObject({
+      httpBodies: ["incomingRequest"],
+      userInfo: true,
+      cookies: false,
+      databaseQueryData: false,
+    });
+    const browser = browserSentryOptions({
+      dsn: DSN,
+      dataCollection: { cookies: { allow: ["theme"] } },
+    });
+    expect(browser.dataCollection).toMatchObject({
+      cookies: { allow: ["theme"] },
+      userInfo: false,
+    });
+  });
+
+  it("type-checks as Sentry 11 options", () => {
+    const worker: Options = workerSentryOptions({ SENTRY_DSN: DSN });
+    const browser: Options = browserSentryOptions({ dsn: DSN });
+    expect(worker.dataCollection).toEqual(browser.dataCollection);
   });
 });
 
@@ -124,9 +171,14 @@ describe("browserSentryOptions", () => {
       dsn: DSN,
       keep: (event) => event.extra?.step === "connect",
     });
-    expect(options.beforeSend({ message: "Network Error" }, {})).toBeNull();
     expect(
-      options.beforeSend({ logentry: { message: "Load failed" } }, {}),
+      options.beforeSend({ type: undefined, message: "Network Error" }, {}),
+    ).toBeNull();
+    expect(
+      options.beforeSend(
+        { type: undefined, logentry: { message: "Load failed" } },
+        {},
+      ),
     ).toBeNull();
     expect(
       options.beforeSend(

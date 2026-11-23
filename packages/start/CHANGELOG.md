@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.31.0 (2026-11-22)
+
+- `workers-start/sentry` supports Sentry 11 only. The options are typed against `@sentry/core` 11 (an optional peer that every Sentry 11 SDK installs), so `beforeSend` gets a real `ErrorEvent` and `EventHint`. Apps on Sentry 10 upgrade every `@sentry/*` package to 11 first.
+- `beforeSendTransaction` is gone: Sentry 11 streams spans and never calls it, and `ignoreSpans: [LOCAL_SPANS]` already drops local traces. An app on `traceLifecycle: "static"` that relied on it adds `beforeSendTransaction: dropLocalEvents` itself.
+- `workerSentryOptions` and `browserSentryOptions` set `dataCollection` to `SENTRY_DATA_COLLECTION`: no user info, cookies, request or response bodies, database query data, queue arguments, GraphQL documents or AI inputs and outputs, and client address headers and query parameters filtered. Sentry 11 collects all of those when the field is unset. Pass `dataCollection` to lay fields over it. An app that spread its own `dataCollection` after the options can delete it if it matched; one that wants bodies or user info back passes those fields.
+- `SentryBeforeSend` and `SentryIgnoreSpan` name the types a handler or extra entry is written against.
+
 ## 0.30.0 (2026-11-22)
 
 - `workerSentryOptions` and `browserSentryOptions` drop spans from local requests under Sentry 11, which streams spans and never calls `beforeSendTransaction`. They set `ignoreSpans: [LOCAL_SPANS]`, matching the request span's `url.full` against `LOCAL_URL` (the `isLocalEvent` rule), and take `ignoreSpans` to add more. `beforeSendTransaction` stays for Sentry 10.

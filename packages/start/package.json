@@ -1,6 +1,6 @@
 {
   "name": "workers-start",
-  "version": "0.30.0",
+  "version": "0.31.0",
   "description": "The parts every app on Cloudflare Workers ends up writing: the TanStack Start entry, edge and value caches, Cloudflare Access, Google service accounts, Sentry options, mail, rate limiting, outbound HTTP with retries, security headers, CORS, capped bodies, webhook signatures, structured logs, and Discord and X clients. No dependencies.",
   "license": "MIT",
   "author": "Ryan Ghods",
@@ -233,9 +233,13 @@
     "vitest": "^5.1.0"
   },
   "peerDependencies": {
+    "@sentry/core": "^11.0.0",
     "react": ">=18"
   },
   "peerDependenciesMeta": {
+    "@sentry/core": {
+      "optional": true
+    },
     "react": {
       "optional": true
     }
