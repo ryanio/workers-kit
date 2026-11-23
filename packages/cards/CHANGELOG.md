@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0 (2026-11-23)
+
+- Tested against satori 0.63 (from 0.32). The engine types, `h` trees and `unmask` work unchanged; a real render of a card with a rounded picture draws and loses its mask as before. An app moves its own `satori` to `^0.63` and looks at every card it draws, since layout and text shaping can shift between satori minors.
+- README: npm badges and the versions it is tested with.
+
 ## 0.2.0 (2026-11-21)
 
 - `jpeg(element, options)`: a JPEG through the engine's new `encodeJpeg`, with `quality` (default 86) and `supersample`, which draws at that many times the size and averages back down.

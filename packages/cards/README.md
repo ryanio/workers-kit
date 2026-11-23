@@ -1,6 +1,6 @@
 # workers-cards
 
-[![CI](https://github.com/ryanio/workers-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/ryanio/workers-kit/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/ryanio/workers-kit/blob/main/LICENSE)
+[![npm](https://img.shields.io/npm/v/workers-cards?color=f38020&label=npm)](https://www.npmjs.com/package/workers-cards) [![downloads](https://img.shields.io/npm/dm/workers-cards?color=f38020)](https://www.npmjs.com/package/workers-cards) [![CI](https://github.com/ryanio/workers-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/ryanio/workers-kit/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/ryanio/workers-kit/blob/main/LICENSE)
 
 Link preview and social cards drawn inside a Cloudflare Worker, with [satori](https://github.com/vercel/satori) and [resvg](https://github.com/yisibl/resvg-js).
 
@@ -27,8 +27,10 @@ A Worker needs `satori/standalone` with `init(yoga)`, because Workers refuse to 
 ## Install
 
 ```sh
-npm install workers-cards
+npm install workers-cards satori@^0.63 @resvg/resvg-wasm
 ```
+
+The engine types and the mask stripping are tested against satori 0.63 and resvg-wasm 2.6. An app on an older satori moves to 0.63 with them, and opens each of its cards after, since satori's layout and text shaping change between minors.
 
 ## Drawing a card
 
