@@ -837,7 +837,7 @@ export const Route = createFileRoute("/sitemap.xml")({
 });
 ```
 
-- `sitemapXml(entries)` writes one element per line and leaves out any field an entry doesn't set. URLs are XML-escaped, so a query string with `&` stays valid. A `Date` for `lastModified` is written as an ISO timestamp, a string as given.
+- `sitemapXml(entries)` writes one element per line and leaves out any field an entry doesn't set. URLs are XML-escaped, so a query string with `&` stays valid. A `Date` for `lastModified` is written as an ISO timestamp, a string as given. `images` lists absolute image URLs on the page; each becomes an `<image:image>` entry, and the image namespace is declared only when some entry has one.
 - `robotsTxt({ rules, host, sitemap })` writes each rule group as `User-Agent`, `Allow` and `Disallow` lines, separated by blank lines, then `Host` and one `Sitemap` line per URL. Every rule field takes a string or an array. With no `rules`, it allows everything to every agent.
 - `sitemapIndexXml(entries)` writes a `<sitemapindex>` for a site past the 50,000 URL or 50 MB limit of one sitemap, or one that splits its sitemaps by kind. Point `robotsTxt`'s `sitemap` at the index once there is more than one.
 - `llmsTxt({ title, summary, details, sections })` writes the agent-facing index of a site, as [llmstxt.org](https://llmstxt.org) lays it out: one H1, a blockquote summary, free paragraphs, then `##` sections. A section holds `body` paragraphs, plain `items` bullets and `links`, in that order, so it can carry the limits an agent has to follow and not only a list of URLs. One with none of the three is left out, so an empty query writes no heading. Serve it at `/llms.txt` as `text/plain`.

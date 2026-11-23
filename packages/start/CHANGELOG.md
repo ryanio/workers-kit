@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.34.0 (2026-11-23)
+
+- `sitemapXml` entries take `images`, absolute image URLs written as image sitemap entries, as in Next's `MetadataRoute.Sitemap`.
+
 ## 0.33.1 (2026-11-23)
 
 - `SENTRY_DATA_COLLECTION` also turns off MCP inputs and outputs and stack frame variables, which Sentry 11 collects by default. An app that wants either passes it in `dataCollection`.

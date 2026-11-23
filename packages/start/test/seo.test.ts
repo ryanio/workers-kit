@@ -43,6 +43,28 @@ describe("sitemapXml", () => {
     expect(xml).not.toContain("<lastmod>");
   });
 
+  it("writes image entries and declares the image namespace only when used", () => {
+    const xml = sitemapXml([
+      {
+        url: "https://example.com/guide",
+        images: [
+          "https://example.com/a.png?w=1&h=2",
+          "https://example.com/b.png",
+        ],
+      },
+      { url: "https://example.com/about" },
+    ]);
+    expect(xml).toContain(
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">',
+    );
+    expect(xml).toContain(
+      "<image:image><image:loc>https://example.com/a.png?w=1&amp;h=2</image:loc></image:image>\n<image:image><image:loc>https://example.com/b.png</image:loc></image:image>\n</url>",
+    );
+    expect(
+      sitemapXml([{ url: "https://example.com", images: [] }]),
+    ).not.toContain("xmlns:image");
+  });
+
   it("writes an empty urlset for no entries", () => {
     expect(sitemapXml([])).toBe(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">

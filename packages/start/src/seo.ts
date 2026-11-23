@@ -13,6 +13,8 @@ export interface SitemapEntry {
     | "yearly"
     | "never";
   priority?: number;
+  /** Absolute image URLs on the page, written as `<image:image>` entries. */
+  images?: readonly string[];
 }
 
 /** One group of rules in robots.txt. */
@@ -68,12 +70,20 @@ export function sitemapXml(entries: readonly SitemapEntry[]): string {
     if (entry.priority !== undefined) {
       lines.push(`<priority>${entry.priority}</priority>`);
     }
+    for (const image of entry.images ?? []) {
+      lines.push(
+        `<image:image><image:loc>${escapeXml(image)}</image:loc></image:image>`,
+      );
+    }
     lines.push("</url>");
     return lines.join("\n");
   });
+  const imageNs = entries.some((entry) => entry.images?.length)
+    ? ' xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"'
+    : "";
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"${imageNs}>`,
     ...urls,
     "</urlset>",
     "",
