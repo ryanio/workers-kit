@@ -17,6 +17,7 @@ const METHODS = [
 ];
 /** Statuses that never carry a body. */
 const EMPTY = new Set(["204", "205", "304"]);
+const BODYLESS = /^(1\d\d|20[12]|3\d\d|[13]XX)$/;
 
 interface RoutedApp {
   routes: readonly { method: string; path: string }[];
@@ -83,6 +84,9 @@ export function checkSpec(
         const content =
           isObject(res) && isObject(res.content) ? res.content : {};
         const media = Object.values(content);
+        // A redirect, a 201 or 202 that answers no body, or an informational
+        // status needs no schema when it declares no content.
+        if (media.length === 0 && BODYLESS.test(status)) continue;
         if (
           media.length === 0 ||
           media.some((m) => !isObject(m) || m.schema === undefined)

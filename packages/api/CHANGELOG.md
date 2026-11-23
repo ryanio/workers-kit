@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 (2026-11-23)
+
+- Generated types put an array of a union in parentheses, including a union whose first member is an object (`z.array(z.discriminatedUnion(...))`, `z.array(obj.nullable())`). They came out as `{...} | {...}[]`, an object or an array, so a client typed its array items wrong. An app regenerates (`generateApi`), and its drift check fails until it does.
+- `accessGuard` copies a route's response whose headers are immutable (`Response.redirect`, a `fetch` answer) to mark it `no-store`; a guarded redirect answered 500 before.
+- `checkSpec` accepts a documented 1xx, 201, 202 or 3xx response that declares no content. One that declares a body without a schema is still reported.
+- Generated types are tested against openapi-fetch 0.17. An app on 0.13 can move to 0.17 with no code change for what these types cover.
+
 ## 0.2.2 (2026-11-22)
 
 - The `workers-start` peer starts at 0.32.0, and the tests run on the workspace copy. They ran on a nested npm copy of 0.8.0, so the peer range claimed versions nothing had tested. An app peering workers-api moves to workers-start 0.32.0 or later.

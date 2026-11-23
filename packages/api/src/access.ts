@@ -61,8 +61,19 @@ export function accessGuard(
         : { service: result.service },
     );
     await next();
-    if (options.noStore !== false)
+    if (options.noStore === false) return;
+    try {
       c.res.headers.set("cache-control", "no-store");
+    } catch {
+      // A redirect or a fetched response has immutable headers: copy it.
+      const headers = new Headers(c.res.headers);
+      headers.set("cache-control", "no-store");
+      c.res = new Response(c.res.body, {
+        status: c.res.status,
+        statusText: c.res.statusText,
+        headers,
+      });
+    }
   };
 }
 

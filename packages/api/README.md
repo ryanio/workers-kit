@@ -21,7 +21,7 @@ It has no runtime dependencies. `hono`, `@hono/zod-openapi` and `zod` are peers,
 npm install workers-api hono @hono/zod-openapi zod
 ```
 
-Add `workers-start` for `workers-api/access`, and `openapi-fetch` in the app that calls the API.
+Add `workers-start` for `workers-api/access`, and `openapi-fetch` (0.17) in the app that calls the API.
 
 ## Errors
 

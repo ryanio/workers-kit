@@ -20,8 +20,9 @@ async function guarded(config: "team" | "none" = "team") {
     }),
   );
   app.get("/me", (c) => c.json(c.var.access));
-  const call = (headers: Record<string, string> = {}) =>
-    app.request("http://admin.test/me", { headers });
+  app.get("/go", () => Response.redirect("https://admin.test/next", 302));
+  const call = (headers: Record<string, string> = {}, path = "/me") =>
+    app.request(`http://admin.test${path}`, { headers });
   return { team, call };
 }
 
@@ -34,6 +35,17 @@ describe("accessGuard", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-store");
     expect(await res.json()).toEqual({ email: "admin@example.com" });
+  });
+
+  it("marks a route's immutable response no-store too, such as a redirect", async () => {
+    const { team, call } = await guarded();
+    const res = await call(
+      { "cf-access-jwt-assertion": await team.token("admin@example.com") },
+      "/go",
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://admin.test/next");
+    expect(res.headers.get("cache-control")).toBe("no-store");
   });
 
   it("reads the CF_Authorization cookie and admits a listed service token", async () => {

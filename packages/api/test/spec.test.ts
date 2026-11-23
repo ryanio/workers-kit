@@ -32,12 +32,26 @@ describe("checkSpec", () => {
       tags: ["Signups"],
       responses: { 200: { description: "x" } },
     };
+    // A redirect, or a 201 or 202 that answers no body, needs no schema, but
+    // one that declares a body still does.
+    (doc.paths["/signups"] as Record<string, unknown>).delete = {
+      operationId: "moveSignups",
+      summary: "Moved",
+      tags: ["Signups"],
+      responses: {
+        301: { description: "moved" },
+        202: { description: "queued" },
+        201: { description: "made", content: { "application/json": {} } },
+      },
+    };
     expect(checkSpec(testApi(), doc, { ignore: ["/openapi.json"] })).toEqual([
       "PUT /signups: response 200 has no schema",
+      "DELETE /signups: response 201 has no schema",
       "GET /signups/{id}: operationId listSignups is also on GET /signups",
       "GET /signups/{id}: no summary",
       "GET /signups/{id}: no tags",
       "GET /boom: mounted but not documented",
+      "DELETE /signups: documented but not mounted",
       "PUT /signups: documented but not mounted",
     ]);
   });
@@ -101,6 +115,25 @@ describe("openApiTypes", () => {
       "string | null",
     );
     expect(schemaType({ const: "ok" })).toBe('"ok"');
+    // An array of a union needs the union in parentheses, even one whose
+    // first member is an object type.
+    const obj = (k: string) => ({
+      type: "object",
+      properties: { k: { const: k } },
+      required: ["k"],
+    });
+    expect(
+      schemaType({ type: "array", items: { oneOf: [obj("a"), obj("b")] } }),
+    ).toMatch(/^\(\{[\s\S]*\} \| \{[\s\S]*\}\)\[\]$/);
+    expect(
+      schemaType({
+        type: "array",
+        items: { ...obj("a"), nullable: true },
+      }),
+    ).toMatch(/^\(\{[\s\S]*\} \| null\)\[\]$/);
+    expect(schemaType({ type: "array", items: obj("a") })).toMatch(
+      /^\{[\s\S]*\}\[\]$/,
+    );
     expect(schemaType({ enum: ["a", 1, null] })).toBe('"a" | 1 | null');
     expect(
       schemaType({ anyOf: [{ type: "string" }, { type: "number" }] }),

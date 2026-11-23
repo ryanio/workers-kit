@@ -51,7 +51,26 @@ const union = (types: string[]) => {
   return unique.length === 0 ? "never" : unique.join(" | ");
 };
 
-const wrap = (t: string) => (/[|&]/.test(t) && !/^[{(]/.test(t) ? `(${t})` : t);
+/** Whether `t` has a `|` or `&` outside every bracket and string, so it needs parentheses to sit inside another type. */
+function topLevelOperator(t: string): boolean {
+  let depth = 0;
+  let quote: string | null = null;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (quote) {
+      if (c === "\\") i++;
+      else if (c === quote) quote = null;
+      continue;
+    }
+    if (c === '"' || c === "'") quote = c;
+    else if (c === "{" || c === "(" || c === "[" || c === "<") depth++;
+    else if (c === "}" || c === ")" || c === "]" || c === ">") depth--;
+    else if ((c === "|" || c === "&") && depth === 0) return true;
+  }
+  return false;
+}
+
+const wrap = (t: string) => (topLevelOperator(t) ? `(${t})` : t);
 
 /** The TypeScript type for one schema. `pad` is the current indentation. */
 export function schemaType(schema: unknown, pad = ""): string {
