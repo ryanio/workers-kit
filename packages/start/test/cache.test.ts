@@ -306,6 +306,76 @@ describe("stored Cache-Control and purging", () => {
   });
 });
 
+describe("conditional requests and Request keys", () => {
+  const stored = () =>
+    page("public, max-age=60, s-maxage=600", {
+      headers: {
+        etag: '"v1"',
+        "last-modified": "Fri, 20 Nov 2026 10:00:00 GMT",
+      },
+    });
+  const fail = async (): Promise<Response> => {
+    throw new Error("rendered on a hit");
+  };
+
+  it("answers a matching If-None-Match or If-Modified-Since on a hit with 304", async () => {
+    const { cache } = memoryCache();
+    await cache.put(new Request("https://e.test/a"), stored());
+    const ask = (headers: Record<string, string>) =>
+      withEdgeCache(new Request("https://e.test/a", { headers }), fail, {
+        cache,
+        clientCacheControl: "stored",
+        statusHeader: "x-edge-cache",
+      });
+    const weak = await ask({ "if-none-match": 'W/"v1", "v0"' });
+    expect(weak.status).toBe(304);
+    expect(weak.headers.get("etag")).toBe('"v1"');
+    expect(weak.headers.get("cache-control")).toBe(
+      "public, max-age=60, s-maxage=600",
+    );
+    expect(weak.headers.get("x-edge-cache")).toBe("HIT");
+    expect(await weak.text()).toBe("");
+    expect(
+      (await ask({ "if-modified-since": "Sat, 21 Nov 2026 00:00:00 GMT" }))
+        .status,
+    ).toBe(304);
+    expect((await ask({ "if-none-match": '"v2"' })).status).toBe(200);
+    expect(
+      (await ask({ "if-modified-since": "Thu, 19 Nov 2026 00:00:00 GMT" }))
+        .status,
+    ).toBe(200);
+  });
+
+  it("adds the version to a key given as a Request", async () => {
+    const { cache, store } = memoryCache();
+    await withEdgeCache(
+      new Request("https://e.test/p?utm=1"),
+      async () => page("s-maxage=60"),
+      {
+        cache,
+        version: "b7",
+        key: (r) => new Request(r.url.replace("?utm=1", "")),
+        waitUntil: () => {},
+      },
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    expect([...store.keys()]).toEqual(["https://e.test/p?__build=b7"]);
+  });
+
+  it("reports a failed purge as a delete", async () => {
+    const seen: string[] = [];
+    await purgeEdgeCache(["https://e.test/x"], {
+      cache: {
+        delete: async () => {
+          throw new Error("down");
+        },
+      },
+      onError: (_e, during) => seen.push(during),
+    });
+    expect(seen).toEqual(["delete"]);
+  });
+});
+
 describe("cache headers", () => {
   it("reads s-maxage", () => {
     expect(sharedMaxAge(page("public, s-maxage=300"))).toBe(300);

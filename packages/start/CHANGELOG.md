@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.29.0 (2026-11-22)
+
+- `LOCAL_TIME_SCRIPT` is literal script text. It came from `Function.prototype.toString`, so a bundler that keeps names (wrangler's default) put `__name` calls into it and it threw in the browser. A test now bundles the module with esbuild `keepNames` and runs the script.
+- `localTime` takes `month` and `weekday`, and the script reads them; the script's test checks every kind and option against `localizeTimes`.
+- `withEdgeCache`: a key given as a Request gets `version` too (it was dropped); a hit answers a matching `If-None-Match` or `If-Modified-Since` with 304; `purgeEdgeCache` reports failures as `"delete"`.
+- `discordTime` reads any date `toMillis` reads, takes `{ seconds: true }` for stored unix seconds, and writes `fallback` ("-" by default) for a value that is not a date, since Discord refuses an empty embed field.
+- `workers-start/react`: `useReaderTimeZone()` gives `{ timeZone, mounted }`, UTC on the server and during hydration and the reader's zone after. React is an optional peer.
+- `dateTime` caches its zone-name formatter.
+
 ## 0.28.0 (2026-11-21)
 
 - `discordTime(value, style)` in `workers-start/discord` writes Discord's `<t:...>` timestamp markup, shown in each reader's zone.

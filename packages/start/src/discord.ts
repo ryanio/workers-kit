@@ -14,6 +14,7 @@
  * the interaction token in the path is the credential.
  */
 
+import { type DateLike, toMillis } from "./format.js";
 import {
   type FetchJsonOptions,
   fetchJson,
@@ -261,25 +262,36 @@ export function discordRest(options: DiscordRestOptions = {}): DiscordRest {
  */
 export type DiscordTimeStyle = "t" | "T" | "d" | "D" | "f" | "F" | "R";
 
+export interface DiscordTimeOptions {
+  /** Read a number as seconds since the epoch rather than milliseconds, for stored unix times. */
+  seconds?: boolean | undefined;
+  /**
+   * What to write for a value that is not a date. Default "-": Discord
+   * refuses an embed field whose value is empty, so "" would fail the post.
+   */
+  fallback?: string | undefined;
+}
+
 /**
  * Discord's timestamp markup for a moment: `<t:1795254600:R>`. Every reader
  * sees it in their own time zone, so a message or embed description never
- * has to pick one. Takes epoch milliseconds, an ISO string or a Date; an
- * unreadable value gives "". Embed titles and footers do not render it: use
- * the embed's `timestamp` field there.
+ * has to pick one. Takes anything `workers-start/format` reads as a date
+ * (epoch milliseconds, or seconds with `{ seconds: true }`, an ISO or SQLite
+ * string, a Date). Embed titles and footers do not render it: use the
+ * embed's `timestamp` field there.
  */
 export function discordTime(
-  value: number | string | Date | null | undefined,
+  value: DateLike | null | undefined,
   style: DiscordTimeStyle = "f",
+  options: DiscordTimeOptions = {},
 ): string {
-  if (value === null || value === undefined || value === "") return "";
   const ms =
-    value instanceof Date
-      ? value.getTime()
-      : typeof value === "number"
-        ? value
-        : Date.parse(value);
-  if (!Number.isFinite(ms)) return "";
+    options.seconds && typeof value === "number"
+      ? Number.isFinite(value)
+        ? value * 1000
+        : null
+      : toMillis(value);
+  if (ms === null) return options.fallback ?? "-";
   return `<t:${Math.floor(ms / 1000)}:${style}>`;
 }
 

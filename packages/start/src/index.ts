@@ -71,6 +71,7 @@ export type {
   DiscordRequestOptions,
   DiscordRest,
   DiscordRestOptions,
+  DiscordTimeOptions,
   DiscordTimeStyle,
 } from "./discord.js";
 export {

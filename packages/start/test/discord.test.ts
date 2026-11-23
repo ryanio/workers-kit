@@ -220,7 +220,16 @@ describe("discordTime", () => {
     expect(discordTime(new Date(ms), "D")).toBe(
       `<t:${Math.floor(ms / 1000)}:D>`,
     );
-    expect(discordTime("not a date")).toBe("");
-    expect(discordTime(null)).toBe("");
+    expect(discordTime("not a date")).toBe("-");
+    expect(discordTime(null, "R", { fallback: "never" })).toBe("never");
+  });
+
+  it("reads stored seconds and SQLite times", () => {
+    expect(discordTime(1_795_254_600, "R", { seconds: true })).toBe(
+      "<t:1795254600:R>",
+    );
+    expect(discordTime("2026-11-21 03:30:00", "D")).toBe(
+      `<t:${Date.parse("2026-11-21T03:30:00Z") / 1000}:D>`,
+    );
   });
 });

@@ -498,20 +498,30 @@ export function dateTime(
   return `${date}, ${time} ${zoneLabel(ms, options.timeZone)}`;
 }
 
+const zoneNames = new Map<string, Intl.DateTimeFormat | null>();
+
 function zoneLabel(ms: number, timeZone: string | undefined): string {
   const zone = timeZone === "local" ? undefined : (timeZone ?? "UTC");
   if (zone === "UTC" || (zone !== undefined && !isTimeZone(zone))) return "UTC";
-  try {
-    const name = new Intl.DateTimeFormat("en-US", {
-      timeZone: zone,
-      timeZoneName: "short",
-    })
-      .formatToParts(ms)
-      .find((part) => part.type === "timeZoneName")?.value;
-    return name ?? "UTC";
-  } catch {
-    return "UTC";
+  const key = zone ?? "local";
+  if (!zoneNames.has(key)) {
+    try {
+      zoneNames.set(
+        key,
+        new Intl.DateTimeFormat("en-US", {
+          timeZone: zone,
+          timeZoneName: "short",
+        }),
+      );
+    } catch {
+      zoneNames.set(key, null);
+    }
   }
+  const name = zoneNames
+    .get(key)
+    ?.formatToParts(ms)
+    .find((part) => part.type === "timeZoneName")?.value;
+  return name ?? "UTC";
 }
 
 /**

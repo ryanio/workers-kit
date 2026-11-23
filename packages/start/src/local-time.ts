@@ -23,6 +23,10 @@ export type LocalTimeKind = "date" | "datetime" | "ago" | "year";
 export interface LocalTimeOptions {
   /** "20 Nov 2026" (`dmy`, default) or "Nov 20, 2026" (`mdy`). */
   order?: "dmy" | "mdy" | undefined;
+  /** "Nov" (`short`, default) or "November" (`long`). */
+  month?: "short" | "long" | undefined;
+  /** Lead the date with the weekday: "Fri, 20 Nov 2026". Not used by `year` or `ago`. */
+  weekday?: "short" | "long" | undefined;
 }
 
 const KINDS: readonly LocalTimeKind[] = ["date", "datetime", "ago", "year"];
@@ -31,12 +35,24 @@ function text(
   ms: number,
   kind: LocalTimeKind,
   timeZone: string,
-  order: LocalTimeOptions["order"],
+  options: LocalTimeOptions,
 ): string {
+  const { order, weekday } = options;
+  const month = options.month ?? "short";
   if (kind === "year") return fullDate(ms, { timeZone }).slice(-4);
-  if (kind === "ago") return timeAgo(ms, { timeZone, order, month: "short" });
-  if (kind === "datetime") return dateTime(ms, { timeZone, order });
-  return fullDate(ms, { timeZone, order, month: "short" });
+  if (kind === "ago") return timeAgo(ms, { timeZone, order, month });
+  if (kind === "datetime")
+    return dateTime(ms, { timeZone, order, month, weekday });
+  return fullDate(ms, { timeZone, order, month, weekday });
+}
+
+function readOptions(element: TimeElement): LocalTimeOptions {
+  const weekday = element.getAttribute("data-weekday");
+  return {
+    order: element.getAttribute("data-order") === "mdy" ? "mdy" : undefined,
+    month: element.getAttribute("data-month") === "long" ? "long" : undefined,
+    weekday: weekday === "short" || weekday === "long" ? weekday : undefined,
+  };
 }
 
 /**
@@ -51,8 +67,11 @@ export function localTime(
 ): string {
   const ms = toMillis(value);
   if (ms === null) return "";
-  const order = options.order === "mdy" ? ' data-order="mdy"' : "";
-  return `<time datetime="${new Date(ms).toISOString()}" data-local="${kind}"${order}>${text(ms, kind, "UTC", options.order)}</time>`;
+  const marks =
+    (options.order === "mdy" ? ' data-order="mdy"' : "") +
+    (options.month === "long" ? ' data-month="long"' : "") +
+    (options.weekday ? ` data-weekday="${options.weekday}"` : "");
+  return `<time datetime="${new Date(ms).toISOString()}" data-local="${kind}"${marks}>${text(ms, kind, "UTC", options)}</time>`;
 }
 
 interface TimeElement {
@@ -84,9 +103,7 @@ export function localizeTimes(
     const ms = toMillis(element.getAttribute("datetime"));
     const kind = element.getAttribute("data-local") as LocalTimeKind;
     if (ms === null || !KINDS.includes(kind)) continue;
-    const order =
-      element.getAttribute("data-order") === "mdy" ? "mdy" : undefined;
-    element.textContent = text(ms, kind, timeZone, order);
+    element.textContent = text(ms, kind, timeZone, readOptions(element));
     rewritten++;
   }
   return rewritten;
@@ -111,59 +128,55 @@ export function watchLocalTimes(root: Node = document): () => void {
 /**
  * The browser half with nothing to bundle: put it in a `<script>` at the end
  * of the page. It rewrites every `<time data-local>` in the browser's zone and
- * keeps doing so for content added later. Self-contained on purpose, so it
+ * keeps doing so for content added later. It is written as script text, not
+ * taken from a function with `toString()`, because a bundler that keeps names
+ * (wrangler's default) would put calls to its own helpers into that text. It
  * shares no code with the functions above; its test checks they agree.
  */
-function inlineLocalTimes(): void {
-  const months = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ");
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "numeric",
-    hourCycle: "h23",
-    timeZoneName: "short",
+export const LOCAL_TIME_SCRIPT = `(function () {
+  var SHORT = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ");
+  var LONG = "January February March April May June July August September October November December".split(" ");
+  var DAYS = "Sunday Monday Tuesday Wednesday Thursday Friday Saturday".split(" ");
+  var format = new Intl.DateTimeFormat("en-US", {
+    year: "numeric", month: "numeric", day: "numeric",
+    hour: "numeric", minute: "numeric", hourCycle: "h23", timeZoneName: "short"
   });
-  const show = (el: Element): void => {
-    const ms = Date.parse(el.getAttribute("datetime") || "");
-    const kind = el.getAttribute("data-local");
-    if (!Number.isFinite(ms) || !kind) return;
-    const p: Record<string, string> = {};
-    for (const part of fmt.formatToParts(ms)) p[part.type] = part.value;
-    const day = `${Number(p.day)}`;
-    const month = months[Number(p.month) - 1];
-    const date =
-      el.getAttribute("data-order") === "mdy"
-        ? `${month} ${day}, ${p.year}`
-        : `${day} ${month} ${p.year}`;
-    const elapsed = Date.now() - ms;
-    let out = date;
-    if (kind === "year") out = `${p.year}`;
-    else if (kind === "datetime")
-      out = `${date}, ${String(Number(p.hour) % 24).padStart(2, "0")}:${p.minute} ${p.timeZoneName}`;
-    else if (kind === "ago" && elapsed < 30 * 86400000)
-      out =
-        elapsed < 90000
-          ? "just now"
-          : elapsed < 3600000
-            ? `${Math.floor(elapsed / 60000)}m ago`
-            : elapsed < 86400000
-              ? `${Math.floor(elapsed / 3600000)}h ago`
-              : `${Math.floor(elapsed / 86400000)}d ago`;
+  function show(el) {
+    var ms = Date.parse(el.getAttribute("datetime") || "");
+    var kind = el.getAttribute("data-local");
+    if (!isFinite(ms) || ["date", "datetime", "ago", "year"].indexOf(kind) < 0) return;
+    var p = {};
+    format.formatToParts(ms).forEach(function (part) { p[part.type] = part.value; });
+    var y = Number(p.year), m = Number(p.month), d = Number(p.day);
+    var name = (el.getAttribute("data-month") === "long" ? LONG : SHORT)[m - 1];
+    var date = el.getAttribute("data-order") === "mdy" ? name + " " + d + ", " + y : d + " " + name + " " + y;
+    var wd = el.getAttribute("data-weekday");
+    var withDay = date;
+    if (wd === "short" || wd === "long") {
+      var day = DAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+      withDay = (wd === "short" ? day.slice(0, 3) : day) + ", " + date;
+    }
+    var elapsed = Date.now() - ms;
+    var out = withDay;
+    if (kind === "year") out = String(y);
+    else if (kind === "datetime") out = withDay + ", " + ("0" + (Number(p.hour) % 24)).slice(-2) + ":" + p.minute + " " + p.timeZoneName;
+    else if (kind === "ago") out = elapsed >= 2592000000 ? date
+      : elapsed < 90000 ? "just now"
+      : elapsed < 3600000 ? Math.floor(elapsed / 60000) + "m ago"
+      : elapsed < 86400000 ? Math.floor(elapsed / 3600000) + "h ago"
+      : Math.floor(elapsed / 86400000) + "d ago";
     el.textContent = out;
-  };
-  const scan = (root: Element | Document): void => {
-    if (root instanceof Element && root.matches("time[data-local]")) show(root);
-    for (const el of root.querySelectorAll("time[data-local]")) show(el);
-  };
+  }
+  function scan(root) {
+    if (root.matches && root.matches("time[data-local]")) show(root);
+    var found = root.querySelectorAll("time[data-local]");
+    for (var i = 0; i < found.length; i++) show(found[i]);
+  }
   scan(document);
-  new MutationObserver((records) => {
-    for (const record of records)
-      for (const node of record.addedNodes)
-        if (node instanceof Element) scan(node);
+  new MutationObserver(function (records) {
+    records.forEach(function (record) {
+      record.addedNodes.forEach(function (node) { if (node.nodeType === 1) scan(node); });
+    });
   }).observe(document.documentElement, { childList: true, subtree: true });
-}
-
-/** `inlineLocalTimes` as script text, for a page with no bundle. */
-export const LOCAL_TIME_SCRIPT = `(${inlineLocalTimes.toString()})();`;
+})();
+`;

@@ -1,5 +1,5 @@
 import { runInNewContext } from "node:vm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   LOCAL_TIME_SCRIPT,
   localizeTimes,
@@ -47,54 +47,103 @@ describe("localizeTimes", () => {
 });
 
 describe("LOCAL_TIME_SCRIPT", () => {
-  it("rewrites marked elements in the browser's zone with nothing bundled", () => {
-    class Element {
-      constructor(readonly attributes: Record<string, string>) {}
-      textContent = "";
-      getAttribute(name: string) {
-        return this.attributes[name] ?? null;
-      }
-      matches() {
-        return false;
-      }
-      querySelectorAll() {
-        return [];
-      }
+  const RealFormat = Intl.DateTimeFormat;
+  // The script reads the runtime's zone; pin it the way a browser in New York would have it.
+  class NewYorkFormat extends RealFormat {
+    constructor(locale?: string, options?: Intl.DateTimeFormatOptions) {
+      super(locale, { ...options, timeZone: "America/New_York" });
     }
-    const date = new Element({ datetime: late, "data-local": "date" });
-    const stamp = new Element({
-      datetime: late,
-      "data-local": "datetime",
-      "data-order": "mdy",
-    });
+  }
+
+  /** Runs `script` against stand-in elements, as a page with no bundle would. */
+  function runScript(script: string, cases: Record<string, string>[]) {
+    const elements = cases.map((attributes) => timeElement(attributes));
     const document = {
       documentElement: {},
-      querySelectorAll: () => [date, stamp],
+      querySelectorAll: () => elements,
     };
     const observed: unknown[] = [];
-    // The script reads the runtime's zone; pin it the way a browser in New York would have it.
-    const RealFormat = Intl.DateTimeFormat;
-    class NewYorkFormat extends RealFormat {
-      constructor(locale?: string, options?: Intl.DateTimeFormatOptions) {
-        super(locale, { ...options, timeZone: "America/New_York" });
-      }
-    }
-    const NewYorkIntl = { ...Intl, DateTimeFormat: NewYorkFormat };
-    runInNewContext(LOCAL_TIME_SCRIPT, {
+    runInNewContext(script, {
       document,
-      Element,
-      Intl: NewYorkIntl,
+      Intl: { ...Intl, DateTimeFormat: NewYorkFormat },
       Date,
       Number,
       String,
+      isFinite,
       MutationObserver: class {
         observe(target: unknown) {
           observed.push(target);
         }
       },
     });
-    expect(date.textContent).toBe("20 Nov 2026");
-    expect(stamp.textContent).toBe("Nov 20, 2026, 22:30 EST");
-    expect(observed).toEqual([document.documentElement]);
+    return { texts: elements.map((e) => e.textContent), observed, document };
+  }
+
+  const now = Date.parse("2026-11-21T06:00:00Z");
+  const cases: Record<string, string>[] = [
+    { datetime: late, "data-local": "date" },
+    { datetime: late, "data-local": "date", "data-order": "mdy" },
+    {
+      datetime: late,
+      "data-local": "date",
+      "data-month": "long",
+      "data-weekday": "long",
+    },
+    { datetime: late, "data-local": "datetime", "data-order": "mdy" },
+    { datetime: late, "data-local": "datetime", "data-weekday": "short" },
+    { datetime: late, "data-local": "year" },
+    { datetime: late, "data-local": "ago" },
+    { datetime: "2026-11-21T05:59:30Z", "data-local": "ago" },
+    { datetime: "2026-11-20T23:00:00Z", "data-local": "ago" },
+    { datetime: "2026-11-15T06:00:00Z", "data-local": "ago" },
+    {
+      datetime: "2026-09-01T03:30:00Z",
+      "data-local": "ago",
+      "data-order": "mdy",
+    },
+  ];
+
+  it("writes what localizeTimes writes, for every kind and option", () => {
+    vi.useFakeTimers({ now });
+    try {
+      const { texts, observed, document } = runScript(LOCAL_TIME_SCRIPT, cases);
+      const expected = cases.map((attributes) => timeElement(attributes));
+      localizeTimes(
+        { querySelectorAll: () => expected },
+        { timeZone: "America/New_York" },
+      );
+      expect(texts).toEqual(expected.map((e) => e.textContent));
+      expect(texts[0]).toBe("20 Nov 2026");
+      expect(texts[2]).toBe("Friday, 20 November 2026");
+      expect(observed).toEqual([document.documentElement]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("still runs after a bundler that keeps names has been through the module", async () => {
+    const { build } = await import("esbuild");
+    const bundled = await build({
+      entryPoints: [new URL("../src/local-time.ts", import.meta.url).pathname],
+      bundle: true,
+      write: false,
+      format: "esm",
+      keepNames: true,
+      platform: "neutral",
+    });
+    const code = bundled.outputFiles[0]?.text ?? "";
+    const mod = await import(
+      `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`
+    );
+    expect(mod.LOCAL_TIME_SCRIPT).not.toContain("__name");
+    vi.useFakeTimers({ now });
+    try {
+      expect(
+        runScript(mod.LOCAL_TIME_SCRIPT, [cases[0] as Record<string, string>])
+          .texts,
+      ).toEqual(["20 Nov 2026"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

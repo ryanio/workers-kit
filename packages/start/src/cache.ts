@@ -60,7 +60,9 @@ export interface EdgeCacheOptions {
   /** A header naming whether the answer came from the cache (`HIT` or `MISS`), such as `x-edge-cache`. */
   statusHeader?: string | undefined;
   /** Called when the cache itself fails. A failed lookup renders the page; a failed store loses only the store. */
-  onError?: ((error: unknown, during: "match" | "put") => void) | undefined;
+  onError?:
+    | ((error: unknown, during: "match" | "put" | "delete") => void)
+    | undefined;
 }
 
 const S_MAXAGE = /(?:^|,)\s*s-maxage=(\d+)/;
@@ -124,6 +126,17 @@ export async function withEdgeCache(
       : options.clientCacheControl === "stored"
         ? hit
         : withHeader(hit, "cache-control", options.clientCacheControl);
+    if (notModified(request, answer)) {
+      void answer.body?.cancel().catch(() => {});
+      return marked(
+        new Response(null, {
+          status: 304,
+          headers: notModifiedHeaders(answer),
+        }),
+        options.statusHeader,
+        "HIT",
+      );
+    }
     return marked(answer, options.statusHeader, "HIT");
   }
 
@@ -192,7 +205,7 @@ export async function purgeEdgeCache(
         dropped++;
       }
     } catch (error) {
-      options.onError?.(error, "put");
+      options.onError?.(error, "delete");
     }
   }
   return dropped;
@@ -203,11 +216,55 @@ function cacheKey(
   options: Pick<EdgeCacheOptions, "version" | "key">,
 ): Request {
   const chosen = options.key?.(request);
-  if (chosen instanceof Request)
-    return new Request(chosen.url, { method: "GET" });
-  const keyUrl = new URL(chosen ? String(chosen) : request.url);
+  const keyUrl = new URL(
+    chosen instanceof Request
+      ? chosen.url
+      : chosen
+        ? String(chosen)
+        : request.url,
+  );
   if (options.version) keyUrl.searchParams.set("__build", options.version);
   return new Request(keyUrl.toString(), { method: "GET" });
+}
+
+/**
+ * Whether a cache hit can answer the request with 304: its stored ETag
+ * matches `If-None-Match` (weak comparison, as RFC 9110 has for GET), or,
+ * with no `If-None-Match`, it was not modified since `If-Modified-Since`.
+ */
+function notModified(request: Request, hit: Response): boolean {
+  const ifNoneMatch = request.headers.get("if-none-match");
+  const etag = hit.headers.get("etag");
+  if (ifNoneMatch !== null) {
+    if (!etag) return false;
+    const weak = (tag: string) => tag.trim().replace(/^W\//, "");
+    return ifNoneMatch
+      .split(",")
+      .some((tag) => tag.trim() === "*" || weak(tag) === weak(etag));
+  }
+  const since = Date.parse(request.headers.get("if-modified-since") ?? "");
+  const modified = Date.parse(hit.headers.get("last-modified") ?? "");
+  return (
+    Number.isFinite(since) && Number.isFinite(modified) && modified <= since
+  );
+}
+
+/** The headers a 304 repeats from the full answer (RFC 9110, 15.4.5). */
+function notModifiedHeaders(hit: Response): Headers {
+  const headers = new Headers();
+  for (const name of [
+    "cache-control",
+    "content-location",
+    "date",
+    "etag",
+    "expires",
+    "last-modified",
+    "vary",
+  ]) {
+    const value = hit.headers.get(name);
+    if (value !== null) headers.set(name, value);
+  }
+  return headers;
 }
 
 function withHeader(response: Response, name: string, value: string): Response {

@@ -37,6 +37,7 @@ Check this list before writing a helper in an app. Anything generic to TanStack 
 | `workers-start/tokens`          | `signValue`, `verifyValue`, `signatureOf`, `verifySignature`, `sessionCookie`                                                                                                                                       | Signed payloads a stranger can hold, and a session cookie with a sliding expiry                          |
 | `workers-start/format`          | `plural`, `counted`, `compactCount`, `formatBytes`, `timeAgo`, `dateTime`, `monthYear`, `visitorTimeZone`, `utcStamp`, `usd`, `slugify`, `truncate`, `wrapWords` and the rest                                       | Counts, plurals, relative times, UTC stamps, money, slugs and word wrapping                              |
 | `workers-start/local-time`      | `localTime`, `localizeTimes`, `watchLocalTimes`, `LOCAL_TIME_SCRIPT`                                                                                                                                                | Dates in the reader's time zone on pages cached for everyone                                             |
+| `workers-start/react`           | `useReaderTimeZone`                                                                                                                                                                                                 | The reader's zone in React, hydration-safe                                                               |
 | `workers-start/discord/gateway` | `discordGateway`, the intent constants                                                                                                                                                                              | One Discord gateway websocket from a Durable Object: identify, heartbeat, resume, back off               |
 | `workers-start/accept`          | `parseAccept`, `quality`                                                                                                                                                                                            | Accept header parsing                                                                                    |
 | `workers-start/check-bundle`    | `workers-start-check-bundle` (bin)                                                                                                                                                                                  | Fails a build that would ship a local secret                                                             |
@@ -210,6 +211,8 @@ A cache hit has its browser `max-age` removed (the zone adds one, and a browser 
 - `statusHeader: "x-edge-cache"` marks each answer `HIT` or `MISS`.
 - `storedCacheControl` writes a different Cache-Control on the stored copy than the visitor gets, and a miss is stored when that header has an `s-maxage`, so a page can answer `no-store` to browsers and still be kept at the edge. Pair it with `clientCacheControl` for hits. A page `shouldStore` refuses has its copy released rather than left buffered.
 - `purgeEdgeCache(urls, { version, key })` drops pages after an edit to what they show, and answers how many were cached. Give the `version` and `key` they were cached with. The Cache API is per data center, so it clears the one it runs in.
+- A hit answers a request whose `If-None-Match` matches the stored ETag, or whose `If-Modified-Since` is not older than the stored `Last-Modified`, with 304 and no body.
+- The key ignores `Vary`. A route that answers differently by a request header (`Accept`, a cookie) must say so in `key`, or keep those requests away from the cache.
 - A cache that throws never takes the page down: a failed lookup renders, a failed store loses only the store, and `onError(error, "match" | "put")` hears about both.
 
 ### Cached values
@@ -697,7 +700,7 @@ return deferred({ ephemeral: true });
 - `reason` goes into `X-Audit-Log-Reason`, URI-encoded. `query` is appended to the path. A `FormData` body goes up as multipart (a file with `payload_json`), anything else as JSON. A 204 returns `null`.
 - `token` is optional; `kind: "Bearer"` sends an OAuth2 access token instead of a bot token. `editOriginal`, `followup` and `deleteOriginal` send no Authorization header, since the interaction token in the path is the credential.
 - `interactionResponse(type, data)` returns the JSON `Response`; `InteractionResponseType` and `MessageFlags` hold the numbers. `deferred()` acknowledges within Discord's three seconds and `pong()` answers the endpoint check. Verifying the request signature is up to the app.
-- `discordTime(value, style)` writes Discord's timestamp markup, `<t:1795231800:R>`, which every reader sees in their own time zone and language. Styles: `t`, `T`, `d`, `D`, `f` (the default), `F`, `R` ("3 hours ago"). Use it in message content and embed descriptions and fields; titles and footers do not render it, so use the embed's `timestamp` there.
+- `discordTime(value, style, { seconds, fallback })` writes Discord's timestamp markup, `<t:1795231800:R>`, which every reader sees in their own time zone and language. Styles: `t`, `T`, `d`, `D`, `f` (the default), `F`, `R` ("3 hours ago"). It reads any date `workers-start/format` reads, or stored unix seconds with `{ seconds: true }`. A value that is not a date writes `fallback`, "-" by default, since Discord refuses an empty embed field. Use it in message content and embed descriptions and fields; titles and footers do not render it, so use the embed's `timestamp` there.
 
 ## X
 
@@ -862,7 +865,7 @@ utcStamp(row.created_at); // "2026-11-20 14:03 UTC"
 usd(120_450, { cents: true }); // "$1,204.50"
 ```
 
-Everything here is pure and locale-free: the same input gives the same string in a Worker, an OG card, a Discord message and a test. Dates are read in UTC unless you say otherwise, which is right for keys, logs and anything stored. Anything a person reads should be in their own time zone: pass `timeZone`, with `visitorTimeZone(request)` on a server-rendered page (Cloudflare's `request.cf.timezone`) or `"local"` in the browser.
+Everything here is pure and English-only: with a fixed `timeZone`, the same input gives the same string in a Worker, an OG card, a Discord message and a test (`"local"` is the one zone that depends on where the code runs). Dates are read in UTC unless you say otherwise, which is right for keys, logs and anything stored. Anything a person reads should be in their own time zone: pass `timeZone`, with `visitorTimeZone(request)` on a server-rendered page that is not cached for everyone (Cloudflare's `request.cf.timezone`), or `"local"` in the browser. A page behind `withEdgeCache` or any shared cache must not bake one visitor's zone in: use `workers-start/local-time` there, and `useReaderTimeZone` from `workers-start/react` in a React app that renders on the server.
 
 ```ts
 import {
@@ -879,6 +882,25 @@ timeAgo(row.created_at, { timeZone }); // "3h ago", or the date in their zone pa
 // in the browser: { timeZone: "local" }
 ```
 
+### Dates in a React app that renders on the server
+
+The server writes dates in UTC, so the browser's first render must too, or React reports a hydration mismatch. `useReaderTimeZone` from `workers-start/react` (React is an optional peer) gives `"UTC"` on the server and during hydration and `"local"` after; a component that mounts later (a client-side navigation) gets `"local"` at once:
+
+```tsx
+import { useReaderTimeZone } from "workers-start/react";
+import { fullDate, timeAgo } from "workers-start/format";
+
+function Posted({ at }: { at: string }) {
+  const { timeZone, mounted } = useReaderTimeZone();
+  // "5m ago" changes with the clock, so show the date until the browser has taken over.
+  return (
+    <time dateTime={at}>
+      {mounted ? timeAgo(at, { timeZone }) : fullDate(at, { timeZone })}
+    </time>
+  );
+}
+```
+
 ### Dates on pages cached for everyone
 
 An edge-cached or static page is rendered once for every visitor, so it cannot carry one visitor's zone. Write the date with `localTime` on the server, which gives a `<time>` holding the UTC date (still a true date without JavaScript), and let the browser rewrite it in the reader's zone:
@@ -892,7 +914,7 @@ html += `<script>${LOCAL_TIME_SCRIPT}</script>`; // once, at the end of the page
 ```
 
 - A bundled page imports `localizeTimes(document)` instead of the script text, and `watchLocalTimes(document)` to cover content added later (infinite scroll, client navigation). `LOCAL_TIME_SCRIPT` does both.
-- `{ order: "mdy" }` writes "Nov 20, 2026". The script is self-contained, and its test checks it writes what the functions write.
+- `{ order: "mdy", month: "long", weekday: "short" }` write "Fri, November 20, 2026" (carried on the element as `data-order`, `data-month` and `data-weekday`). The script is literal script text, so a bundler that keeps names (wrangler's default) cannot put its own helpers into it, and its test checks it writes what the functions write for every kind and option.
 - A page under a Content Security Policy needs the script's hash or a nonce, or the script served as a file.
 
 - A date argument is an ISO string, epoch milliseconds or a `Date`. Anything unparseable gives an empty string rather than `Invalid Date`, so a bad row leaves a gap in the page instead of a mark across it.
