@@ -6,7 +6,7 @@ Wallet signature checks that pass plain accounts and smart wallets alike, and Si
 
 A plain account's signature is checked locally, with no network. A smart wallet's goes to the chain (ERC-1271 for a deployed wallet, ERC-6492 for one not deployed yet) under a timeout. When the chain cannot answer, the result says so, separately from "not signed", so a route can answer 503 instead of 403.
 
-It has no runtime dependencies. `viem` is a peer.
+It has no runtime dependencies. `viem` is an optional peer: install it for the signature and SIWE checks; `workers-wallet/address` needs nothing.
 
 ## What is in it
 

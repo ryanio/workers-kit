@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 (2026-11-23)
+
+- `viem` is an optional peer, so an app that imports only `workers-wallet/address` does not get viem and its dependencies in its lockfile. An app that checks signatures installs viem itself, as the README already says.
+
 ## 0.3.0 (2026-11-23)
 
 - `shortAddress(value, { head, tail, ellipsis })` writes "0x49a3…d2b2" (6 and 4 by default), and leaves a value too short to shorten whole. It is on the root and on `workers-wallet/address`, which imports no viem, for a page that only shows addresses.
