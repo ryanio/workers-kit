@@ -12,7 +12,7 @@
 
 ## Rules
 
-- Consumers: coral, flock, glyphbots and musegod (all in `~/dev`). Before adding a feature, search them for hand-rolled versions of it; after a release, move them onto it.
+- Consumers: coral, flock, glyphbots, musegod and wompworld (all in `~/dev`). Before adding a feature, search them for hand-rolled versions of it; after a release, move them onto it.
 - `viem` is the only peer dependency. No runtime dependencies of its own.
 - `undefined` from `verifyWalletSignature` means the chain could not answer, and `false` means it answered no. Keep the two apart: callers map them to 503 and 403. Turning one into the other is a breaking change.
 - A plain account's signature never calls the client. Only a signature that does not recover to the address goes to the chain.
