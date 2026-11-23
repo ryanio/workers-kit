@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.33.1 (2026-11-23)
+
+- `SENTRY_DATA_COLLECTION` also turns off MCP inputs and outputs and stack frame variables, which Sentry 11 collects by default. An app that wants either passes it in `dataCollection`.
+
 ## 0.33.0 (2026-11-23)
 
 What an app must do:

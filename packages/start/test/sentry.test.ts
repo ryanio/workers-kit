@@ -113,6 +113,8 @@ describe("workerSentryOptions", () => {
       httpBodies: [],
       databaseQueryData: false,
       genAI: { inputs: false, outputs: false },
+      mcp: { inputs: false, outputs: false },
+      stackFrameVariables: false,
     });
     expect(options.dataCollection.urlQueryParams).toHaveProperty("deny");
     expect(options.dataCollection.httpHeaders).toMatchObject({

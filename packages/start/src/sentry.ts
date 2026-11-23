@@ -81,8 +81,8 @@ const SENSITIVE_KEYS = {
 
 /**
  * What the options let Sentry collect. Sentry 11 collects user info, cookies,
- * request and response bodies, database query data and AI inputs and outputs
- * when `dataCollection` is unset, and cookies hold sessions while bodies hold
+ * request and response bodies, database query data, AI and MCP inputs and
+ * outputs and local variables in stack frames when `dataCollection` is unset, and cookies hold sessions while bodies hold
  * webhooks and payments. This turns all of those off and filters headers and
  * query parameters that name a client address or user. Sentry still strips
  * values that look like keys and tokens on its own.
@@ -94,9 +94,11 @@ export const SENTRY_DATA_COLLECTION: DataCollection = {
   httpBodies: [],
   urlQueryParams: SENSITIVE_KEYS,
   genAI: { inputs: false, outputs: false },
+  mcp: { inputs: false, outputs: false },
   databaseQueryData: false,
   queues: false,
   graphQL: { document: false, variables: false },
+  stackFrameVariables: false,
 };
 
 /** A `beforeSend` that drops local events and keeps the rest. */
