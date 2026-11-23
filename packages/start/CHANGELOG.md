@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.33.2 (2026-11-23)
+## 0.34.1 (2026-11-23)
 
 - `readBytes` returns `Uint8Array<ArrayBuffer>`, so its bytes can be passed on as a `Request` or `Response` body without a cast.
 
