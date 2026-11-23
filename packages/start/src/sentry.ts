@@ -27,6 +27,8 @@ export interface SentryEventLike {
 // biome-ignore lint/suspicious/noExplicitAny: each SDK types its events differently; these options must be assignable to all of them.
 type AnyEvent = any;
 type BeforeSend = (event: AnyEvent, hint: AnyEvent) => AnyEvent;
+// biome-ignore lint/suspicious/noExplicitAny: Sentry 10 and 11 type `ignoreSpans` entries differently; these options must be assignable to both.
+type IgnoreSpan = any;
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
@@ -41,6 +43,23 @@ export function isLocalEvent(event: SentryEventLike): boolean {
     return false;
   }
 }
+
+/**
+ * A URL served from this machine, by the rule `isLocalEvent` applies:
+ * localhost, 127.0.0.1, [::1] and any `*.localhost` host.
+ */
+export const LOCAL_URL =
+  /^[a-z][a-z\d+.-]*:\/\/(?:[^/?#@]*@)?(?:localhost|127\.0\.0\.1|\[::1\]|[^/?#@:]*\.localhost)(?::\d*)?(?:[/?#]|$)/i;
+
+/**
+ * An `ignoreSpans` entry that drops spans from a local request. Sentry 11
+ * streams spans and never calls `beforeSendTransaction`, so this is what
+ * keeps local traces out. It reads `url.full`, which the request span
+ * (`http.server` in a Worker, `pageload` and `navigation` in the browser)
+ * carries from its start; ignoring that root span drops its children too.
+ * Sentry 10 also applies it to transactions.
+ */
+export const LOCAL_SPANS = { attributes: { "url.full": LOCAL_URL } } as const;
 
 /** A `beforeSend` that drops local events and keeps the rest. */
 export function dropLocalEvents<T extends SentryEventLike>(event: T): T | null {
@@ -162,6 +181,8 @@ interface CommonOptions {
   tracesSampleRate?: number;
   /** Runs after the built-in filters. */
   beforeSend?: BeforeSend;
+  /** More `ignoreSpans` entries, added after `LOCAL_SPANS`. */
+  ignoreSpans?: readonly IgnoreSpan[];
   /** Tags set on every event, such as `{ runtime: "worker", worker: "api" }`. */
   tags?: Record<string, string>;
   release?: string;
@@ -173,7 +194,10 @@ export interface WorkerSentryOptions {
   enabled: boolean;
   tracesSampleRate?: number;
   beforeSend: BeforeSend;
+  /** Sentry 10 and earlier, or Sentry 11 with `traceLifecycle: "static"`. */
   beforeSendTransaction: BeforeSend;
+  /** Sentry 11 with streamed spans, the default. */
+  ignoreSpans: IgnoreSpan[];
   initialScope?: { tags: Record<string, string> };
   release?: string;
   environment?: string;
@@ -194,6 +218,7 @@ export function workerSentryOptions(
     enabled: dsn !== undefined,
     beforeSend: chain(dropLocalEvents, options.beforeSend),
     beforeSendTransaction: dropLocalEvents,
+    ignoreSpans: [LOCAL_SPANS, ...(options.ignoreSpans ?? [])],
   };
   if (options.tracesSampleRate !== undefined)
     out.tracesSampleRate = options.tracesSampleRate;
@@ -235,6 +260,7 @@ export function browserSentryOptions(
       return isBrowserNoise(event, noise) ? null : event;
     }, options.beforeSend),
     beforeSendTransaction: dropLocalEvents,
+    ignoreSpans: [LOCAL_SPANS, ...(options.ignoreSpans ?? [])],
   };
   if (options.tracesSampleRate !== undefined)
     out.tracesSampleRate = options.tracesSampleRate;

@@ -1,8 +1,17 @@
+import {
+  Client,
+  type ClientOptions,
+  createTransport,
+  resolvedSyncPromise,
+  setCurrentClient,
+  startSpan,
+} from "@sentry/core";
 import { describe, expect, it } from "vitest";
 import {
   browserSentryOptions,
   isBrowserNoise,
   isLocalEvent,
+  LOCAL_URL,
   sentryConnectSource,
   sentryReportUri,
   validDsn,
@@ -139,6 +148,98 @@ describe("browserSentryOptions", () => {
     expect(isBrowserNoise(error("load failed"))).toBe(true);
     expect(isBrowserNoise(error("real bug"))).toBe(false);
     expect(validDsn("off")).toBeUndefined();
+  });
+});
+
+/** A bare Sentry 11 client with streamed spans, the default lifecycle in its SDKs. */
+class TestClient extends Client {
+  /** Public, where Client keeps its constructor protected. */
+  constructor(options: ClientOptions) {
+    super(options);
+  }
+  eventFromException() {
+    return resolvedSyncPromise({});
+  }
+  eventFromMessage() {
+    return resolvedSyncPromise({});
+  }
+}
+
+function useClient(options: object) {
+  const client = new TestClient({
+    dsn: DSN,
+    integrations: [],
+    stackParser: () => [],
+    transport: () =>
+      createTransport({ recordDroppedEvent: () => {} }, () =>
+        resolvedSyncPromise({}),
+      ),
+    tracesSampleRate: 1,
+    traceLifecycle: "stream",
+    ...options,
+  });
+  setCurrentClient(client);
+  client.init();
+}
+
+/** Whether the SDK records a request span for `url` and a child under it, as it would send them. */
+function recorded(url: string, op = "http.server"): [boolean, boolean] {
+  return startSpan(
+    { name: "GET", attributes: { "sentry.op": op, "url.full": url } },
+    (root) => [
+      root.isRecording(),
+      startSpan({ name: "db.query" }, (child) => child.isRecording()),
+    ],
+  );
+}
+
+describe("ignoreSpans under Sentry 11", () => {
+  it("drops a Worker request span from a local server, with its children", () => {
+    useClient(workerSentryOptions({ SENTRY_DSN: DSN }));
+    for (const url of [
+      "http://localhost:8787/api",
+      "http://127.0.0.1:5173/",
+      "http://[::1]/",
+      "http://app.localhost/x?y=1",
+    ]) {
+      expect(recorded(url), url).toEqual([false, false]);
+    }
+  });
+
+  it("keeps a production request span", () => {
+    useClient(workerSentryOptions({ SENTRY_DSN: DSN }));
+    for (const url of [
+      "https://example.com/api",
+      "https://localhost.example.com/",
+      "https://example.com/?next=http://localhost/",
+    ]) {
+      expect(recorded(url), url).toEqual([true, true]);
+    }
+  });
+
+  it("drops a local pageload in the browser and keeps a production one", () => {
+    useClient(browserSentryOptions({ dsn: DSN, ignoreSpans: [/^health$/] }));
+    expect(recorded("http://localhost:3000/", "pageload")).toEqual([
+      false,
+      false,
+    ]);
+    expect(recorded("https://example.com/", "pageload")).toEqual([true, true]);
+    expect(startSpan({ name: "health" }, (s) => s.isRecording())).toBe(false);
+  });
+
+  it("matches the same URLs as isLocalEvent", () => {
+    for (const url of [
+      "http://localhost:5173/x",
+      "http://127.0.0.1:8787/",
+      "http://[::1]/",
+      "http://app.localhost/",
+      "https://example.com/",
+      "https://localhost.example.com/",
+      "http://user@localhost/",
+      "https://example.com/localhost",
+    ]) {
+      expect(LOCAL_URL.test(url), url).toBe(isLocalEvent(at(url)));
+    }
   });
 });
 

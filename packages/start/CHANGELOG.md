@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.30.0 (2026-11-22)
+
+- `workerSentryOptions` and `browserSentryOptions` drop spans from local requests under Sentry 11, which streams spans and never calls `beforeSendTransaction`. They set `ignoreSpans: [LOCAL_SPANS]`, matching the request span's `url.full` against `LOCAL_URL` (the `isLocalEvent` rule), and take `ignoreSpans` to add more. `beforeSendTransaction` stays for Sentry 10.
+
 ## 0.29.1 (2026-11-22)
 
 - `EdgeCacheStage` names the union `onError` reports (`"match" | "put" | "delete"`). 0.29.0 added `"delete"` to it, which breaks a handler typed as `"match" | "put"`: type it as `EdgeCacheStage` instead.
