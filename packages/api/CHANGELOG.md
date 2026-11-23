@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 (2026-11-22)
+
+- The `workers-start` peer starts at 0.32.0, and the tests run on the workspace copy. They ran on a nested npm copy of 0.8.0, so the peer range claimed versions nothing had tested. An app peering workers-api moves to workers-start 0.32.0 or later.
+
 ## 0.2.1 (2026-11-21)
 
 - Docs: a cursor is not signed and anyone can write one, so it positions a page and never decides what the caller may see. The README said `decodeCursor` refused cursors this API did not issue; it refuses only ones that will not decode or fail the schema.

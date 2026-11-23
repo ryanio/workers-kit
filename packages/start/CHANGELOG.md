@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The optional `react` peer is `^19.0.0`, not `>=18`: `workers-start/react` is tested on React 19 only, which every consumer runs.
+
 ## 0.32.0 (2026-11-22)
 
 - The root `workers-start` entry no longer re-exports `workers-start/sentry`. Its types name `@sentry/core`, an optional peer, so since 0.31.0 an app without Sentry that imported anything from the root failed `tsc` (TS2307), or with `skipLibCheck` saw the Sentry types turn to `any`. Import the Sentry options from `workers-start/sentry`. A test now fails when the root entry's types reach an optional peer.

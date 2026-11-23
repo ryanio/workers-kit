@@ -234,7 +234,7 @@
   },
   "peerDependencies": {
     "@sentry/core": "^11.0.0",
-    "react": ">=18"
+    "react": "^19.0.0"
   },
   "peerDependenciesMeta": {
     "@sentry/core": {
