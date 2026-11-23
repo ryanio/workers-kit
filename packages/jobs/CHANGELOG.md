@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.12.0 (2026-11-23)
+
+- `createJobs` refuses an event job whose id plus `-` starts another job's id on any lane when there is a ledger, not only on the same lane: the ledger keeps every lane's runs under `<job>-<key>`, so `pay` with key `out-1` and `pay-out` with key `1` shared a row, and one reported `duplicate` and never ran. An app with such a pair renames one; `createJobs` throws at startup until it does. No consumer had one when this shipped.
+- README: a "What is in it" table.
+
 ## 0.11.0 (2026-11-21)
 
 - Security: an instance id whose job or key needed characters replaced now ends in a hash of the raw `<job>-<key>`, so `a.b@c.com` and `a_b@c.com` no longer share an id and one cannot silently dedupe the other. Ids of keys that needed no replacing are unchanged; an event sent before and after upgrading with such a key can run twice once.

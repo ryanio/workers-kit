@@ -497,7 +497,7 @@ describe("the ledger's view of a run", () => {
     );
     const onWorkflow = defineJob(
       {
-        id: "picky-wf",
+        id: "wf-picky",
         key: (d) => d.userId,
         retries: 0,
         event: "user/created",
@@ -515,15 +515,15 @@ describe("the ledger's view of a run", () => {
     await t.runner.run(
       env,
       {
-        instanceId: "picky-wf-u1",
-        payload: { fn: "picky-wf", data: { userId: "u1" } },
+        instanceId: "wf-picky-u1",
+        payload: { fn: "wf-picky", data: { userId: "u1" } },
       },
       inlineStep().step,
     );
     const refused = { skipped: "invalid payload", issues: ["no"] };
     expect(t.finished.map((f) => [f.fn, f.status, f.output])).toEqual([
       ["picky", "skipped", refused],
-      ["picky-wf", "skipped", refused],
+      ["wf-picky", "skipped", refused],
     ]);
   });
 });

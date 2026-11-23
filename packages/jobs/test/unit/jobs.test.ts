@@ -685,6 +685,15 @@ describe("job ids that could share instance ids", () => {
     expect(() =>
       createJobs({ jobs: [pay, payOut], workflows: wf }),
     ).not.toThrow();
+    // A ledger keys every lane's runs by the same id, so there the pair would
+    // share a row even on different lanes.
+    expect(() =>
+      createJobs({
+        jobs: [pay, payOut],
+        workflows: wf,
+        ledger: () => d1Ledger(sqliteD1().db),
+      }),
+    ).toThrow(/"pay" and "pay-out"/);
     const sync = defineJob(
       { id: "sync", retries: 1, cron: "0 13 * * *" },
       async () => null,
