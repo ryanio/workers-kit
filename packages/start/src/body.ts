@@ -72,7 +72,7 @@ async function discard(request: Request | Response): Promise<void> {
 async function collect(
   request: Request | Response,
   maxBytes: number,
-): Promise<Uint8Array | undefined> {
+): Promise<Uint8Array<ArrayBuffer> | undefined> {
   const declared = Number(request.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > maxBytes) {
     await discard(request);
@@ -109,7 +109,7 @@ async function collect(
 export async function readBytes(
   request: Request | Response,
   { maxBytes = DEFAULT_MAX_BYTES }: ReadTextOptions = {},
-): Promise<BodyResult<Uint8Array>> {
+): Promise<BodyResult<Uint8Array<ArrayBuffer>>> {
   const bytes = await collect(request, maxBytes);
   if (!bytes) return tooLarge(maxBytes);
   return { ok: true, value: bytes };

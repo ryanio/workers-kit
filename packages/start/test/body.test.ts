@@ -195,5 +195,13 @@ describe("readBytes", () => {
     });
     const refused = await readBytes(big, { maxBytes: 25 });
     expect(refused.ok).toBe(false);
+    // The bytes can be handed on as a body: typed Uint8Array<ArrayBuffer>.
+    if (ok.ok) {
+      const again = new Request("https://e.test/", {
+        method: "POST",
+        body: ok.value,
+      });
+      expect(new Uint8Array(await again.arrayBuffer())).toEqual(sent);
+    }
   });
 });

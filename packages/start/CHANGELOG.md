@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.33.2 (2026-11-23)
+
+- `readBytes` returns `Uint8Array<ArrayBuffer>`, so its bytes can be passed on as a `Request` or `Response` body without a cast.
+
 ## 0.34.0 (2026-11-23)
 
 - `sitemapXml` entries take `images`, absolute image URLs written as image sitemap entries, as in Next's `MetadataRoute.Sitemap`.
