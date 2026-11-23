@@ -198,6 +198,11 @@ test("text rules: a required string, a forbidden pattern in a code block, a rule
 });
 
 const BIN = fileURLToPath(new URL("../bin/doc-refs.mjs", import.meta.url));
+// A git hook exports GIT_INDEX_FILE and friends. Inherited, they would point
+// the scratch repos' git calls at the hook's index.
+const ENV = Object.fromEntries(
+  Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")),
+);
 
 function repo(files) {
   const root = mkdtempSync(join(tmpdir(), "doc-refs-cli-"));
@@ -206,14 +211,14 @@ function repo(files) {
     writeFileSync(join(root, f), text);
   }
   const git = (...args) =>
-    execFileSync("git", args, { cwd: root, stdio: "ignore" });
+    execFileSync("git", args, { cwd: root, env: ENV, stdio: "ignore" });
   git("init", "-q");
   git("add", "-A");
   return root;
 }
 
 const cli = (cwd, ...args) =>
-  spawnSync("node", [BIN, ...args], { cwd, encoding: "utf8" });
+  spawnSync("node", [BIN, ...args], { cwd, env: ENV, encoding: "utf8" });
 
 test("the bin checks the repo holding the current directory, with the config at its root", () => {
   const root = repo({
