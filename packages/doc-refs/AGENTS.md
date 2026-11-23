@@ -10,7 +10,7 @@
 
 ## Rules
 
-- Consumers: 123shoot, calvin, coral, flock, glyphbots, musegod, sitewise, terrakin and wompworld (all in `~/dev`). x has no package.json and runs it with `npx doc-refs`.
+- Consumers: 123shoot, calvin, coral, flock, glyphbots, musegod, sitewise, terrakin, wompworld and x (all in `~/dev`).
 - Plain JavaScript with no build and no dependencies, so `npx doc-refs` works in a repo with nothing installed.
 - "Exists" means tracked by git. Anything that reads the working tree instead makes a local run and CI disagree.
 - A new heuristic must not fail a correct doc. A check that fails CI on a correct doc gets turned off, so when in doubt, skip the token.
