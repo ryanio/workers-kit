@@ -8,7 +8,7 @@
 - [`packages/wallet`](packages/wallet/AGENTS.md): `workers-wallet`, wallet signatures and SIWE on viem.
 - [`packages/api`](packages/api/AGENTS.md): `workers-api`, Hono APIs with problem responses, an Access guard, spec and types generation and spec checks.
 - [`packages/cards`](packages/cards/AGENTS.md): `workers-cards`, link preview cards on satori and resvg.
-- [`packages/doc-refs`](packages/doc-refs/AGENTS.md): `doc-refs`, the command line check that agent docs name only files and commands that exist. Still private until its first release.
+- [`packages/doc-refs`](packages/doc-refs/AGENTS.md): `doc-refs`, the command line check that agent docs name only files and commands that exist.
 
 Read the package's AGENTS.md before changing it. This file has what every package shares.
 

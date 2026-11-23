@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/ryanio/workers-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/ryanio/workers-kit/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-Libraries for apps on Cloudflare Workers. Each is its own npm package with its own version and changelog, so an app installs only what it uses.
+Libraries for apps on Cloudflare Workers, plus the doc check their repos run. Each is its own npm package with its own version and changelog, so an app installs only what it uses.
 
 ## Packages
 
@@ -18,6 +18,8 @@ Libraries for apps on Cloudflare Workers. Each is its own npm package with its o
   Wallet signature checks, smart wallets included, and Sign-In with Ethereum, on viem.
 - [workers-cards](packages/cards#readme) [![npm](https://img.shields.io/npm/v/workers-cards?color=f38020&label=)](https://www.npmjs.com/package/workers-cards)\
   Link preview and social cards (OG images) drawn in a Worker. You pass in satori and resvg.
+- [doc-refs](packages/doc-refs#readme) [![npm](https://img.shields.io/npm/v/doc-refs?color=f38020&label=)](https://www.npmjs.com/package/doc-refs)\
+  A gate check that AGENTS.md, READMEs and skills only name files and slash commands that exist. Runs on Node, not Workers.
 
 Follow a package name to its README for everything in it, with examples. Install only what you use:
 
@@ -28,6 +30,7 @@ npm install workers-api
 npm install workers-r2
 npm install workers-wallet
 npm install workers-cards
+npm install --save-dev doc-refs
 ```
 
 ## Working on it

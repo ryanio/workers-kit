@@ -27,7 +27,10 @@ for (const dir of readdirSync(join(ROOT, "packages"))) {
   if (!readme.includes(`\n- [${name}](packages/${dir}#readme) `)) {
     problems.push(`README.md has no entry for ${name} in the package list`);
   }
-  if (!readme.includes(`npm install ${name}\n`)) {
+  if (
+    !readme.includes(`npm install ${name}\n`) &&
+    !readme.includes(`npm install --save-dev ${name}\n`)
+  ) {
     problems.push(`README.md has no "npm install ${name}" line`);
   }
 }

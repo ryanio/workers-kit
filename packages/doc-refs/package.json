@@ -1,7 +1,6 @@
 {
   "name": "doc-refs",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "Checks that AGENTS.md, READMEs, skills and other agent docs only name files and slash commands that exist in the repo.",
   "license": "MIT",
   "author": "Ryan Ghods",
