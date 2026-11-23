@@ -12,7 +12,7 @@ Three kinds of reference, the ones it can resolve without guessing:
 2. Inline backticked paths such as `apps/api/src/x.ts`. A token counts as a path only when its first segment is a real top-level entry of the repo or of the doc's folder, so `users/{uid}/meals` or `owner/repo` are never read as paths. A `:12` line suffix is dropped, and a module specifier (`x.js` for `x.ts`, or no extension) resolves the way an import does.
 3. `/slash` names in command and skill docs, which must be a command file, a skill folder or a Claude Code built-in.
 
-"Exists" means tracked by git, so a local run and CI agree. A path covered by the repo's `.gitignore` passes, since it names a runtime or generated file. Fenced code blocks, placeholders (`...`, `YYYY`, `NNNN`, `<name>`) and records (`*-log.md`, `log/`, `plans/archived/`, `plans/done/`) are skipped.
+"Exists" means tracked by git, so a local run and CI agree. A path covered by a `.gitignore` passes, since it names a runtime or generated file; that holds for a path resolved from the doc's folder too, so a nested `.gitignore` counts. Fenced code blocks, placeholders (`...`, `YYYY`, `NNNN`, `<name>`) and records (`*-log.md`, `log/`, `plans/archived/`, `plans/done/`) are skipped.
 
 Symbols, constants, npm scripts and flags are not checked. Matching them takes heuristics, and a check that fails CI on a correct doc gets turned off.
 
@@ -66,6 +66,6 @@ npm run sync
 npm run report
 ```
 
-`sync` writes every copy with a banner holding a hash of its body, and a copy edited in place refuses to run. `report` runs every repo's copy without failing, which is also how `x` is covered, since it has no package.json or gate of its own. `npm run check` exits 1 if any copy is out of date.
+`sync` writes every copy with a banner holding a hash of its body. A copy edited in place refuses to run, and `sync` refuses to overwrite it: carry the edit into `lib/doc-refs.mjs`, then run `npm run sync -- --force`. `report` runs every repo's copy without failing, which is also how `x` is covered, since it has no package.json or gate of its own. `npm run check` exits 1 if any copy is out of date.
 
 The vendored folder is excluded from each repo's Biome config, because the repos format differently (glyphbots indents with spaces).
