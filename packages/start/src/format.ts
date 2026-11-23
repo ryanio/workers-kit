@@ -769,7 +769,7 @@ export function truncate(
   }
   const cut = wholeStart(text, room);
   if (options.onWord === false) {
-    return cut + ellipsis;
+    return cut.trimEnd() + ellipsis;
   }
   const space = cut.lastIndexOf(" ");
   return (space > room / 2 ? cut.slice(0, space) : cut).trimEnd() + ellipsis;

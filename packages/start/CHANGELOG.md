@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.34.3 (2026-11-23)
+
+- `truncate` with `onWord: false` drops a space left before the ellipsis ("hello…", not "hello …"), as the word-break path already did.
+
 ## 0.34.2 (2026-11-23)
 
 - `mapLimit` takes a function that returns a plain value as well as a promise; it threw "Cannot read properties of undefined (reading 'then')" before.

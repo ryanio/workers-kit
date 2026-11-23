@@ -643,3 +643,10 @@ describe("truncate and graphemes", () => {
     expect(truncate("👍🏽👍🏽👍🏽", 6, { onWord: false })).toBe("👍🏽…");
   });
 });
+
+describe("truncate without word breaks", () => {
+  it("drops a space left before the ellipsis", () => {
+    expect(truncate("hello world again", 7, { onWord: false })).toBe("hello…");
+    expect(truncate("hello world again", 7)).toBe("hello…");
+  });
+});
