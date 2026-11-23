@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.29.1 (2026-11-22)
+
+- `EdgeCacheStage` names the union `onError` reports (`"match" | "put" | "delete"`). 0.29.0 added `"delete"` to it, which breaks a handler typed as `"match" | "put"`: type it as `EdgeCacheStage` instead.
+
 ## 0.29.0 (2026-11-22)
 
 - `LOCAL_TIME_SCRIPT` is literal script text. It came from `Function.prototype.toString`, so a bundler that keeps names (wrangler's default) put `__name` calls into it and it threw in the browser. A test now bundles the module with esbuild `keepNames` and runs the script.

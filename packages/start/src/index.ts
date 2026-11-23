@@ -46,6 +46,7 @@ export type {
   CachedOptions,
   EdgeCacheContext,
   EdgeCacheOptions,
+  EdgeCacheStage,
 } from "./cache.js";
 export {
   cached,

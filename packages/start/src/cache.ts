@@ -11,6 +11,9 @@
 
 import { afterResponse } from "./workers.js";
 
+/** Which cache call failed, as `onError` reports it. Type a handler with this rather than a literal union, so a new stage does not break it. */
+export type EdgeCacheStage = "match" | "put" | "delete";
+
 export interface EdgeCacheOptions {
   /**
    * Added to the cache key, so a deploy never serves a page cached by the
@@ -60,9 +63,7 @@ export interface EdgeCacheOptions {
   /** A header naming whether the answer came from the cache (`HIT` or `MISS`), such as `x-edge-cache`. */
   statusHeader?: string | undefined;
   /** Called when the cache itself fails. A failed lookup renders the page; a failed store loses only the store. */
-  onError?:
-    | ((error: unknown, during: "match" | "put" | "delete") => void)
-    | undefined;
+  onError?: ((error: unknown, during: EdgeCacheStage) => void) | undefined;
 }
 
 const S_MAXAGE = /(?:^|,)\s*s-maxage=(\d+)/;
