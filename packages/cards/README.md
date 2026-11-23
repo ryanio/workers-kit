@@ -27,10 +27,10 @@ A Worker needs `satori/standalone` with `init(yoga)`, because Workers refuse to 
 ## Install
 
 ```sh
-npm install workers-cards satori@^0.63 @resvg/resvg-wasm
+npm install workers-cards satori@^0.32 @resvg/resvg-wasm
 ```
 
-The engine types and the mask stripping are tested against satori 0.63 and resvg-wasm 2.6. An app on an older satori moves to 0.63 with them, and opens each of its cards after, since satori's layout and text shaping change between minors.
+Use satori 0.32 on Workers and Pages. From 0.63 the standalone build compiles HarfBuzz from bytes when it starts, which workerd refuses ("Wasm code generation disallowed by embedder"), and there is no hook to hand it a precompiled module; its `satori/yoga.wasm` is also gone (it is `satori/layout.wasm`). The engine types and the mask stripping are tested against satori 0.32 and resvg-wasm 2.6.
 
 ## Drawing a card
 

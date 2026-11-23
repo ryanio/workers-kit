@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 (2026-11-23)
+
+- Back on satori 0.32, and an app stays there. 0.3.0 said to move to satori 0.63, which was checked only in Node: from 0.63 satori's standalone build compiles HarfBuzz from bytes at start, which workerd refuses, so every card fails on Workers and Pages. An app that moved to 0.63 goes back to `^0.32`. The README names the reason.
+
 ## 0.3.0 (2026-11-23)
 
 - Tested against satori 0.63 (from 0.32). The engine types, `h` trees and `unmask` work unchanged; a real render of a card with a rounded picture draws and loses its mask as before. An app moves its own `satori` to `^0.63` and looks at every card it draws, since layout and text shaping can shift between satori minors.
