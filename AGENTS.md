@@ -15,7 +15,8 @@ Read the package's AGENTS.md before changing it. This file has what every packag
 
 - `package.json`: the workspace root (private) and the gate.
 - `biome.json`, `knip.json`, `.gitignore`, `.nvmrc`, `.githooks/`: one copy for the whole repo. `knip.json` lists each package's entry points; a new entry point goes there too.
-- `scripts/doc-refs/`: synced from `~/dev/doc-refs` (edit it there and run `npm run sync`); checks that paths named in these docs exist.
+- `tools/doc-refs/`: the source of the doc-reference checker vendored into this repo and every app (its README lists them). Not a package and never published. Edit `lib/doc-refs.mjs`, then run `npm test` and `npm run sync` from that folder; the gate runs its tests.
+- `scripts/doc-refs/`: this repo's own synced copy, which checks that paths named in these docs exist.
 - `scripts/check-lockfile-platforms.mjs`: fails when the lockfile loses the Linux binaries CI needs.
 - `scripts/check-package-list.mjs`: fails when a package is missing from the list at the top of this file or, once public, from the root README package list and install lines.
 - `scripts/check-peer-ranges.mjs`: fails when a peer range spans more than one line of a library (the current-major rule below).

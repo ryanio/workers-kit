@@ -120,8 +120,8 @@ const COMMAND_DIRS = ['.claude/commands', '.claude/skills', '.agents/skills', '.
 
 // ── banner self-check ─────────────────────────────────────────────────────
 
-const BANNER_RE =
-	/^\/\/ Generated from ryanio\/doc-refs lib\/\S+ \(\w+, body ([0-9a-f]{12})\)\..*\n/m
+export const BANNER_RE =
+	/^\/\/ Generated from ryanio\/workers-kit tools\/doc-refs\/lib\/\S+ \(\w+, body ([0-9a-f]{12})\)\..*\n/m
 
 export function bodyHash(text) {
 	return createHash('sha256').update(text).digest('hex').slice(0, 12)
@@ -226,7 +226,7 @@ const MD_EXT_RE = /\.md$/
 const PLACEHOLDER_RE = /\.\.\.|YYYY|XXX|NNNN|\bMM\b|\bDD\b/
 const SLASH_RE = /^\/[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
 
-export function stripFences(text) {
+function stripFences(text) {
 	return text.replace(FENCE_RE, (m) => m.replace(/[^\n]/g, ''))
 }
 
@@ -421,8 +421,8 @@ function main() {
 	const self = readFileSync(fileURLToPath(import.meta.url), 'utf8')
 	if (editedInPlace(self)) {
 		console.error(
-			'doc-refs.mjs was edited in place, but it is generated from ryanio/doc-refs.\n' +
-				'Make the change in ~/dev/doc-refs/lib and run `npm run sync` there, or restore this file.'
+			'doc-refs.mjs was edited in place, but it is generated from ryanio/workers-kit tools/doc-refs.\n' +
+				'Make the change in ~/dev/workers-kit/tools/doc-refs/lib and run `npm run sync` there, or restore this file.'
 		)
 		process.exit(1)
 	}

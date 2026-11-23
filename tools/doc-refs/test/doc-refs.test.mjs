@@ -115,7 +115,7 @@ test('globs', () => {
 
 test('a copy edited in place is caught', () => {
 	const body = 'const x = 1\n'
-	const banner = `// Generated from ryanio/doc-refs lib/doc-refs.mjs (abc1234, body ${bodyHash(body)}). Edit it there.\n`
+	const banner = `// Generated from ryanio/workers-kit tools/doc-refs/lib/doc-refs.mjs (abc1234, body ${bodyHash(body)}). Edit it there.\n`
 	assert.equal(editedInPlace(banner + body), false)
 	assert.equal(editedInPlace(`${banner}const x = 2\n`), true)
 	assert.equal(editedInPlace(body), false)

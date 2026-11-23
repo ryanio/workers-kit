@@ -2,23 +2,24 @@
 /**
  * Copies lib/doc-refs.mjs into every consumer repo listed in consumers.json.
  *
- *   node sync.mjs           write the copies (repos are siblings of this one)
+ *   node sync.mjs           write the copies (repos are siblings of workers-kit)
  *   node sync.mjs --check   exit 1 if any copy differs from lib/, write nothing
  *   node sync.mjs --report  run each repo's copy in report mode
  *
- * Consumers vendor the file rather than depending on this repo, so CI, a
+ * Consumers vendor the file rather than depending on workers-kit, so CI, a
  * worktree or a cloud session needs no access to it. Each copy gets a banner
- * with a hash of its body; the copy refuses to run if it was edited in place.
+ * with a hash of its body; the copy refuses to run, and sync refuses to
+ * overwrite it, if it was edited in place.
  * A consumer's doc-refs.config.json sits beside its copy and is never synced.
  */
 import { execFileSync, execSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { bodyHash } from './lib/doc-refs.mjs'
+import { BANNER_RE, bodyHash, editedInPlace } from './lib/doc-refs.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const DEV = dirname(HERE)
+const DEV = dirname(dirname(dirname(HERE)))
 const FILE = 'doc-refs.mjs'
 let mode = 'write'
 if (process.argv.includes('--check')) {
@@ -41,11 +42,10 @@ function sha() {
 	}
 }
 
-const BANNER_RE = /^\/\/ Generated from ryanio\/doc-refs .*\n/m
 const strip = (text) => text.replace(BANNER_RE, '')
 
 function withBanner(source) {
-	const banner = `// Generated from ryanio/doc-refs lib/${FILE} (${sha()}, body ${bodyHash(source)}). Edit it there and run \`npm run sync\`; changes made here are refused.\n`
+	const banner = `// Generated from ryanio/workers-kit tools/doc-refs/lib/${FILE} (${sha()}, body ${bodyHash(source)}). Edit it there and run \`npm run sync\`; changes made here are refused.\n`
 	const nl = source.startsWith('#!') ? source.indexOf('\n') + 1 : 0
 	return source.slice(0, nl) + banner + source.slice(nl)
 }
@@ -70,6 +70,11 @@ for (const { repo, dir } of consumers) {
 			console.error(`${repo}: ${dir}/${FILE} differs from lib/${FILE}`)
 			bad++
 		}
+		continue
+	}
+	if (current !== null && editedInPlace(current)) {
+		console.error(`${repo}: ${dir}/${FILE} was edited in place; move the change into lib/ or restore it, then sync again`)
+		bad++
 		continue
 	}
 	const next = withBanner(source)

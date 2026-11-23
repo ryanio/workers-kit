@@ -1,5 +1,7 @@
 # doc-refs
 
+It lives in `ryanio/workers-kit` at `tools/doc-refs`, outside the npm workspaces, and is never published. The workers-kit gate runs its tests; `npm run sync` runs from this folder and writes into the repos checked out beside workers-kit.
+
 The shared checker that keeps agent docs pointing at things that exist. It is vendored into 123shoot, calvin, coral, flock, glyphbots, musegod, sitewise, terrakin, wompworld, workers-kit and x.
 
 Each repo gets a copy at `scripts/doc-refs/doc-refs.mjs` and runs it as `npm run check:doc-refs`, chained into that repo's gate. Vendoring rather than a package dependency means CI, a worktree or a cloud session in that repo needs no access to this one.
@@ -66,6 +68,6 @@ npm run sync
 npm run report
 ```
 
-`sync` writes every copy with a banner holding a hash of its body, and a copy edited in place refuses to run. `report` runs every repo's copy without failing, which is also how `x` is covered, since it has no package.json or gate of its own. `npm run check` exits 1 if any copy is out of date.
+`sync` writes every copy with a banner holding a hash of its body. A copy edited in place refuses to run, and `sync` refuses to overwrite it. `report` runs every repo's copy without failing, which is also how `x` is covered, since it has no package.json or gate of its own. `npm run check` exits 1 if any copy is out of date.
 
 The vendored folder is excluded from each repo's Biome config, because the repos format differently (glyphbots indents with spaces).
