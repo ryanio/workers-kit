@@ -6,7 +6,10 @@ name: Release
 # the workflow tags the commit `<name>@<version>` and opens a GitHub release
 # from that version's section of the package's CHANGELOG. A version already on
 # npm is skipped, so nothing is ever republished, and so is a package marked
-# private (one whose npm name has no trusted publisher yet).
+# private (one whose npm name has no trusted publisher yet). A version npm
+# holds as staged (waiting for a maintainer's 2FA approval) is skipped with a
+# warning, and the tag and GitHub release wait for the next run after it is
+# approved and live.
 
 on:
   push:
@@ -77,6 +80,13 @@ jobs:
             if [ "$status" -ne 0 ]; then
               if grep -q "cannot publish over the previously published" publish.log; then
                 echo "$tag was published by an earlier run, skipped"
+                continue
+              fi
+              # npm can hold a version as staged until a maintainer approves
+              # it with 2FA. It is not on npm yet, but publishing it again is
+              # refused, so it is skipped and the run goes on to the others.
+              if grep -qi "cannot publish over previously staged" publish.log; then
+                echo "::warning::$tag is staged on npm and waits for a maintainer: npm stage list $name, then npm stage approve <id>"
                 continue
               fi
               exit "$status"
