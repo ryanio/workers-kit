@@ -374,7 +374,9 @@ export function discordGateway(options: DiscordGatewayOptions): DiscordGateway {
     }
   };
 
-  const discover = async (): Promise<string | null> => {
+  // A refused token is not a passing fault: retrying it only spends the
+  // identify budget, so it parks the link like a fatal close.
+  const discover = async (): Promise<string | null | { refused: number }> => {
     if (options.discover) {
       return options.discover();
     }
@@ -389,6 +391,9 @@ export function discordGateway(options: DiscordGatewayOptions): DiscordGateway {
         },
         signal: AbortSignal.timeout(DISCOVER_TIMEOUT_MS),
       });
+      if (response.status === 401) {
+        return { refused: 401 };
+      }
       if (!response.ok) {
         log.warn?.("discord gateway: gateway/bot refused", {
           status: response.status,
@@ -633,6 +638,13 @@ export function discordGateway(options: DiscordGatewayOptions): DiscordGateway {
       current.session !== null && current.resumeUrl !== null
         ? current.resumeUrl
         : await discover();
+    if (typeof url === "object" && url !== null) {
+      const why = `bot token refused (${url.refused})`;
+      log.error?.(`discord gateway: ${why}, parked until a person fixes it`);
+      await set({ phase: "failed", why, interval: null });
+      await storage.deleteAlarm();
+      return;
+    }
     if (!url) {
       await retry("no gateway url");
       return;
@@ -745,7 +757,17 @@ export function discordGateway(options: DiscordGatewayOptions): DiscordGateway {
         current.phase === "connecting" &&
         socket !== null &&
         at - current.since < wedgedMs;
-      if ((current.phase === "live" && socket !== null && !quiet) || waiting) {
+      // A backoff in progress belongs to the alarm; the tick steps in only
+      // when that alarm is overdue by a wedged connect's grace.
+      const backingOff =
+        current.phase === "reconnecting" &&
+        at - current.since <
+          waitFor(Math.max(0, current.attempt - 1)) + wedgedMs;
+      if (
+        (current.phase === "live" && socket !== null && !quiet) ||
+        waiting ||
+        backingOff
+      ) {
         return status();
       }
       if (quiet) {
@@ -769,10 +791,8 @@ export function discordGateway(options: DiscordGatewayOptions): DiscordGateway {
         return;
       }
       if (!current.acked) {
-        log.warn?.("discord gateway: heartbeat unanswered, reopening");
         drop(RESUME_CLOSE, "no heartbeat ack");
-        await set({ phase: "reconnecting", interval: null });
-        await later(waitFor(0));
+        await retry("heartbeat unanswered, reopening", { interval: null });
         return;
       }
       try {

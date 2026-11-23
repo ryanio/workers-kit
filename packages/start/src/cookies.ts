@@ -163,10 +163,24 @@ export function clearCookie(name: string, options: CookieOptions = {}): string {
   });
 }
 
-/** Adds one `Set-Cookie` to a response without dropping any already on it. */
+/**
+ * Adds one `Set-Cookie` to a response without dropping any already on it.
+ * A response whose headers are immutable (`Response.redirect`, a `fetch`
+ * answer) comes back as a copy, so use the returned response.
+ */
 export function appendCookie(response: Response, cookie: string): Response {
-  response.headers.append("set-cookie", cookie);
-  return response;
+  try {
+    response.headers.append("set-cookie", cookie);
+    return response;
+  } catch {
+    const headers = new Headers(response.headers);
+    headers.append("set-cookie", cookie);
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  }
 }
 
 function decode(value: string): string {

@@ -49,9 +49,27 @@ import {
   serializeCookie,
 } from "./cookies.js";
 
-/** Serialize `payload` as JSON and sign it. */
+/**
+ * A secret, or a list for rotation: `[current, ...previous]`. Signing uses the
+ * first; verifying accepts any of them, so a new secret goes in first and the
+ * old one stays second until what it signed has expired.
+ */
+export type Secrets = string | readonly (string | undefined)[] | undefined;
+
+function secretList(secrets: Secrets): string[] {
+  const list = typeof secrets === "string" ? [secrets] : (secrets ?? []);
+  return list.filter((s): s is string => typeof s === "string" && s !== "");
+}
+
+function signingSecret(secrets: Secrets, what: string): string {
+  const [first] = secretList(secrets);
+  if (!first) throw new Error(`${what}: no secret to sign with`);
+  return first;
+}
+
+/** Serialize `payload` as JSON and sign it, with the first of `secret` when it is a list. */
 export async function signValue(
-  secret: string,
+  secret: Secrets,
   payload: unknown,
 ): Promise<string> {
   const json = JSON.stringify(payload);
@@ -60,7 +78,7 @@ export async function signValue(
     // no token that carries them, so this is a caller bug, not a bad input.
     throw new TypeError("signValue: the payload does not serialize to JSON");
   }
-  const mac = await hmacSha256(secret, json);
+  const mac = await hmacSha256(signingSecret(secret, "signValue"), json);
   return `${toBase64Url(utf8(json))}.${toBase64Url(mac)}`;
 }
 
@@ -74,11 +92,12 @@ export async function signValue(
  * itself.
  */
 export async function verifyValue<T = unknown>(
-  secret: string | undefined,
+  secret: Secrets,
   token: string | null | undefined,
   check?: (payload: unknown) => T | null | undefined,
 ): Promise<T | null> {
-  if (!secret || !token) {
+  const secrets = secretList(secret);
+  if (secrets.length === 0 || !token) {
     return null;
   }
   const dot = token.indexOf(".");
@@ -90,8 +109,13 @@ export async function verifyValue<T = unknown>(
   if (!body || toBase64Url(body) !== bodyText) {
     return null;
   }
-  const mac = await hmacSha256(secret, body);
-  if (!timingSafeEqual(toBase64Url(mac), token.slice(dot + 1))) {
+  const given = token.slice(dot + 1);
+  let signed = false;
+  for (const key of secrets) {
+    const mac = toBase64Url(await hmacSha256(key, body));
+    signed = timingSafeEqual(mac, given) || signed;
+  }
+  if (!signed) {
     return null;
   }
   let payload: unknown;
@@ -112,10 +136,12 @@ export async function verifyValue<T = unknown>(
  * the URL and only the proof has to travel.
  */
 export async function signatureOf(
-  secret: string,
+  secret: Secrets,
   message: string,
 ): Promise<string> {
-  return toBase64Url(await hmacSha256(secret, message));
+  return toBase64Url(
+    await hmacSha256(signingSecret(secret, "signatureOf"), message),
+  );
 }
 
 /**
@@ -124,14 +150,19 @@ export async function signatureOf(
  * `verifyValue` gives.
  */
 export async function verifySignature(
-  secret: string | undefined,
+  secret: Secrets,
   message: string,
   signature: string | null | undefined,
 ): Promise<boolean> {
-  if (!secret || !signature) {
+  const secrets = secretList(secret);
+  if (secrets.length === 0 || !signature) {
     return false;
   }
-  return timingSafeEqual(await signatureOf(secret, message), signature);
+  let ok = false;
+  for (const key of secrets) {
+    ok = timingSafeEqual(await signatureOf(key, message), signature) || ok;
+  }
+  return ok;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -151,11 +182,14 @@ export interface SessionCookieOptions<T> {
   /** The cookie's name. `__Host-` and `__Secure-` prefixes work as they do anywhere. */
   name: string;
   /**
-   * The HMAC secret. `undefined` refuses every session and calls `onError`
+   * The HMAC secret, or `[current, ...previous]` to rotate it without signing
+   * everyone out: cookies are issued and refreshed with the first and read
+   * with any, so a session signed with the old one moves to the new one at
+   * its next refresh. `undefined` refuses every session and calls `onError`
    * once per read, which is the right failure for a missing binding: it fails
    * closed and it is loud.
    */
-  secret: string | undefined;
+  secret: Secrets;
   /** How long a freshly issued cookie lives. Default 30 days. */
   ttlMs?: number | undefined;
   /**
@@ -264,8 +298,8 @@ export function sessionCookie<T>(
       maxAge: Math.floor(ttlMs / 1000),
     });
 
-  const secretOrNull = (): string | null => {
-    if (options.secret) {
+  const secretOrNull = (): Secrets | null => {
+    if (secretList(options.secret).length > 0) {
       return options.secret;
     }
     options.onError?.(
@@ -297,7 +331,7 @@ export function sessionCookie<T>(
   return {
     async issue(claims) {
       const secret = options.secret;
-      if (!secret) {
+      if (secretList(secret).length === 0) {
         throw new Error(`No secret for the ${options.name} cookie.`);
       }
       const made = envelope(claims);
@@ -315,14 +349,28 @@ export function sessionCookie<T>(
         return null;
       }
       const token = readCookie(request, options.name);
-      const found = await verifyValue(secret, token, checkEnvelope);
+      // The claims as signed, so a refresh re-signs them rather than what
+      // `check` made of them (a transform or a stripped field).
+      let stored: unknown;
+      const found = await verifyValue(secret, token, (payload) => {
+        const checked = checkEnvelope(payload);
+        if (checked) stored = (payload as { d: unknown }).d;
+        return checked;
+      });
       if (found === null) {
         return null;
       }
       const shouldRefresh = now() - found.iat >= refreshAfterMs;
       let refreshCookie: string | null = null;
       if (shouldRefresh) {
-        refreshCookie = write(await signValue(secret, envelope(found.d)));
+        const issuedAt = now();
+        refreshCookie = write(
+          await signValue(secret, {
+            d: stored,
+            iat: issuedAt,
+            exp: issuedAt + ttlMs,
+          }),
+        );
       }
       return {
         claims: found.d,

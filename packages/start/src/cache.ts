@@ -60,6 +60,16 @@ export interface EdgeCacheOptions {
    * for what a hit tells the browser.
    */
   storedCacheControl?: string | undefined;
+  /**
+   * Keep the answer at the edge this many seconds while the visitor gets the
+   * route's own Cache-Control, on a miss and on a hit. A function picks it per
+   * answer, and 0 skips the store (a fallback with a shorter life). It takes
+   * the place of `storedCacheControl` and `clientCacheControl`, which are
+   * ignored when it is set.
+   */
+  edgeTtl?: number | ((response: Response) => number) | undefined;
+  /** The statuses that may be stored. Default `[200]`; a redirect or a 404 that is costly to render can be added. A 206 never is. */
+  statuses?: readonly number[] | undefined;
   /** A header naming whether the answer came from the cache (`HIT` or `MISS`), such as `x-edge-cache`. */
   statusHeader?: string | undefined;
   /** Called when the cache itself fails. A failed lookup renders the page; a failed store loses only the store. */
@@ -67,6 +77,8 @@ export interface EdgeCacheOptions {
 }
 
 const S_MAXAGE = /(?:^|,)\s*s-maxage=(\d+)/;
+/** Where an `edgeTtl` store keeps the route's own Cache-Control for its hits. */
+const CLIENT_CACHE_CONTROL = "x-workers-start-cache-control";
 const BROWSER_MAX_AGE = /(^|,)\s*max-age=\d+\s*(,|$)/;
 
 /** Seconds a shared cache may keep this response (`s-maxage`), or 0. */
@@ -122,11 +134,15 @@ export async function withEdgeCache(
     options.onError?.(error, "match");
   }
   if (hit) {
-    const answer = !options.clientCacheControl
-      ? withoutBrowserMaxAge(hit)
-      : options.clientCacheControl === "stored"
-        ? hit
-        : withHeader(hit, "cache-control", options.clientCacheControl);
+    const kept = hit.headers.get(CLIENT_CACHE_CONTROL);
+    const answer =
+      kept !== null
+        ? withHeader(hit, "cache-control", kept, CLIENT_CACHE_CONTROL)
+        : !options.clientCacheControl
+          ? withoutBrowserMaxAge(hit)
+          : options.clientCacheControl === "stored"
+            ? hit
+            : withHeader(hit, "cache-control", options.clientCacheControl);
     if (notModified(request, answer)) {
       void answer.body?.cancel().catch(() => {});
       return marked(
@@ -142,10 +158,22 @@ export async function withEdgeCache(
   }
 
   const response = await render();
+  const own = response.headers.get("cache-control") ?? "";
+  const ttl =
+    options.edgeTtl === undefined
+      ? undefined
+      : typeof options.edgeTtl === "function"
+        ? options.edgeTtl(response)
+        : options.edgeTtl;
   const storedHeader =
-    options.storedCacheControl ?? response.headers.get("cache-control") ?? "";
+    ttl !== undefined
+      ? ttl > 0
+        ? withSharedMaxAge(own, ttl)
+        : ""
+      : (options.storedCacheControl ?? own);
   if (
-    response.status === 200 &&
+    (options.statuses ?? [200]).includes(response.status) &&
+    response.status !== 206 &&
     S_MAXAGE.test(storedHeader) &&
     Number(storedHeader.match(S_MAXAGE)?.[1]) > 0 &&
     !response.headers.has("set-cookie")
@@ -155,21 +183,29 @@ export async function withEdgeCache(
       try {
         if (options.shouldStore) {
           const probe = copy.clone();
-          const keep = await options.shouldStore(probe, request);
-          // Whatever the check left unread is released, not left buffered.
-          // A cancel on one half of a clone settles only once the other half
-          // is done too, so it is not awaited.
-          void probe.body?.cancel().catch(() => {});
-          if (!keep) {
-            void copy.body?.cancel().catch(() => {});
-            return;
+          let keep = false;
+          try {
+            keep = await options.shouldStore(probe, request);
+          } finally {
+            // Whatever the check left unread is released, not left buffered,
+            // and the copy too unless it is kept. A cancel on one half of a
+            // clone settles only once the other half is done, so neither is
+            // awaited.
+            void probe.body?.cancel().catch(() => {});
+            if (!keep) void copy.body?.cancel().catch(() => {});
           }
+          if (!keep) return;
         }
         await cache.put(
           key,
-          options.storedCacheControl
-            ? withHeader(copy, "cache-control", options.storedCacheControl)
-            : copy,
+          ttl !== undefined
+            ? withHeaders(copy, {
+                "cache-control": storedHeader,
+                [CLIENT_CACHE_CONTROL]: own,
+              })
+            : options.storedCacheControl
+              ? withHeader(copy, "cache-control", options.storedCacheControl)
+              : copy,
         );
       } catch (error) {
         options.onError?.(error, "put");
@@ -268,9 +304,37 @@ function notModifiedHeaders(hit: Response): Headers {
   return headers;
 }
 
-function withHeader(response: Response, name: string, value: string): Response {
+/** `cacheControl` with its `s-maxage` set to `seconds`. */
+function withSharedMaxAge(cacheControl: string, seconds: number): string {
+  const kept = cacheControl
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part && !/^s-maxage=/i.test(part));
+  return [...kept, `s-maxage=${Math.floor(seconds)}`].join(", ");
+}
+
+function withHeaders(
+  response: Response,
+  values: Record<string, string>,
+): Response {
+  const headers = new Headers(response.headers);
+  for (const [name, value] of Object.entries(values)) headers.set(name, value);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+function withHeader(
+  response: Response,
+  name: string,
+  value: string,
+  drop?: string,
+): Response {
   const headers = new Headers(response.headers);
   headers.set(name, value);
+  if (drop) headers.delete(drop);
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,

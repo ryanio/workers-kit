@@ -1,8 +1,36 @@
 # Changelog
 
-## Unreleased
+## 0.33.0 (2026-11-23)
 
-- The optional `react` peer is `^19.0.0`, not `>=18`: `workers-start/react` is tested on React 19 only, which every consumer runs.
+What an app must do:
+
+- `createPageHead`'s deprecated `imageSize` is gone. Pass `image: { url, width, height, alt }` instead (glyphbots, gwei).
+- `signValue` and `signatureOf` throw when given no secret or an empty one; they signed with an empty key before. Check the binding first, as `sessionCookie` does.
+- `withTimeout` and `sleep` throw a `RangeError` for a wait that is negative, not a number, or past 2^31 - 1 ms, which `setTimeout` fires at once.
+- `appendCookie` copies a response whose headers are immutable (`Response.redirect`, a `fetch` answer) rather than throwing, so use the response it returns.
+- The optional `react` peer is `^19.0.0`, not `>=18`.
+
+Fixes:
+
+- `withRetry` (and `fetchJson`, `discordRest`) stop a backoff or `Retry-After` wait as soon as `signal` aborts, throwing the last error; the wait ran to its end before. A custom `sleep` option receives the signal.
+- The Google token exchange times out (`timeoutMs`, default 10 seconds), so one stalled exchange no longer hangs every later call in the isolate.
+- Discord gateway: a 401 from the default `discover` parks the link as `failed` instead of retrying every minute forever; a `tick` during a reconnect backoff leaves it to the alarm unless the alarm is overdue; an unanswered heartbeat counts toward `attempt` and its backoff.
+- `withEdgeCache` releases both copies when `shouldStore` throws.
+- `verifyHmac`, `verifySvix` and `verifyDiscord` check the signature over the bytes as sent, so a BOM or a byte that is not UTF-8 no longer breaks a valid one, and Svix signs the timestamp header as written.
+- A `sessionCookie` refresh re-signs the stored claims, not the output of `check`.
+
+New:
+
+- `workers-start/async`: `chunks` and `mapLimit`.
+- `format`: `year: false | "other"` on `fullDate` and `dateTime`; `dateRange`; `duration`; `isoDay(value, { timeZone })`; `timeAgo(value, { suffix: false })`. `truncate` never cuts inside a grapheme (it still counts UTF-16 units).
+- `withEdgeCache`: `edgeTtl` (seconds, or per answer, 0 to skip) keeps an answer at the edge while the visitor gets the route's own Cache-Control; `statuses` stores more than 200, such as a redirect.
+- `fetchJson`: `schema`, with `ResponseInvalid` for a body that does not fit.
+- `readBytes` in `workers-start/body`.
+- `escapeMarkdown` and `embedColor` in `workers-start/discord`.
+- `scriptHash` in `workers-start/security`.
+- Secret rotation: `signValue`, `verifyValue`, `signatureOf`, `verifySignature` and `sessionCookie` take `secret: [current, ...previous]`, signing with the first and verifying with any. `Secrets` names the type.
+- The root entry adds `GUILDS`, `readBytes`, `chunks`, `mapLimit` and every new name above. It still leaves out `sentry`, `react`, `local-time`, `access/testing` and `check-bundle`.
+- README: every export is in "What is in it", a wired example of a new Worker, the gateway's cron, Sentry 11 behaviour the options do not hide, and the edge cache with Markdown negotiation.
 
 ## 0.32.0 (2026-11-22)
 

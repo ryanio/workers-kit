@@ -128,6 +128,8 @@ export interface GoogleAuthOptions {
   now?: () => number;
   /** Refresh this many seconds before the token expires. Default 300. */
   marginSeconds?: number;
+  /** Abort a token exchange after this long, so a stalled one is not shared by every later call. Default 10 seconds. */
+  timeoutMs?: number;
 }
 
 export type GoogleTokenSource = (
@@ -147,6 +149,7 @@ export function createGoogleAuth(
     fetch: fetcher = (url, init) => fetch(url, init),
     now = Date.now,
     marginSeconds = 300,
+    timeoutMs = 10_000,
   } = options;
   const cache = new Map<
     string,
@@ -163,6 +166,7 @@ export function createGoogleAuth(
       const assertion = await serviceAccountJwt(account, scope, now());
       const res = await fetcher(account.tokenUri ?? GOOGLE_TOKEN_URL, {
         method: "POST",
+        signal: AbortSignal.timeout(timeoutMs),
         headers: { "content-type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
           grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",

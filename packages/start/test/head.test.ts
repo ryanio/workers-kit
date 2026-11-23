@@ -63,14 +63,14 @@ describe("pageHead", () => {
     expect(content(sized, "og:image:width")?.content).toBe("1200");
     expect(content(sized, "og:image:type")?.content).toBe("image/png");
     expect(content(sized, "og:image:alt")).toBeUndefined();
-    const legacy = pageHead({
+    const described = pageHead({
       title: "T",
       description: "D",
       path: "/t",
-      imageSize: { width: 1, height: 2, alt: "A" },
+      image: { url: "/card.png", width: 1, height: 2, alt: "A" },
     });
-    expect(content(legacy, "og:image:alt")?.content).toBe("A");
-    expect(content(legacy, "twitter:image:alt")?.content).toBe("A");
+    expect(content(described, "og:image:alt")?.content).toBe("A");
+    expect(content(described, "twitter:image:alt")?.content).toBe("A");
   });
 
   it("adds article fields, keywords, robots and extra tags", () => {

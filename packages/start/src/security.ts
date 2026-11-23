@@ -380,3 +380,19 @@ export function securityHeadersMiddleware(
     }
   };
 }
+
+/**
+ * The `script-src` source for an inline script: `'sha256-<base64>'` of its
+ * exact text, so the policy allows that script and nothing else inline. The
+ * text must match byte for byte what the page serves, whitespace included.
+ */
+export async function scriptHash(script: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(script),
+  );
+  let binary = "";
+  for (const byte of new Uint8Array(digest))
+    binary += String.fromCharCode(byte);
+  return `'sha256-${btoa(binary)}'`;
+}

@@ -6,7 +6,7 @@
  * unless the caller says the request is safe to repeat.
  */
 
-import { readText } from "./body.js";
+import { type BodySchema, readText } from "./body.js";
 
 /** An upstream answered with an error status. */
 export interface HttpErrorOptions {
@@ -89,6 +89,17 @@ export class TimeoutError extends Error {
   }
 }
 
+/** The longest wait `setTimeout` holds; a longer one fires at once. */
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
+function checkWait(ms: number): void {
+  if (!(ms >= 0 && ms <= MAX_TIMER_MS)) {
+    throw new RangeError(
+      `a wait of ${ms}ms is outside 0 to ${MAX_TIMER_MS}ms, which setTimeout cannot hold`,
+    );
+  }
+}
+
 export interface TimeoutOptions<F> {
   /** Names the work in the `TimeoutError` message. Default "operation". */
   label?: string | undefined;
@@ -106,7 +117,9 @@ export interface TimeoutOptions<F> {
  * function to get an `AbortSignal` that aborts at the deadline, so the work
  * (a `fetch`, say) stops too instead of running on unobserved. With
  * `fallback` it resolves with that value rather than throwing. The timer is
- * always cleared, so a settled race keeps nothing alive.
+ * always cleared, so a settled race keeps nothing alive. A negative wait, or
+ * one past 2^31 - 1 ms (about 24.8 days, where `setTimeout` fires at once),
+ * throws a `RangeError`.
  *
  *     const chart = await withTimeout((signal) => render(id, { signal }), 8_000, {
  *       fallback: null,
@@ -129,6 +142,7 @@ export function withTimeout<T, F>(
   ms: number,
   options: TimeoutOptions<F> = {},
 ): Promise<T | F> {
+  checkWait(ms);
   const controller = new AbortController();
   const hasFallback = "fallback" in options;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -168,10 +182,10 @@ export interface RetryOptions {
   retryAfterMs?: (err: unknown) => number | undefined;
   /** Hears each retry before its wait. */
   onRetry?: (err: unknown, attempt: number, waitMs: number) => void;
-  /** Stops waiting and retrying when aborted. */
+  /** Stops waiting and retrying when aborted: a wait in progress ends at once, and the last error is thrown. */
   signal?: AbortSignal;
-  /** For tests. */
-  sleep?: (ms: number) => Promise<void>;
+  /** For tests. Receives `signal`, and should reject when it aborts. */
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   /** For tests: a number in [0, 1). */
   random?: () => number;
   now?: () => number;
@@ -182,6 +196,7 @@ export interface RetryOptions {
  * and the promise rejects with the signal's reason.
  */
 export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  checkWait(ms);
   return new Promise<void>((resolve, reject) => {
     if (signal?.aborted) {
       reject(signal.reason);
@@ -211,8 +226,6 @@ export function sleepWithJitter(
   return sleep(baseMs + Math.random() * jitterMs, signal);
 }
 
-const defaultSleep = (ms: number) => sleep(ms);
-
 /**
  * Runs `fn` until it succeeds, a non-retryable error is thrown, or attempts
  * or the budget run out. Waits are full jitter (a random time up to the
@@ -232,7 +245,7 @@ export async function withRetry<T>(
     retryAfterMs,
     onRetry,
     signal,
-    sleep = defaultSleep,
+    sleep: wait = sleep,
     random = Math.random,
     now = Date.now,
   } = options;
@@ -250,11 +263,16 @@ export async function withRetry<T>(
       // asked again too early; give up and let the caller decide.
       if (asked !== undefined && asked > capMs) throw err;
       const backoff = Math.min(capMs, baseMs * 2 ** (attempt - 1));
-      const wait = asked ?? Math.floor(random() * backoff);
-      if (budgetMs !== undefined && now() - started + wait > budgetMs)
+      const waitMs = asked ?? Math.floor(random() * backoff);
+      if (budgetMs !== undefined && now() - started + waitMs > budgetMs)
         throw err;
-      onRetry?.(err, attempt, wait);
-      await sleep(wait);
+      onRetry?.(err, attempt, waitMs);
+      try {
+        await wait(waitMs, signal);
+      } catch (abort) {
+        if (signal?.aborted) throw err;
+        throw abort;
+      }
       if (signal?.aborted) throw err;
     }
   }
@@ -310,6 +328,17 @@ function encodeBody(
 }
 
 /** A response body larger than the caller's `maxBytes`. Not retried. */
+/** What `fetchJson` throws when the body does not fit its `schema`. Not retried: the same upstream answers the same way. */
+export class ResponseInvalid extends Error {
+  override readonly name = "ResponseInvalid";
+  constructor(
+    readonly url: string,
+    readonly issues: unknown,
+  ) {
+    super(`${new URL(url).host} answered a body that does not fit the schema`);
+  }
+}
+
 export class ResponseTooLarge extends Error {
   override readonly name = "ResponseTooLarge";
   constructor(
@@ -356,9 +385,13 @@ async function readBody(
  */
 export async function fetchJson<T = unknown>(
   url: string,
-  options: FetchJsonOptions = {},
+  options: FetchJsonOptions & {
+    /** Checks the parsed body (Zod, Valibot or anything with `safeParse`), and the result is its output. A failure throws `ResponseInvalid`. */
+    schema?: BodySchema<T>;
+  } = {},
 ): Promise<T> {
   const {
+    schema,
     body,
     timeoutMs = 8000,
     maxBytes,
@@ -402,7 +435,10 @@ export async function fetchJson<T = unknown>(
           (typeof jsonWait === "number" ? jsonWait : undefined),
       );
     }
-    return parsed as T;
+    if (!schema) return parsed as T;
+    const checked = schema.safeParse(parsed);
+    if (!checked.success) throw new ResponseInvalid(url, checked.error);
+    return checked.data;
   };
 
   if (!canRetry) return attempt();

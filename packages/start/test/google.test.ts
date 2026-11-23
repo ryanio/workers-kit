@@ -143,6 +143,27 @@ describe("service account tokens", () => {
     expect(await token(sa, GA4_SCOPE)).toBe("tok-2");
   });
 
+  it("gives up on a stalled exchange and tries again on the next call", async () => {
+    const { sa, publicKey } = await account();
+    const server = tokenServer(publicKey);
+    let stall = true;
+    const token = createGoogleAuth({
+      now: () => NOW,
+      timeoutMs: 20,
+      fetch: (url, init) =>
+        stall
+          ? new Promise<Response>((_, reject) =>
+              init?.signal?.addEventListener("abort", () =>
+                reject(init.signal?.reason),
+              ),
+            )
+          : server.fetch(url, init),
+    });
+    await expect(token(sa, GA4_SCOPE)).rejects.toThrow();
+    stall = false;
+    expect(await token(sa, GA4_SCOPE)).toBe("tok-1");
+  });
+
   it("names a PKCS#1 key and a value that is not a PEM", async () => {
     await expect(
       importServiceAccountKey(

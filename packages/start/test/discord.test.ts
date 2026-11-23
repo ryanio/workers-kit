@@ -3,6 +3,8 @@ import {
   deferred,
   discordRest,
   discordTime,
+  embedColor,
+  escapeMarkdown,
   InteractionResponseType,
   interactionResponse,
   pong,
@@ -231,5 +233,27 @@ describe("discordTime", () => {
     expect(discordTime("2026-11-21 03:30:00", "D")).toBe(
       `<t:${Date.parse("2026-11-21T03:30:00Z") / 1000}:D>`,
     );
+  });
+});
+
+describe("escapeMarkdown", () => {
+  it("escapes what would format third-party text in a message or embed", () => {
+    expect(escapeMarkdown("cool_cat *star* ~x~ `c` |s| [l] > q \\")).toBe(
+      "cool\\_cat \\*star\\* \\~x\\~ \\`c\\` \\|s\\| \\[l\\] \\> q \\\\",
+    );
+    expect(escapeMarkdown("# big\n  -# small")).toBe("\\# big\n  \\-# small");
+    expect(escapeMarkdown("<@123> <#9> <:e:1>")).toBe(
+      "\\<@123\\> \\<#9\\> \\<:e:1\\>",
+    );
+    expect(escapeMarkdown("see https://x.test")).toBe("see https\\://x.test");
+  });
+});
+
+describe("embedColor", () => {
+  it("turns a hex colour into the integer an embed takes", () => {
+    expect(embedColor("#5865f2")).toBe(0x5865f2);
+    expect(embedColor("5865F2")).toBe(0x5865f2);
+    expect(embedColor("#fff")).toBe(0xffffff);
+    expect(() => embedColor("#12345")).toThrow(RangeError);
   });
 });

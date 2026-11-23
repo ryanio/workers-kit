@@ -69,7 +69,7 @@ async function discard(request: Request | Response): Promise<void> {
 }
 
 /** The body's bytes, or undefined once it passes `maxBytes`. */
-async function readBytes(
+async function collect(
   request: Request | Response,
   maxBytes: number,
 ): Promise<Uint8Array | undefined> {
@@ -101,12 +101,26 @@ async function readBytes(
   return out;
 }
 
+/**
+ * The body's bytes as sent, refused with 413 past `maxBytes`. It counts as it
+ * reads, so a chunked body with no Content-Length is capped too. For a
+ * signature check over the raw bytes, or a file upload.
+ */
+export async function readBytes(
+  request: Request | Response,
+  { maxBytes = DEFAULT_MAX_BYTES }: ReadTextOptions = {},
+): Promise<BodyResult<Uint8Array>> {
+  const bytes = await collect(request, maxBytes);
+  if (!bytes) return tooLarge(maxBytes);
+  return { ok: true, value: bytes };
+}
+
 /** The body as text (UTF-8), refused with 413 past `maxBytes`. */
 export async function readText(
   request: Request | Response,
   { maxBytes = DEFAULT_MAX_BYTES }: ReadTextOptions = {},
 ): Promise<BodyResult<string>> {
-  const bytes = await readBytes(request, maxBytes);
+  const bytes = await collect(request, maxBytes);
   if (!bytes) return tooLarge(maxBytes);
   return { ok: true, value: new TextDecoder().decode(bytes) };
 }
@@ -151,7 +165,7 @@ export async function readJson<T = unknown>(
       "The request body must be JSON (content-type: application/json).",
     );
   }
-  const bytes = await readBytes(request, maxBytes);
+  const bytes = await collect(request, maxBytes);
   if (!bytes) return tooLarge(maxBytes);
   let text: string;
   try {

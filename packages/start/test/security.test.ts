@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   applySecurityHeaders,
   contentSecurityPolicy,
+  scriptHash,
   securityHeaders,
   securityHeadersMiddleware,
   withSecurityHeaders,
@@ -356,5 +357,17 @@ describe("securityHeadersMiddleware", () => {
     const missing = await app.request("/nope");
     expect(missing.status).toBe(404);
     expect(missing.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+});
+
+describe("scriptHash", () => {
+  it("is the CSP source for exactly that script text", async () => {
+    // echo -n "alert(1)" | openssl dgst -sha256 -binary | base64
+    expect(await scriptHash("alert(1)")).toBe(
+      "'sha256-bhHHL3z2vDgxUt0W3dWQOrprscmda2Y5pLsLg4GF+pI='",
+    );
+    expect(await scriptHash("alert(1) ")).not.toBe(
+      await scriptHash("alert(1)"),
+    );
   });
 });

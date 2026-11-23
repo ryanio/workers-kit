@@ -10,37 +10,39 @@ It has no runtime dependencies. Each piece is its own entry point, so an app tak
 
 Check this list before writing a helper in an app. Anything generic to TanStack Start on Workers that is missing belongs here, with a test, rather than in one app.
 
-| Entry point                     | Exports                                                                                                                                                                                                             | For                                                                                                                                 |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `workers-start/entry`           | `createEntry`, `withHeaders`, `wantsMarkdown`, `acceptsHtml`                                                                                                                                                        | The Worker entry: Markdown for agents, Accept fixes, 405s, headers on every response                                                |
-| `workers-start/head`            | `createPageHead`, `jsonLdScript`                                                                                                                                                                                    | Per-route head tags and escaped JSON-LD                                                                                             |
-| `workers-start/scripts`         | `themeScript`, `analyticsScript`, `tagManagerScript`, `gaEvent`, `inlineJson`                                                                                                                                       | Inline bootstraps, analytics events, JSON safe inside a script tag                                                                  |
-| `workers-start/cache`           | `withEdgeCache`, `edgeCacheMiddleware`, `purgeEdgeCache`, `sharedMaxAge`, `withoutBrowserMaxAge`, `cached`, `cachedEntry`                                                                                           | Rendered pages and computed values kept in the Workers Cache API                                                                    |
-| `workers-start/workers`         | `getBinding`, `getEnvString`, `afterResponse`, `isKvNamespace`                                                                                                                                                      | Bindings and `waitUntil` without a static `cloudflare:workers` import                                                               |
-| `workers-start/access`          | `verifyAccessToken`, `createAccessVerifier`, `parseAccessConfig`, `accessToken`                                                                                                                                     | Cloudflare Access sign-ins checked in the Worker, failing closed                                                                    |
-| `workers-start/access/testing`  | `createTestAccessTeam`                                                                                                                                                                                              | A fake Access team for tests: keys, certs and signed tokens                                                                         |
-| `workers-start/google`          | `googleAccessToken`, `parseServiceAccount`, `ga4RunReport`, `ga4BatchRunReports`, `ga4Rows`, `inListFilter`, `searchConsoleQuery`                                                                                   | Google APIs as a service account: cached tokens, GA4 reports, Search Console                                                        |
-| `workers-start/sentry`          | `workerSentryOptions`, `browserSentryOptions`, `SENTRY_DATA_COLLECTION`, `dropLocalEvents`, `LOCAL_SPANS`, `LOCAL_URL`, `isBrowserNoise`, `BROWSER_DENY_URLS`, `sentryReportUri`, `sentryConnectSource`             | Sentry 11 options for a Worker and its pages: off without a DSN, strict data collection, no local events or spans, no browser noise |
-| `workers-start/mail`            | `cloudflareMailer`, `resendMailer`, `recordingMailer`, `MailError`, `escapeHtml`, `escapeText`                                                                                                                      | One `send` over Email Sending or Resend, text and HTML always, and a fake for tests                                                 |
-| `workers-start/rate-limit`      | `rateLimit`, `clientKey`, `clientIp`, `ipNetwork`, `checkRateLimit`, `tooManyRequests`, `rateLimitHeaders`                                                                                                          | The rate limiting binding with hashed client keys, fail-open reporting and one 429 answer                                           |
-| `workers-start/body`            | `bodyProblem`, `isJsonType`, `readJson`, `readText`                                                                                                                                                                 | Request bodies read under a byte cap, JSON type checked, schema run, failures as problems                                           |
-| `workers-start/log`             | `createLogger`, `noopLogger`, `consoleSink`, `requestId`                                                                                                                                                            | Structured logs for Workers Logs, with redaction and request ids                                                                    |
-| `workers-start/webhooks`        | `timingSafeEqual`, `verifyDiscord`, `verifyHmac`, `verifySvix`                                                                                                                                                      | Webhook signatures (Discord, HMAC senders, Svix and Resend) checked in constant time with replay windows                            |
-| `workers-start/security`        | `contentSecurityPolicy`, `securityHeaders`, `withSecurityHeaders`, `applySecurityHeaders`, `securityHeadersMiddleware`                                                                                              | Security headers and a Content-Security-Policy builder with presets                                                                 |
-| `workers-start/cors`            | `cors`                                                                                                                                                                                                              | CORS with an origin allowlist, preflights and `Vary: Origin`                                                                        |
-| `workers-start/discord`         | `deferred`, `discordRest`, `discordTime`, `interactionResponse`, `InteractionResponseType`, `MessageFlags`, `pong`                                                                                                  | A Discord REST client that waits out 429s and times out, plus interaction responses                                                 |
-| `workers-start/x`               | `oauth1Header`, `percentEncode`, `xClient`                                                                                                                                                                          | OAuth 1.0a signing on WebCrypto and an X API v2 client that waits out rate limits                                                   |
-| `workers-start/http`            | `fetchJson`, `withRetry`, `HttpError`, `transient`, `retryAfterSeconds`, `ResponseTooLarge`, `sleep`, `sleepWithJitter`, `withTimeout`, `TimeoutError`                                                              | Outbound calls with timeouts, jittered retries, Retry-After and an optional size cap                                                |
-| `workers-start/seo`             | `sitemapXml`, `sitemapIndexXml`, `robotsTxt`, `llmsTxt`, `escapeXml`                                                                                                                                                | `/sitemap.xml`, `/robots.txt` and `/llms.txt` bodies                                                                                |
-| `workers-start/bytes`           | `toHex`, `fromHex`, `toBase64`, `fromBase64`, `toBase64Url`, `fromBase64Url`, `utf8`, `fromUtf8`, `randomBytes`, `randomHex`, `randomId`, `sha256`, `sha256Hex`, `sha256Base64Url`, `hmacSha256`, `timingSafeEqual` | Hex, base64 and base64url that refuse bad input instead of throwing, digests and HMACs                                              |
-| `workers-start/cookies`         | `readCookie`, `parseCookies`, `serializeCookie`, `clearCookie`, `appendCookie`                                                                                                                                      | Cookies on plain `Request` and `Response` objects, and a clear a browser will honour                                                |
-| `workers-start/tokens`          | `signValue`, `verifyValue`, `signatureOf`, `verifySignature`, `sessionCookie`                                                                                                                                       | Signed payloads a stranger can hold, and a session cookie with a sliding expiry                                                     |
-| `workers-start/format`          | `plural`, `counted`, `compactCount`, `formatBytes`, `timeAgo`, `dateTime`, `monthYear`, `visitorTimeZone`, `utcStamp`, `usd`, `slugify`, `truncate`, `wrapWords` and the rest                                       | Counts, plurals, relative times, UTC stamps, money, slugs and word wrapping                                                         |
-| `workers-start/local-time`      | `localTime`, `localizeTimes`, `watchLocalTimes`, `LOCAL_TIME_SCRIPT`                                                                                                                                                | Dates in the reader's time zone on pages cached for everyone                                                                        |
-| `workers-start/react`           | `useReaderTimeZone`                                                                                                                                                                                                 | The reader's zone in React, hydration-safe                                                                                          |
-| `workers-start/discord/gateway` | `discordGateway`, the intent constants                                                                                                                                                                              | One Discord gateway websocket from a Durable Object: identify, heartbeat, resume, back off                                          |
-| `workers-start/accept`          | `parseAccept`, `quality`                                                                                                                                                                                            | Accept header parsing                                                                                                               |
-| `workers-start/check-bundle`    | `workers-start-check-bundle` (bin)                                                                                                                                                                                  | Fails a build that would ship a local secret                                                                                        |
+| Entry point                     | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                     | For                                                                                                                                 |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `workers-start/entry`           | `createEntry`, `withHeaders`, `wantsMarkdown`, `acceptsHtml`, `defaultIsPage`, `normalizePath`, `underPrefix`, `mergeVary`, `MARKDOWN_HEADERS`                                                                                                                                                                                                                                                                                              | The Worker entry: Markdown for agents, Accept fixes, 405s, headers on every response                                                |
+| `workers-start/head`            | `createPageHead`, `jsonLdScript`                                                                                                                                                                                                                                                                                                                                                                                                            | Per-route head tags and escaped JSON-LD                                                                                             |
+| `workers-start/scripts`         | `themeScript`, `analyticsScript`, `tagManagerScript`, `gaEvent`, `inlineJson`                                                                                                                                                                                                                                                                                                                                                               | Inline bootstraps, analytics events, JSON safe inside a script tag                                                                  |
+| `workers-start/cache`           | `withEdgeCache`, `edgeCacheMiddleware`, `purgeEdgeCache`, `sharedMaxAge`, `withoutBrowserMaxAge`, `cached`, `cachedEntry`, `peekCached`                                                                                                                                                                                                                                                                                                     | Rendered pages and computed values kept in the Workers Cache API                                                                    |
+| `workers-start/workers`         | `getBinding`, `getEnvString`, `afterResponse`, `isKvNamespace`, `loadWorkers`, `setWorkersModule`                                                                                                                                                                                                                                                                                                                                           | Bindings and `waitUntil` without a static `cloudflare:workers` import                                                               |
+| `workers-start/access`          | `verifyAccessToken`, `createAccessVerifier`, `parseAccessConfig`, `accessToken`                                                                                                                                                                                                                                                                                                                                                             | Cloudflare Access sign-ins checked in the Worker, failing closed                                                                    |
+| `workers-start/access/testing`  | `createTestAccessTeam`                                                                                                                                                                                                                                                                                                                                                                                                                      | A fake Access team for tests: keys, certs and signed tokens                                                                         |
+| `workers-start/google`          | `googleAccessToken`, `createGoogleAuth`, `parseServiceAccount`, `importServiceAccountKey`, `serviceAccountJwt`, `GoogleApiError`, `ga4RunReport`, `ga4BatchRunReports`, `ga4Rows`, `inListFilter`, `searchConsoleQuery`, `GA4_SCOPE`, `SEARCH_CONSOLE_SCOPE`, `GOOGLE_TOKEN_URL`                                                                                                                                                            | Google APIs as a service account: cached tokens, GA4 reports, Search Console                                                        |
+| `workers-start/sentry`          | `workerSentryOptions`, `browserSentryOptions`, `SENTRY_DATA_COLLECTION`, `dropLocalEvents`, `isLocalEvent`, `LOCAL_SPANS`, `LOCAL_URL`, `isBrowserNoise`, `BROWSER_DENY_URLS`, `NETWORK_ERROR`, `EXTENSION_ERROR`, `USER_REJECTION`, `validDsn`, `sentryReportUri`, `sentryConnectSource`                                                                                                                                                   | Sentry 11 options for a Worker and its pages: off without a DSN, strict data collection, no local events or spans, no browser noise |
+| `workers-start/mail`            | `cloudflareMailer`, `resendMailer`, `recordingMailer`, `checkMessage`, `MailError`, `escapeHtml`, `escapeText`                                                                                                                                                                                                                                                                                                                              | One `send` over Email Sending or Resend, text and HTML always, and a fake for tests                                                 |
+| `workers-start/rate-limit`      | `rateLimit`, `clientKey`, `clientIp`, `ipNetwork`, `checkRateLimit`, `tooManyRequests`, `rateLimitProblem`, `rateLimitHeaders`                                                                                                                                                                                                                                                                                                              | The rate limiting binding with hashed client keys, fail-open reporting and one 429 answer                                           |
+| `workers-start/body`            | `readJson`, `readText`, `readBytes`, `bodyProblem`, `isJsonType`                                                                                                                                                                                                                                                                                                                                                                            | Request bodies read under a byte cap, JSON type checked, schema run, failures as problems                                           |
+| `workers-start/log`             | `createLogger`, `noopLogger`, `consoleSink`, `requestId`, `DEFAULT_REDACT`                                                                                                                                                                                                                                                                                                                                                                  | Structured logs for Workers Logs, with redaction and request ids                                                                    |
+| `workers-start/webhooks`        | `timingSafeEqual`, `verifyDiscord`, `verifyHmac`, `verifySvix`                                                                                                                                                                                                                                                                                                                                                                              | Webhook signatures (Discord, HMAC senders, Svix and Resend) checked in constant time with replay windows                            |
+| `workers-start/security`        | `contentSecurityPolicy`, `scriptHash`, `securityHeaders`, `withSecurityHeaders`, `applySecurityHeaders`, `securityHeadersMiddleware`, `BASE_CSP`, `CSP_PRESETS`, `DEFAULT_PERMISSIONS`                                                                                                                                                                                                                                                      | Security headers and a Content-Security-Policy builder with presets                                                                 |
+| `workers-start/cors`            | `cors`                                                                                                                                                                                                                                                                                                                                                                                                                                      | CORS with an origin allowlist, preflights and `Vary: Origin`                                                                        |
+| `workers-start/discord`         | `discordRest`, `discordTime`, `escapeMarkdown`, `embedColor`, `interactionResponse`, `deferred`, `pong`, `InteractionResponseType`, `MessageFlags`                                                                                                                                                                                                                                                                                          | A Discord REST client that waits out 429s and times out, plus interaction responses                                                 |
+| `workers-start/x`               | `oauth1Header`, `percentEncode`, `xClient`                                                                                                                                                                                                                                                                                                                                                                                                  | OAuth 1.0a signing on WebCrypto and an X API v2 client that waits out rate limits                                                   |
+| `workers-start/http`            | `fetchJson`, `withRetry`, `HttpError`, `transient`, `retryAfterSeconds`, `ResponseInvalid`, `ResponseTooLarge`, `sleep`, `sleepWithJitter`, `withTimeout`, `TimeoutError`                                                                                                                                                                                                                                                                   | Outbound calls with timeouts, jittered retries, Retry-After and an optional size cap                                                |
+| `workers-start/async`           | `chunks`, `mapLimit`                                                                                                                                                                                                                                                                                                                                                                                                                        | Batches, and a fan-out with at most N running at once                                                                               |
+| `workers-start/seo`             | `sitemapXml`, `sitemapIndexXml`, `robotsTxt`, `llmsTxt`, `escapeXml`                                                                                                                                                                                                                                                                                                                                                                        | `/sitemap.xml`, `/robots.txt` and `/llms.txt` bodies                                                                                |
+| `workers-start/bytes`           | `toHex`, `fromHex`, `toBase64`, `fromBase64`, `toBase64Url`, `fromBase64Url`, `utf8`, `fromUtf8`, `randomBytes`, `randomHex`, `randomId`, `sha256`, `sha256Hex`, `sha256Base64Url`, `hmacSha256`, `timingSafeEqual`                                                                                                                                                                                                                         | Hex, base64 and base64url that refuse bad input instead of throwing, digests and HMACs                                              |
+| `workers-start/cookies`         | `readCookie`, `parseCookies`, `serializeCookie`, `clearCookie`, `appendCookie`                                                                                                                                                                                                                                                                                                                                                              | Cookies on plain `Request` and `Response` objects, and a clear a browser will honour                                                |
+| `workers-start/tokens`          | `signValue`, `verifyValue`, `signatureOf`, `verifySignature`, `sessionCookie`                                                                                                                                                                                                                                                                                                                                                               | Signed payloads a stranger can hold, and a session cookie with a sliding expiry                                                     |
+| `workers-start/format`          | `plural`, `counted`, `formatCount`, `compactCount`, `numberWord`, `ordinal`, `percent`, `usd`, `formatBytes`, `timeAgo`, `duration`, `aboutDuration`, `fullDate`, `dateTime`, `dateRange`, `monthYear`, `isoDay`, `utcDate`, `utcDay`, `utcStamp`, `w3cDate`, `visitorTimeZone`, `isTimeZone`, `toMillis`, `listOf`, `capitalize`, `slugify`, `truncate`, `wrapWords`, `fitWords`, `SECOND_MS`, `MINUTE_MS`, `HOUR_MS`, `DAY_MS`, `WEEK_MS` | Counts, plurals, relative times, UTC stamps, money, slugs and word wrapping                                                         |
+| `workers-start/local-time`      | `localTime`, `localizeTimes`, `watchLocalTimes`, `LOCAL_TIME_SCRIPT`                                                                                                                                                                                                                                                                                                                                                                        | Dates in the reader's time zone on pages cached for everyone                                                                        |
+| `workers-start/react`           | `useReaderTimeZone`                                                                                                                                                                                                                                                                                                                                                                                                                         | The reader's zone in React, hydration-safe                                                                                          |
+| `workers-start/discord/gateway` | `discordGateway`, `GUILDS`, `GUILD_MESSAGES`, `GUILD_MESSAGE_REACTIONS`, `GUILD_MEMBERS`, `DIRECT_MESSAGES`, `MESSAGE_CONTENT`                                                                                                                                                                                                                                                                                                              | One Discord gateway websocket from a Durable Object: identify, heartbeat, resume, back off                                          |
+| `workers-start/accept`          | `parseAccept`, `quality`                                                                                                                                                                                                                                                                                                                                                                                                                    | Accept header parsing                                                                                                               |
+| `workers-start/check-bundle`    | `workers-start-check-bundle` (bin), `checkBundle`, `leakedKeys`, `parseEnvFile`, `DEFAULT_SKIP`, `DEFAULT_PUBLIC_PREFIXES`                                                                                                                                                                                                                                                                                                                  | Fails a build that would ship a local secret                                                                                        |
+| `workers-start`                 | everything above except `sentry`, `react`, `local-time`, `access/testing` and `check-bundle`                                                                                                                                                                                                                                                                                                                                                | One import for an app that does not mind the names; the five left out need an optional peer, the DOM, Node or a test runner         |
 
 ## Why
 
@@ -60,6 +62,60 @@ npm install workers-start
 ```
 
 The secret check CLI needs Node 22 or later. The other entry points run in workerd and the browser.
+
+## A new Worker, wired
+
+The pieces below fit together in one `src/server.ts`. Each is optional, and each section further down says what it does on its own.
+
+```ts
+// src/server.ts
+import * as Sentry from "@sentry/cloudflare";
+import handler from "@tanstack/react-start/server-entry";
+import { withEdgeCache } from "workers-start/cache";
+import { createEntry } from "workers-start/entry";
+import { createLogger, requestId } from "workers-start/log";
+import { rateLimit } from "workers-start/rate-limit";
+import { withSecurityHeaders } from "workers-start/security";
+import { workerSentryOptions } from "workers-start/sentry";
+
+const entry = createEntry({ handler });
+const API = { name: "api", limit: 300, periodSeconds: 60 } as const;
+
+export default Sentry.withSentry(
+  (env: Env) => workerSentryOptions(env, { tags: { worker: "web" } }),
+  {
+    async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+      const log = createLogger("web", {
+        base: { requestId: requestId(request) },
+      });
+      if (new URL(request.url).pathname.startsWith("/api/")) {
+        const limited = await rateLimit(request, env.API_LIMIT, API, {
+          salt: env.RATE_LIMIT_SALT,
+          onUnbound: (error) =>
+            log.error("API_LIMIT binding missing", { error }),
+        });
+        if (limited) return limited;
+      }
+      const response = await withEdgeCache(
+        request,
+        () => entry.fetch(request, env, ctx),
+        {
+          version: env.CF_VERSION_METADATA?.id,
+          waitUntil: (work) => ctx.waitUntil(work),
+          onError: (error, during) =>
+            log.warn("edge cache failed", { error, during }),
+        },
+      );
+      return withSecurityHeaders(response, { csp: { presets: ["sentry"] } });
+    },
+  } satisfies ExportedHandler<Env>,
+);
+```
+
+- A page is kept at the edge only when it says so with `s-maxage`, so this stores nothing until a route opts in.
+- Pages that show a date to a reader and are cached for everyone write it with `workers-start/local-time`, not in the server's zone.
+- Outbound calls go through `fetchJson` (timeouts, retries, a size cap, a `schema`), and a fan-out through `mapLimit`.
+- Before the deploy, `workers-start-check-bundle` fails the build if a local env value reached a built file.
 
 ## Worker entry
 
@@ -209,11 +265,14 @@ A cache hit has its browser `max-age` removed (the zone adds one, and a browser 
 - `key(request)` picks the cache key (a URL or a Request), for example the URL without tracking parameters. `version` is still added to it.
 - `shouldStore(response, request)` decides, after the response is sent, whether a page that passes the usual rules (200, `s-maxage`, no `set-cookie`) is stored; it may be async.
 - `statusHeader: "x-edge-cache"` marks each answer `HIT` or `MISS`.
-- `storedCacheControl` writes a different Cache-Control on the stored copy than the visitor gets, and a miss is stored when that header has an `s-maxage`, so a page can answer `no-store` to browsers and still be kept at the edge. Pair it with `clientCacheControl` for hits. A page `shouldStore` refuses has its copy released rather than left buffered.
+- `edgeTtl` keeps an answer at the edge that many seconds while the visitor gets the route's own Cache-Control, on a miss and on a hit alike: `edgeTtl: 86400` for an image proxy that answers `public, max-age=86400, immutable`. A function picks it per answer, and 0 skips the store, so a fallback with a shorter life is not kept: `edgeTtl: (r) => r.headers.get("cache-control") === IMAGE ? 86400 : 0`. It takes the place of `storedCacheControl` and `clientCacheControl`.
+- `statuses` lists what may be stored, `[200]` by default. Add a redirect or a 404 that is costly to work out: `statuses: [200, 302]`. A 206 never is.
+- `storedCacheControl` writes a different Cache-Control on the stored copy than the visitor gets, and a miss is stored when that header has an `s-maxage`, so a page can answer `no-store` to browsers and still be kept at the edge. Pair it with `clientCacheControl` for hits. A page `shouldStore` refuses, or a `shouldStore` that throws, has its copy released rather than left buffered.
 - `purgeEdgeCache(urls, { version, key })` drops pages after an edit to what they show, and answers how many were cached. Give the `version` and `key` they were cached with. The Cache API is per data center, so it clears the one it runs in.
 - A hit answers a request whose `If-None-Match` matches the stored ETag, or whose `If-Modified-Since` is not older than the stored `Last-Modified`, with 304 and no body.
 - The key ignores `Vary`. A route that answers differently by a request header (`Accept`, a cookie) must say so in `key`, or keep those requests away from the cache.
-- A cache that throws never takes the page down: a failed lookup renders, a failed store loses only the store, and `onError(error, "match" | "put")` hears about both.
+- A cache that throws never takes the page down: a failed lookup renders, a failed store loses only the store, and `onError(error, during)` hears about both. Type a handler's second parameter as `EdgeCacheStage` (`"match" | "put" | "delete"`, the last from `purgeEdgeCache`).
+- Wrapping `createEntry` caches whatever the entry answers, and the key is the URL alone, so an agent asking for Markdown (`Accept: text/markdown`) and a browser asking for HTML share one copy. Keep Markdown requests away from the cache (`shouldStore` plus a `key` that adds a marker) or cache only inside the HTML branch.
 
 ### Cached values
 
@@ -369,6 +428,7 @@ Sentry.init({
 - The Worker options get no message filters: browser wording describes nothing workerd says, so a filter there could only hide a real failure.
 - `sentryReportUri(dsn)` returns the project's CSP report endpoint (`https://<key>@<host>/<projectId>` becomes `https://<host>/api/<projectId>/security/?sentry_key=<key>`), for `contentSecurityPolicy({ reportUri })`. `sentryConnectSource(dsn)` returns `https://<host>` for `connect-src`, which also covers a self-hosted Sentry the `sentry` preset does not. Both return undefined for a missing or invalid DSN.
 - `tracesSampleRate` is left unset unless given, which turns tracing off entirely (a rate of 0 still creates unsampled spans). `release` and `environment` are left unset unless given, so `@sentry/cloudflare` reads `SENTRY_RELEASE` (or `CF_VERSION_METADATA`) and `SENTRY_ENVIRONMENT` itself. `beforeSend` runs after the built-in filters, and may return a promise; spread the result to add integrations or a sampler.
+- Things Sentry 11 changed that these options do not hide: `@sentry/cloudflare` keeps one client per isolate and calls the options callback once, so a test that builds several clients passes `cacheClient: false`. Spans stream, and a streamed root span is named by its method (`GET`), so a sampler or `ignoreSpans` entry keyed on span names reads `url.path` and `http.request.method` instead. `attachStacktrace` is on by default, so `captureMessage` and non-Error captures carry stack traces. `enableLogs` is gone; logs go through `consoleLoggingIntegration` or `Sentry.logger`.
 
 ## Mail
 
@@ -447,10 +507,25 @@ const price = await fetchJson<{ usd: number }>(
 - The body is parsed: JSON when the response says so, else text, else null when empty. A body with no content type or `text/plain` that starts with `{` or `[` is tried as JSON too (as `new Response(JSON.stringify(x))` in a test makes), and stays text when it does not parse. A status outside 2xx throws `HttpError` with `status`, `url`, the parsed `body` and `retryAfter`; its message names the upstream's reason (`api.x.com answered 402: Out of credits.`) when the body carries one.
 - `new HttpError(status, url, body, retryAfter, { message })` keeps the caller's own wording in place of the built message. `url` may be any string; the built message names its host when it parses as a URL, else the string itself.
 - `maxBytes` refuses a response body past that size with `ResponseTooLarge`, for upstreams the app does not trust.
+- `schema` (Zod, Valibot or anything with `safeParse`) checks the parsed body, and the call returns its output, typed: `fetchJson(url, { schema: Price })`. A body that does not fit throws `ResponseInvalid` with the schema's `issues`, and is not retried.
 - A request that carries an `authorization` header does not follow redirects (`redirect: "manual"`), so the credential never reaches wherever a 3xx points; the 3xx comes back as an `HttpError`. Pass `redirect: "follow"` to follow one anyway.
-- `withRetry(fn, options)` retries any async work the same way, and `transient(err)` says whether an error is worth retrying.
-- `withTimeout(work, ms, options)` races work against a deadline and throws a `TimeoutError` (status 408, which `transient` counts as retryable) when the deadline wins. Pass a function, `(signal) => fetch(url, { signal })`, and its signal aborts at the deadline so the work stops too. `{ fallback }` resolves with that value instead of throwing, for an answer that is optional; `fallbackOnError: true` also resolves with it when the work fails. `label` names the work in the error. The timer is always cleared.
+- `withRetry(fn, options)` retries any async work the same way, and `transient(err)` says whether an error is worth retrying. Its `signal` stops it: a wait in progress ends at once and the last error is thrown.
+- `withTimeout(work, ms, options)` races work against a deadline and throws a `TimeoutError` (status 408, which `transient` counts as retryable) when the deadline wins. Pass a function, `(signal) => fetch(url, { signal })`, and its signal aborts at the deadline so the work stops too. `{ fallback }` resolves with that value instead of throwing, for an answer that is optional; `fallbackOnError: true` also resolves with it when the work fails. `label` names the work in the error. The timer is always cleared. A wait past 2^31 - 1 ms (about 24.8 days), where `setTimeout` would fire at once, throws a `RangeError`, as `sleep` does.
 - `sleep(ms, signal?)` waits, and rejects with the signal's reason if it aborts first. `sleepWithJitter(baseMs, jitterMs, signal?)` adds a random wait up to `jitterMs`, so callers that started together do not wake together.
+
+## Batches and fan-outs
+
+`workers-start/async` splits work that is too big for one call or too many subrequests at once:
+
+```ts
+import { chunks, mapLimit } from "workers-start/async";
+
+for (const batch of chunks(ids, 100)) await api.lookup(batch); // the API takes 100 ids at most
+const pages = await mapLimit(urls, 6, (url) => fetchJson(url)); // at most 6 open at once
+```
+
+- `chunks(items, size)` returns runs of at most `size`, in order.
+- `mapLimit(items, limit, fn)` runs `fn(item, index)` with at most `limit` at once and resolves with the results in input order. The first rejection rejects the call and starts nothing after it; work already running finishes unobserved. A Worker caps how many connections are open at once, so this keeps a fan-out under it.
 
 ## Security headers
 
@@ -571,7 +646,7 @@ await signUp(body.value.email);
 - `schema` is anything with a Zod style `safeParse`. A failure is 400 `invalid_request`, and the detail names the first issue, such as `email: Invalid email`.
 - Failures are values, not throws: `{ ok: false, status, code, detail }`. `bodyProblem(failure)` turns one into an RFC 9457 problem (`application/problem+json`, `{ type, title, status, code, detail }`, `cache-control: no-store`).
 
-`readText(request, { maxBytes })` reads text with the same cap, for webhooks that verify a signature over the raw body before parsing it.
+`readText(request, { maxBytes })` reads text with the same cap, and `readBytes(request, { maxBytes })` the bytes as sent, for a signature over the raw body or a file upload. Both return the same `{ ok, value }` or failure.
 
 ## Webhooks
 
@@ -609,7 +684,7 @@ const push = await verifyHmac(request, {
 const event = await verifySvix(request, env.RESEND_WEBHOOK_SECRET, { onError }); // whsec_...
 ```
 
-- Each check reads the raw body once and returns it as text when the signature holds, or null when it does not. Parse the returned text, not the request: the signature is over the exact bytes sent, and the body can only be read once.
+- Each check reads the raw body once and returns it as text when the signature holds, or null when it does not. Parse the returned text, not the request: the body can only be read once. The signature is checked over the bytes as sent, so a body with a BOM or a byte that is not UTF-8 still verifies (with `signedPayload`, over the text it returns).
 - The body is read through the same capped reader as `readText`, so a body past `maxBytes` (default 1 MiB for Discord and Svix, 25 MiB for `verifyHmac`, GitHub's own cap) is a null without being buffered. The signature can only be checked once the whole body is in, so without the cap anyone could make the isolate buffer a body near the request limit.
 - Bad input (a missing header, malformed hex or base64, a wrong signature, a stale timestamp) is a null, never a throw. Every comparison runs in constant time, and `timingSafeEqual(a, b)` is exported for strings or bytes.
 - A missing or malformed secret or key also gives null, and calls `onError`. A forged request never does, so a secret pasted with a stray character shows up in the logs instead of looking like an attacker being turned away.
@@ -701,6 +776,7 @@ return deferred({ ephemeral: true });
 - Each attempt times out after `timeoutMs` (15 seconds). An error status throws `HttpError` from `workers-start/http` with Discord's JSON error in `body`, so `err.body.code === 10008` is an unknown message.
 - `reason` goes into `X-Audit-Log-Reason`, URI-encoded. `query` is appended to the path. A `FormData` body goes up as multipart (a file with `payload_json`), anything else as JSON. A 204 returns `null`.
 - `token` is optional; `kind: "Bearer"` sends an OAuth2 access token instead of a bot token. `editOriginal`, `followup` and `deleteOriginal` send no Authorization header, since the interaction token in the path is the credential.
+- `escapeMarkdown(text)` makes third-party text (a username, a bio) safe in a message or an embed: it escapes the formatting characters, a heading's `#` at the start of a line, the `<` that opens a mention and the `:` of a bare link. `embedColor("#5865f2")` gives the integer an embed's `color` takes.
 - `interactionResponse(type, data)` returns the JSON `Response`; `InteractionResponseType` and `MessageFlags` hold the numbers. `deferred()` acknowledges within Discord's three seconds and `pong()` answers the endpoint check. Verifying the request signature is up to the app.
 - `discordTime(value, style, { seconds, fallback })` writes Discord's timestamp markup, `<t:1795231800:R>`, which every reader sees in their own time zone and language. Styles: `t`, `T`, `d`, `D`, `f` (the default), `F`, `R` ("3 hours ago"). It reads any date `workers-start/format` reads, or stored unix seconds with `{ seconds: true }`. A value that is not a date writes `fallback`, "-" by default, since Discord refuses an empty embed field. Use it in message content and embed descriptions and fields; titles and footers do not render it, so use the embed's `timestamp` there.
 
@@ -841,9 +917,12 @@ if (found.refreshCookie) response.headers.append("set-cookie", found.refreshCook
 - The cookie defaults to `HttpOnly`, `Secure`, `SameSite=Lax` and `Path=/`. Lax is the one you want: `Strict` withholds the cookie on the top-level cross-site navigation that every OAuth callback and every deep link back from another app is, so a `Strict` session cookie reads as a broken sign-in rather than a tightened one.
 - Nothing is stored server side, so there is no list of live sessions to read or write on the hot path. The flip side is that a signed cookie cannot be taken back before it expires. The usual answer is the epoch above: a counter on the user, carried in the claims and compared in the read the route already does. Bumping it is a fleet-wide sign-out.
 - `read` hands back a `refreshCookie` once `refreshAfterMs` has passed (a sixth of the life by default), so an active visitor never meets the expiry. Attach it verbatim; leaving it off only means they sign in again sooner. An app that revokes by epoch should mint its own with `issue` from the epoch it just read, so a revoke racing a refresh cannot be re-stamped into the future.
+- A refresh re-signs the claims as they were stored, not what `check` returned, so a `check` that transforms or drops fields does not rewrite the cookie.
 - A missing `secret` refuses every session and calls `onError`, which is the right failure for a binding that did not make it into an environment: closed, and loud.
+- To rotate the secret without signing everyone out, pass `secret: [env.SESSION_SECRET, env.SESSION_SECRET_OLD]`. Cookies are issued and refreshed with the first and read with either, so an active session moves to the new secret at its next refresh. Drop the old one once a cookie's life has passed. `signValue`, `verifyValue`, `signatureOf` and `verifySignature` take the same list, and none of them signs with an empty secret.
 - `signValue` and `verifyValue` are the layer under it, for anything else a stranger holds: a wallet-link nonce, a credits proof, a one-shot upload grant. `signatureOf` and `verifySignature` are the detached form, where the message is already in the URL and only the proof has to travel.
-- `readCookie` and `parseCookies` take the first value when a name appears twice. A browser sends the cookie with the longest path first, and a sibling subdomain can only add a second one after it, so reading the last would let it override the real one. A `__Host-` name rules the second one out.
+- `readCookie` and `parseCookies` take the first value when a name appears twice, which is the one with the longest path in a browser's order. That alone does not stop a sibling subdomain from planting a cookie of the same name with a longer path; a `__Host-` name does, since a browser refuses one set by any other host or with a `Domain`.
+- `appendCookie(response, cookie)` adds a `Set-Cookie` without dropping the others. A response with immutable headers (`Response.redirect`, a `fetch` answer) comes back as a copy, so use what it returns.
 - `clearCookie` repeats the `path`, `domain` and `partitioned` the cookie was written with. A browser matches on those, and a clear that does not match them does nothing at all.
 
 ## Formatting
@@ -871,8 +950,10 @@ Everything here is pure and English-only: with a fixed `timeZone`, the same inpu
 
 ```ts
 import {
+  dateRange,
   dateTime,
   fullDate,
+  isoDay,
   timeAgo,
   visitorTimeZone,
 } from "workers-start/format";
@@ -881,6 +962,14 @@ const timeZone = visitorTimeZone(request); // "America/New_York", or "UTC" when 
 fullDate(row.created_at, { timeZone }); // "20 November 2026"
 dateTime(row.created_at, { timeZone }); // "20 Nov 2026, 22:30 EST"
 timeAgo(row.created_at, { timeZone }); // "3h ago", or the date in their zone past 30 days
+fullDate(row.created_at, {
+  timeZone,
+  year: false,
+  month: "short",
+  order: "mdy",
+}); // "Nov 20"
+dateRange(week.start, week.end, { timeZone, order: "mdy", month: "short" }); // "Nov 14 to 21, 2026"
+isoDay(Date.now(), { timeZone }); // "2026-11-20", today where they are
 // in the browser: { timeZone: "local" }
 ```
 
@@ -905,7 +994,7 @@ function Posted({ at }: { at: string }) {
 
 ### Dates on pages cached for everyone
 
-An edge-cached or static page is rendered once for every visitor, so it cannot carry one visitor's zone. Write the date with `localTime` on the server, which gives a `<time>` holding the UTC date (still a true date without JavaScript), and let the browser rewrite it in the reader's zone:
+An edge-cached or static page is rendered once for every visitor, so it cannot carry one visitor's zone. Write the date with `localTime` on the server, which gives a `<time>` holding the UTC date, and let the browser rewrite it in the reader's zone. Without JavaScript a `date`, `datetime` or `year` still reads true (in UTC); an `ago` reads as of the render, so prefer `date` where the page may be cached for long:
 
 ```ts
 import { LOCAL_TIME_SCRIPT, localTime } from "workers-start/local-time";
@@ -925,7 +1014,12 @@ html += `<script>${LOCAL_TIME_SCRIPT}</script>`; // once, at the end of the page
 - `compactCount` groups in full below its threshold (10,000): "9.9k" hides whether a number crossed ten thousand and "9,934" does not.
 - `fullDate(value, { month: "short" })` writes "9 Mar 2026" in place of "9 March 2026", and `timeAgo` takes the same `month` for its fallback date past 30 days.
 - `fullDate`, `dateTime` and `timeAgo` take `timeZone`: an IANA name, `"local"` for the runtime's own zone, or `"UTC"` (the default). An unknown name falls back to UTC rather than throwing. `dateTime(value, { timeZone, clock: "12h", zoneName })` writes "20 Nov 2026, 10:30 PM EST". `order: "mdy"` writes the US order ("Nov 20, 2026") and `weekday: "short"` leads with the day ("Fri, Nov 20, 2026"), on `fullDate` and `dateTime`; the weekday is the zone's own day. `"local"` reads the runtime's zone once, so a test sets `TZ` before the first call. `monthYear(value, { month, timeZone })` writes "November 2026". `visitorTimeZone(request, fallback)` reads `request.cf.timezone` and checks the runtime knows it; `isTimeZone(name)` is that check. `utcDate`, `utcStamp` and `utcDay` stay UTC by name, for keys and machine-read stamps.
-- `timeAgo` reads anything in the future as "just now". A visitor's clock a little ahead of the server is the ordinary cause, and "in 2s" only looks broken.
+- `timeAgo` reads anything in the future as "just now". A visitor's clock a little ahead of the server is the ordinary cause, and "in 2s" only looks broken. `suffix: false` writes the bare count ("now", "5m", "3h", "6d") for a column or a badge.
+- `year: false` on `fullDate`, `dateTime` and `dateRange` leaves the year off ("20 Nov", "Nov 20, 7:30 PM"), and `year: "other"` shows it only when it is not the current year in `timeZone` (`now` sets the clock for a test).
+- `dateRange(start, end, options)` names the month and year once where they repeat: "14 to 21 November 2026", "Nov 28 to Dec 2, 2026", "30 Dec 2026 to 2 Jan 2027", and the same day alone. `separator` replaces " to ".
+- `isoDay(value, { timeZone })` is the calendar day as "2026-11-20" in that zone, the key for "today" where a user is; `utcDate` is the UTC one.
+- `duration(ms, { units })` writes an exact span from its largest units: "2d 5h", "5h 12m", "3m 20s", leaving out a unit that comes to zero. `aboutDuration(ms)` is the rough prose one ("about two hours").
+- `truncate(text, max, { ellipsis, onWord })` counts UTF-16 units, as Discord's and X's limits do, and never cuts inside a grapheme, so an emoji with a skin tone or a ZWJ family is kept whole or left out.
 - `wrapWords(text, width, { measure, breakWords })` breaks on spaces, and between the characters of Chinese and Japanese, which use none; a line never starts with closing punctuation such as `。`. It keeps the line breaks already in the text, a blank or whitespace-only line stays blank, and a word too wide for a line gets its own line rather than hyphenating an address. `breakWords: true` splits that word between characters instead, for a page or a PDF where it would run off the paper. `measure` lets a card renderer wrap in pixels rather than characters.
 - `fitWords(text, width, { maxLines, measure })` is the other half: it answers `null` rather than overflowing or truncating, for a label drawn at a size you control. Try the largest size, and on `null` try the next one down. An ellipsis is the wrong answer for a title on a card or a name on a device screen, where the room is yours to give.
 
@@ -959,12 +1053,24 @@ export class GatewayObject extends DurableObject<Env> {
     return this.link.alarm();
   }
 }
+
+// The Worker: a cron every minute tells the object whether it should be on.
+export default {
+  async scheduled(_event: ScheduledController, env: Env) {
+    const gateway = env.GATEWAY.get(env.GATEWAY.idFromName("bot"));
+    await gateway.fetch(
+      `https://gateway/tick?on=${env.BOT_ON === "0" ? "0" : "1"}`,
+    );
+  },
+} satisfies ExportedHandler<Env>;
 ```
+
+with `"triggers": { "crons": ["* * * * *"] }` and the `GATEWAY` Durable Object binding in `wrangler.jsonc`.
 
 - A gateway connection is outbound, and `state.acceptWebSocket()` takes an _incoming_ `WebSocketPair`. It refuses a socket that came back from `fetch()`, so the hibernation API cannot be used for a gateway socket at all: the object stays resident while the socket is open. Use one instance per bot, since Discord allows one identify per shard and a second socket would duplicate every event.
 - `alarm()` is the heartbeat, on the interval Discord sends in HELLO, with the first one at a random point in it. The same alarm carries the reconnect backoff.
-- `tick(on)` is the Worker's cron, once a minute, and the floor under the alarm: it opens a socket that is not there, reopens one that has gone quiet with a heartbeat unanswered, retries a parked link after an hour, and closes everything when `on` is false. An object evicted mid-connect leaves no alarm behind, and the tick is what notices.
-- A close resumes the session, so Discord replays what was missed, after 1, 2, 5, 15 then 60 seconds. 4007 and 4009 mean the resume was refused, so the session is dropped and the next connect identifies fresh. 4004 and 4010 to 4014 cannot fix themselves (a bad token, a shard mismatch, the Message Content intent left off in the developer portal): those park the link as `failed` rather than hammering Discord with an identify it will keep refusing.
+- `tick(on)` is the Worker's cron, once a minute, and the floor under the alarm: it opens a socket that is not there, reopens one that has gone quiet with a heartbeat unanswered, retries a parked link after an hour, and closes everything when `on` is false. An object evicted mid-connect leaves no alarm behind, and the tick is what notices. A tick during a reconnect backoff leaves it to the alarm, and steps in only once the alarm is overdue.
+- A close resumes the session, so Discord replays what was missed, after 1, 2, 5, 15 then 60 seconds. 4007 and 4009 mean the resume was refused, so the session is dropped and the next connect identifies fresh. 4004 and 4010 to 4014 cannot fix themselves (a bad token, a shard mismatch, the Message Content intent left off in the developer portal): those park the link as `failed` rather than hammering Discord with an identify it will keep refusing, and so does a token the default `discover` sees refused with 401. A heartbeat Discord never acknowledged counts toward the backoff like a close.
 - `onDispatch` sees every dispatch unless `dispatch` names the ones to pass. It must not throw: a rejection is reported and swallowed, because one bad event should not take the socket down with it. Pair it with `discordRest` from `workers-start/discord` to answer.
 - `status()` reports the phase, the last close reason and whether a session is stored, for a status page, with the bot's own user id from READY (kept across resumes, so a bot can tell its own messages apart after an eviction). The session id itself is not handed out.
 - `reconnect()` closes the socket and connects again now, resuming the session; `reconnect({ fresh: true })` drops the session and identifies anew. Either restarts a link parked as `failed`, which is what an admin button wants.

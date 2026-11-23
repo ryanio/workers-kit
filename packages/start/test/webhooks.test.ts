@@ -186,6 +186,41 @@ describe("verifyHmac", () => {
     expect(body).toBe(BODY);
   });
 
+  it("checks the bytes as sent, so a BOM or a byte that is not UTF-8 still verifies", async () => {
+    for (const sent of [
+      new Uint8Array([0xef, 0xbb, 0xbf, ...encoder.encode('{"a":1}')]),
+      new Uint8Array([
+        ...encoder.encode('{"a":"'),
+        0xff,
+        ...encoder.encode('"}'),
+      ]),
+    ]) {
+      const key = await crypto.subtle.importKey(
+        "raw",
+        encoder.encode(secret),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"],
+      );
+      const request = new Request("https://example.com/hook", {
+        method: "POST",
+        body: sent,
+        headers: {
+          "x-alchemy-signature": hex(
+            await crypto.subtle.sign("HMAC", key, sent),
+          ),
+        },
+      });
+      const body = await verifyHmac(request, {
+        secret,
+        header: "x-alchemy-signature",
+        algorithm: "SHA-256",
+        encoding: "hex",
+      });
+      expect(body).toBe(new TextDecoder().decode(sent));
+    }
+  });
+
   it("verifies a Neynar style hex SHA-512 signature in upper case", async () => {
     const request = post(BODY, {
       "X-Neynar-Signature": hex(

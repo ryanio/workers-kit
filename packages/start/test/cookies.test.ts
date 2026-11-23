@@ -138,6 +138,14 @@ describe("clearCookie", () => {
 });
 
 describe("appendCookie", () => {
+  it("copies a response whose headers are immutable, such as a redirect", async () => {
+    const redirect = Response.redirect("https://example.com/next", 302);
+    const out = appendCookie(redirect, serializeCookie("s", "1"));
+    expect(out.status).toBe(302);
+    expect(out.headers.get("location")).toBe("https://example.com/next");
+    expect(out.headers.getSetCookie()).toEqual(["s=1; Path=/"]);
+  });
+
   it("adds to the cookies already on the response", () => {
     const response = new Response(null);
     appendCookie(response, serializeCookie("a", "1"));

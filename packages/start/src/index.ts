@@ -14,6 +14,7 @@ export {
   parseAccessConfig,
   verifyAccessToken,
 } from "./access.js";
+export { chunks, mapLimit } from "./async.js";
 export type {
   BodyFailure,
   BodyResult,
@@ -21,7 +22,13 @@ export type {
   ReadJsonOptions,
   ReadTextOptions,
 } from "./body.js";
-export { bodyProblem, isJsonType, readJson, readText } from "./body.js";
+export {
+  bodyProblem,
+  isJsonType,
+  readBytes,
+  readJson,
+  readText,
+} from "./body.js";
 export {
   fromBase64,
   fromBase64Url,
@@ -79,6 +86,8 @@ export {
   deferred,
   discordRest,
   discordTime,
+  embedColor,
+  escapeMarkdown,
   InteractionResponseType,
   interactionResponse,
   MessageFlags,
@@ -101,6 +110,7 @@ export {
   GUILD_MEMBERS,
   GUILD_MESSAGE_REACTIONS,
   GUILD_MESSAGES,
+  GUILDS,
   MESSAGE_CONTENT,
 } from "./discord-gateway.js";
 export type {
@@ -125,7 +135,9 @@ export type {
   CountedOptions,
   DateLike,
   DateOptions,
+  DateRangeOptions,
   DateTimeOptions,
+  DurationOptions,
   FitWordsOptions,
   FormatBytesOptions,
   ListOfOptions,
@@ -141,12 +153,15 @@ export {
   compactCount,
   counted,
   DAY_MS,
+  dateRange,
   dateTime,
+  duration,
   fitWords,
   formatBytes,
   formatCount,
   fullDate,
   HOUR_MS,
+  isoDay,
   isTimeZone,
   listOf,
   MINUTE_MS,
@@ -217,6 +232,7 @@ export type {
 export {
   fetchJson,
   HttpError,
+  ResponseInvalid,
   ResponseTooLarge,
   retryAfterSeconds,
   sleep,
@@ -302,6 +318,7 @@ export {
   CSP_PRESETS,
   contentSecurityPolicy,
   DEFAULT_PERMISSIONS,
+  scriptHash,
   securityHeaders,
   securityHeadersMiddleware,
   withSecurityHeaders,
@@ -328,6 +345,7 @@ export {
 export type {
   IssuedSession,
   ReadSession,
+  Secrets,
   SessionCookie,
   SessionCookieOptions,
   SessionEnvelope,

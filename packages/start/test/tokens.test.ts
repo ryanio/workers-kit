@@ -199,6 +199,36 @@ describe("sessionCookie", () => {
     expect(reread?.shouldRefresh).toBe(false);
   });
 
+  it("re-signs the stored claims on refresh, not what check made of them", async () => {
+    const clock = { now: start };
+    const session = sessionCookie<{ uid: string; label: string }>({
+      name: "__Host-session",
+      secret: SECRET,
+      ttlMs: 30 * DAY,
+      now: () => clock.now,
+      // A check that derives a field, as a schema with a transform does.
+      check: (claims) => {
+        const { uid } = claims as { uid: string };
+        return { uid, label: `user ${uid}` };
+      },
+    });
+    const token = await signValue(SECRET, {
+      d: { uid: "usr_1", role: "admin" },
+      iat: start,
+      exp: start + 30 * DAY,
+    });
+    clock.now = start + 6 * DAY;
+    const due = await session.read(withCookie(`__Host-session=${token}`));
+    expect(due?.claims).toEqual({ uid: "usr_1", label: "user usr_1" });
+    const refreshed = String(due?.refreshCookie).split(";")[0] as string;
+    const stored = await verifyValue(
+      SECRET,
+      refreshed.slice("__Host-session=".length),
+      (payload) => payload as { d: unknown },
+    );
+    expect(stored?.d).toEqual({ uid: "usr_1", role: "admin" });
+  });
+
   it("refuses a cookie whose claims no longer fit the check", async () => {
     const clock = { now: start };
     const token = await signValue(SECRET, {
@@ -320,5 +350,54 @@ describe("one string per payload", () => {
     await expect(signValue(SECRET, () => {})).rejects.toThrow(
       /does not serialize/,
     );
+  });
+});
+
+describe("secret rotation", () => {
+  const OLD = "old-secret-0123456789abcdef";
+  const NEW = "new-secret-0123456789abcdef";
+
+  it("signs with the first secret and verifies with any", async () => {
+    const before = await signValue(OLD, { uid: "u1" });
+    expect(await verifyValue([NEW, OLD], before)).toEqual({ uid: "u1" });
+    const after = await signValue([NEW, OLD], { uid: "u1" });
+    expect(await verifyValue(NEW, after)).toEqual({ uid: "u1" });
+    expect(await verifyValue(OLD, after)).toBeNull();
+    expect(await verifyValue([NEW], before)).toBeNull();
+
+    const sig = await signatureOf(OLD, "msg");
+    expect(await verifySignature([NEW, OLD], "msg", sig)).toBe(true);
+    expect(await verifySignature([NEW], "msg", sig)).toBe(false);
+    expect(await signatureOf([NEW, OLD], "msg")).toBe(
+      await signatureOf(NEW, "msg"),
+    );
+  });
+
+  it("refuses to sign with no secret, and verifies nothing with none", async () => {
+    await expect(signValue("", { a: 1 })).rejects.toThrow(/no secret/);
+    await expect(signValue([undefined], { a: 1 })).rejects.toThrow(/no secret/);
+    expect(await verifyValue([], "a.b")).toBeNull();
+    expect(await verifySignature([undefined, ""], "m", "s")).toBe(false);
+  });
+
+  it("moves a session signed with the old secret to the new one at its refresh", async () => {
+    const DAY = 86_400_000;
+    const clock = { now: Date.parse("2026-11-20T00:00:00Z") };
+    const make = (secret: string | string[]) =>
+      sessionCookie<{ uid: string }>({
+        name: "__Host-session",
+        secret,
+        now: () => clock.now,
+      });
+    const { token } = await make(OLD).issue({ uid: "u1" });
+    clock.now += 6 * DAY;
+    const read = await make([NEW, OLD]).read(
+      withCookie(`__Host-session=${token}`),
+    );
+    expect(read?.claims).toEqual({ uid: "u1" });
+    const fresh = String(read?.refreshCookie).split(";")[0] as string;
+    expect((await make(NEW).read(withCookie(fresh)))?.claims).toEqual({
+      uid: "u1",
+    });
   });
 });

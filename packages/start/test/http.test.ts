@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   fetchJson,
   HttpError,
+  ResponseInvalid,
   ResponseTooLarge,
   retryAfterSeconds,
   sleep,
@@ -186,6 +187,28 @@ describe("fetchJson", () => {
 });
 
 describe("withRetry", () => {
+  it("stops a wait when the signal aborts, rejecting with the last error", async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    const started = Date.now();
+    const run = withRetry(
+      async () => {
+        calls++;
+        throw new TypeError("network");
+      },
+      {
+        attempts: 5,
+        baseMs: 60_000,
+        random: () => 0.99,
+        signal: controller.signal,
+      },
+    );
+    setTimeout(() => controller.abort(), 20);
+    await expect(run).rejects.toThrow("network");
+    expect(Date.now() - started).toBeLessThan(1_000);
+    expect(calls).toBe(1);
+  });
+
   it("stops at the attempt limit and inside the budget", async () => {
     let calls = 0;
     const fail = async () => {
@@ -395,6 +418,13 @@ describe("withTimeout", () => {
     ).resolves.toBeNull();
   });
 
+  it("refuses a wait the timer cannot hold, which would fire at once", () => {
+    const never = new Promise<never>(() => {});
+    expect(() => withTimeout(never, 2 ** 31)).toThrow(RangeError);
+    expect(() => sleep(2 ** 31)).toThrow(RangeError);
+    expect(() => withTimeout(never, Number.NaN)).toThrow(RangeError);
+  });
+
   it("aborts the work's signal at the deadline", async () => {
     let seen: AbortSignal | undefined;
     await withTimeout(
@@ -415,5 +445,39 @@ describe("withTimeout", () => {
         throw new Error("sync");
       }, 50),
     ).rejects.toThrow("sync");
+  });
+});
+
+describe("fetchJson with a schema", () => {
+  const schema = {
+    safeParse(value: unknown) {
+      const name = (value as { name?: unknown } | null)?.name;
+      return typeof name === "string"
+        ? { success: true as const, data: { name } }
+        : { success: false as const, error: { issues: [{ message: "name" }] } };
+    },
+  };
+  const answer = (body: unknown) => async () => Response.json(body);
+
+  it("returns the parsed value, typed by the schema", async () => {
+    const out = await fetchJson("https://api.test/u", {
+      schema,
+      fetch: answer({ name: "ada", extra: 1 }),
+    });
+    expect(out).toEqual({ name: "ada" });
+  });
+
+  it("throws ResponseInvalid for a body that does not fit, without retrying", async () => {
+    let calls = 0;
+    const err = await fetchJson("https://api.test/u", {
+      schema,
+      fetch: async () => {
+        calls++;
+        return Response.json({ name: 7 });
+      },
+    }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ResponseInvalid);
+    expect((err as ResponseInvalid).url).toBe("https://api.test/u");
+    expect(calls).toBe(1);
   });
 });

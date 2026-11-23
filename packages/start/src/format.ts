@@ -279,6 +279,8 @@ export interface TimeAgoOptions {
   timeZone?: DateOptions["timeZone"];
   /** The order of the fallback date, as `fullDate` takes it. */
   order?: DateOptions["order"];
+  /** " ago" after the count (default true). `false` gives "now", "5m", "3h", "6d", for a column or a badge. */
+  suffix?: boolean | undefined;
 }
 
 /**
@@ -296,17 +298,18 @@ export function timeAgo(
   }
   const now = options.now ?? Date.now();
   const elapsed = now - then;
+  const ago = options.suffix === false ? "" : " ago";
   if (elapsed < 90 * SECOND_MS) {
-    return "just now";
+    return options.suffix === false ? "now" : "just now";
   }
   if (elapsed < HOUR_MS) {
-    return `${Math.floor(elapsed / MINUTE_MS)}m ago`;
+    return `${Math.floor(elapsed / MINUTE_MS)}m${ago}`;
   }
   if (elapsed < DAY_MS) {
-    return `${Math.floor(elapsed / HOUR_MS)}h ago`;
+    return `${Math.floor(elapsed / HOUR_MS)}h${ago}`;
   }
   if (elapsed < (options.absoluteAfterMs ?? 30 * DAY_MS)) {
-    return `${Math.floor(elapsed / DAY_MS)}d ago`;
+    return `${Math.floor(elapsed / DAY_MS)}d${ago}`;
   }
   return fullDate(then, {
     month: options.month,
@@ -319,6 +322,20 @@ export function timeAgo(
 export function utcDate(value: DateLike | null | undefined): string {
   const ms = toMillis(value);
   return ms === null ? "" : new Date(ms).toISOString().slice(0, 10);
+}
+
+/**
+ * "2026-11-20", the calendar day in `timeZone` (UTC by default). The key for
+ * "today" in a reader's or a user's own zone; `utcDate` is the UTC one.
+ */
+export function isoDay(
+  value: DateLike | null | undefined,
+  options: Pick<DateOptions, "timeZone"> = {},
+): string {
+  const ms = toMillis(value);
+  if (ms === null) return "";
+  const { year, month, day } = zoned(ms, options.timeZone);
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 /** "2026-11-20 14:03 UTC". */
@@ -344,6 +361,13 @@ export interface DateOptions {
   order?: "dmy" | "mdy" | undefined;
   /** Lead with the weekday: "Fri, 20 Nov 2026" (`short`) or "Friday, 20 Nov 2026" (`long`). */
   weekday?: "short" | "long" | undefined;
+  /**
+   * The year: shown (`true`, default), left off (`false`: "20 Nov", "Nov 20"),
+   * or shown only when it is not the current year in `timeZone` (`"other"`).
+   */
+  year?: boolean | "other" | undefined;
+  /** Milliseconds since the epoch, for `year: "other"`. Defaults to `Date.now`. */
+  now?: number | undefined;
 }
 
 const WEEKDAYS = [
@@ -363,8 +387,11 @@ function datePart(
   defaultMonth: DateOptions["month"],
 ): string {
   const name = monthName(month, options.month ?? defaultMonth);
-  const date =
-    options.order === "mdy"
+  const date = !showYear(year, options)
+    ? options.order === "mdy"
+      ? `${name} ${day}`
+      : `${day} ${name}`
+    : options.order === "mdy"
       ? `${name} ${day}, ${year}`
       : `${day} ${name} ${year}`;
   if (!options.weekday) return date;
@@ -372,6 +399,12 @@ function datePart(
   const index = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
   const weekday = WEEKDAYS[index] ?? "";
   return `${options.weekday === "short" ? weekday.slice(0, 3) : weekday}, ${date}`;
+}
+
+function showYear(year: number, options: DateOptions): boolean {
+  if (options.year === false) return false;
+  if (options.year !== "other") return true;
+  return zoned(options.now ?? Date.now(), options.timeZone).year !== year;
 }
 
 interface ZonedParts {
@@ -465,6 +498,49 @@ export function monthYear(
   }
   const { year, month } = zoned(ms, options.timeZone);
   return `${monthName(month, options.month)} ${year}`;
+}
+
+export interface DateRangeOptions extends Omit<DateOptions, "weekday"> {
+  /** Between the two ends. Default " to ", which reads the same aloud and in plain text. */
+  separator?: string | undefined;
+}
+
+/**
+ * Two dates as one range, naming the month and year once where they repeat:
+ * "14 to 21 November 2026", "Nov 14 to 21, 2026" (`mdy`), "28 Nov to 2 Dec
+ * 2026", "30 Dec 2026 to 2 Jan 2027". The same day gives that day alone.
+ */
+export function dateRange(
+  start: DateLike | null | undefined,
+  end: DateLike | null | undefined,
+  options: DateRangeOptions = {},
+): string {
+  const a = toMillis(start);
+  const b = toMillis(end);
+  if (a === null || b === null) return "";
+  const { separator = " to ", ...date } = options;
+  const from = zoned(a, options.timeZone);
+  const to = zoned(b, options.timeZone);
+  const mdy = options.order === "mdy";
+  const name = (m: number) => monthName(m, options.month ?? "long");
+  const sameYear = from.year === to.year;
+  if (sameYear && from.month === to.month && from.day === to.day) {
+    return fullDate(a, date);
+  }
+  const yearShown = showYear(to.year, date) || !sameYear;
+  const tail = yearShown ? (mdy ? `, ${to.year}` : ` ${to.year}`) : "";
+  if (sameYear && from.month === to.month) {
+    return mdy
+      ? `${name(from.month)} ${from.day}${separator}${to.day}${tail}`
+      : `${from.day}${separator}${to.day} ${name(to.month)}${tail}`;
+  }
+  if (sameYear) {
+    return mdy
+      ? `${name(from.month)} ${from.day}${separator}${name(to.month)} ${to.day}${tail}`
+      : `${from.day} ${name(from.month)}${separator}${to.day} ${name(to.month)}${tail}`;
+  }
+  const whole = { ...date, year: true as const };
+  return `${fullDate(a, whole)}${separator}${fullDate(b, whole)}`;
 }
 
 export interface DateTimeOptions extends DateOptions {
@@ -576,6 +652,37 @@ export function aboutDuration(ms: number): string {
     : `about ${counted(hours, "hour", undefined, { words: true })}`;
 }
 
+const DURATION_UNITS = [
+  ["d", DAY_MS],
+  ["h", HOUR_MS],
+  ["m", MINUTE_MS],
+  ["s", SECOND_MS],
+] as const;
+
+export interface DurationOptions {
+  /** How many units from the largest: "2d 5h" (2, default), "2d" (1), "2d 5h 12m" (3). */
+  units?: number | undefined;
+}
+
+/**
+ * An exact span, short: "2d 5h", "5h 12m", "3m 20s", "45s". A unit that comes
+ * to zero is left out ("2d", not "2d 0h"), and anything under a second, or not
+ * a number, is "0s".
+ */
+export function duration(ms: number, options: DurationOptions = {}): string {
+  if (!Number.isFinite(ms) || ms < SECOND_MS) return "0s";
+  const units = Math.max(1, options.units ?? 2);
+  let rest = Math.floor(ms);
+  const first = DURATION_UNITS.findIndex(([, size]) => rest >= size);
+  const parts: string[] = [];
+  for (const [label, size] of DURATION_UNITS.slice(first, first + units)) {
+    const count = Math.floor(rest / size);
+    rest -= count * size;
+    if (count > 0) parts.push(`${count}${label}`);
+  }
+  return parts.join(" ");
+}
+
 export interface ListOfOptions {
   /** Default "and". */
   conjunction?: string | undefined;
@@ -660,7 +767,7 @@ export function truncate(
   if (room <= 0) {
     return ellipsis.slice(0, maxLength);
   }
-  const cut = whole(text.slice(0, room));
+  const cut = wholeStart(text, room);
   if (options.onWord === false) {
     return cut + ellipsis;
   }
@@ -669,13 +776,18 @@ export function truncate(
 }
 
 /**
- * `text` without a trailing lone high surrogate. Slicing by index can land in
- * the middle of an astral character, and half of one renders as a replacement
- * glyph wherever it ends up.
+ * The longest start of `text` that is whole graphemes and at most `room`
+ * UTF-16 units. A cut by index can land inside an emoji sequence (a skin
+ * tone, a family joined by ZWJ) or an astral character, and the half left
+ * renders as a different emoji or a replacement glyph.
  */
-function whole(text: string): string {
-  const last = text.charCodeAt(text.length - 1);
-  return last >= 0xd800 && last <= 0xdbff ? text.slice(0, -1) : text;
+function wholeStart(text: string, room: number): string {
+  let end = 0;
+  for (const piece of graphemes(text)) {
+    if (end + piece.length > room) break;
+    end += piece.length;
+  }
+  return text.slice(0, end);
 }
 
 export interface WrapWordsOptions {

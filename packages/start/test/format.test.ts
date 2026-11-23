@@ -5,11 +5,14 @@ import {
   compactCount,
   counted,
   DAY_MS,
+  dateRange,
   dateTime,
+  duration,
   fitWords,
   formatBytes,
   formatCount,
   fullDate,
+  isoDay,
   isTimeZone,
   listOf,
   monthYear,
@@ -524,5 +527,119 @@ describe("monthYear", () => {
       monthYear(late, { timeZone: "America/New_York", month: "short" }),
     ).toBe("Nov 2026");
     expect(monthYear("nope")).toBe("");
+  });
+});
+
+describe("dates without a year", () => {
+  const at = Date.UTC(2026, 10, 21, 3, 30); // 21 Nov 2026 03:30 UTC, the 20th in New York
+
+  it("leaves the year off, or shows it only when it is not this year", () => {
+    expect(fullDate(at, { year: false, month: "short" })).toBe("21 Nov");
+    expect(fullDate(at, { year: false, month: "short", order: "mdy" })).toBe(
+      "Nov 21",
+    );
+    expect(
+      fullDate(at, {
+        year: false,
+        timeZone: "America/New_York",
+        order: "mdy",
+        weekday: "short",
+        month: "short",
+      }),
+    ).toBe("Fri, Nov 20");
+    const now = Date.UTC(2026, 5, 1);
+    expect(fullDate(at, { year: "other", now })).toBe("21 November");
+    expect(fullDate(at, { year: "other", now: Date.UTC(2027, 0, 2) })).toBe(
+      "21 November 2026",
+    );
+    expect(
+      dateTime(at, {
+        year: false,
+        order: "mdy",
+        clock: "12h",
+        zoneName: false,
+      }),
+    ).toBe("Nov 21, 3:30 AM");
+  });
+});
+
+describe("timeAgo without a suffix", () => {
+  it("writes the bare count, for a column or a badge", () => {
+    const now = Date.UTC(2026, 10, 21, 12);
+    expect(timeAgo(now - 30_000, { now, suffix: false })).toBe("now");
+    expect(timeAgo(now - 5 * 60_000, { now, suffix: false })).toBe("5m");
+    expect(timeAgo(now - 3 * 3_600_000, { now, suffix: false })).toBe("3h");
+    expect(timeAgo(now - 6 * 86_400_000, { now, suffix: false })).toBe("6d");
+    expect(timeAgo(now - 5 * 60_000, { now })).toBe("5m ago");
+  });
+});
+
+describe("duration", () => {
+  it("writes the largest units, dropping a zero one", () => {
+    const h = 3_600_000;
+    expect(duration(2 * 24 * h + 5 * h + 7 * 60_000)).toBe("2d 5h");
+    expect(duration(5 * h + 12 * 60_000)).toBe("5h 12m");
+    expect(duration(200_000)).toBe("3m 20s");
+    expect(duration(45_000)).toBe("45s");
+    expect(duration(2 * 24 * h + 30_000)).toBe("2d");
+    expect(duration(2 * 24 * h + 5 * h + 12 * 60_000, { units: 3 })).toBe(
+      "2d 5h 12m",
+    );
+    expect(duration(5 * h, { units: 1 })).toBe("5h");
+    expect(duration(400)).toBe("0s");
+    expect(duration(Number.NaN)).toBe("0s");
+  });
+});
+
+describe("dateRange", () => {
+  const day = (m: number, d: number, y = 2026) => Date.UTC(y, m - 1, d, 12);
+
+  it("names the month and year once where they repeat", () => {
+    expect(dateRange(day(11, 14), day(11, 21))).toBe("14 to 21 November 2026");
+    expect(
+      dateRange(day(11, 14), day(11, 21), { order: "mdy", month: "short" }),
+    ).toBe("Nov 14 to 21, 2026");
+    expect(dateRange(day(11, 28), day(12, 2), { month: "short" })).toBe(
+      "28 Nov to 2 Dec 2026",
+    );
+    expect(
+      dateRange(day(11, 28), day(12, 2), { order: "mdy", month: "short" }),
+    ).toBe("Nov 28 to Dec 2, 2026");
+    expect(dateRange(day(12, 30), day(1, 2, 2027), { month: "short" })).toBe(
+      "30 Dec 2026 to 2 Jan 2027",
+    );
+    expect(dateRange(day(11, 14), day(11, 14))).toBe("14 November 2026");
+    expect(
+      dateRange(day(11, 14), day(11, 21), {
+        year: false,
+        month: "short",
+        order: "mdy",
+      }),
+    ).toBe("Nov 14 to 21");
+    expect(
+      dateRange(day(11, 14), day(11, 21), { separator: "-", order: "mdy" }),
+    ).toBe("November 14-21, 2026");
+    expect(dateRange(null, day(1, 1))).toBe("");
+  });
+});
+
+describe("isoDay", () => {
+  it("is the calendar day in the zone asked for", () => {
+    const at = Date.UTC(2026, 10, 21, 3, 30);
+    expect(isoDay(at)).toBe("2026-11-21");
+    expect(isoDay(at, { timeZone: "America/Los_Angeles" })).toBe("2026-11-20");
+    expect(isoDay(at, { timeZone: "Asia/Tokyo" })).toBe("2026-11-21");
+    expect(isoDay("not a date")).toBe("");
+  });
+});
+
+describe("truncate and graphemes", () => {
+  it("never cuts inside an emoji sequence, and still counts UTF-16 units", () => {
+    const family = "👨‍👩‍👧"; // 8 UTF-16 units
+    const out = truncate(`ok ${family}${family}`, 12, { onWord: false });
+    expect(out).toBe(`ok ${family}…`);
+    expect(out.length).toBeLessThanOrEqual(12);
+    expect(truncate(`ab${family}`, 6, { onWord: false })).toBe("ab…");
+    expect(truncate("👍🏽👍🏽👍🏽", 6, { onWord: false })).toBe("👍🏽…");
   });
 });

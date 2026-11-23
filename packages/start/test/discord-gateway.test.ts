@@ -293,6 +293,45 @@ describe("discordGateway", () => {
     expect(storage.alarm).toBe(clock + 1000);
   });
 
+  it("counts an unanswered heartbeat toward attempt, so a run of them backs off", async () => {
+    await goLive();
+    const waits: number[] = [];
+    for (let i = 0; i < 3; i++) {
+      await link.alarm();
+      clock += INTERVAL;
+      await link.alarm();
+      waits.push((storage.alarm as number) - clock);
+      socket = new FakeSocket();
+      open.mockImplementation(async () => socket);
+      await link.alarm();
+      socket.deliver(hello());
+      await settle();
+    }
+    expect(waits).toEqual([1000, 2000, 5000]);
+    expect(state().attempt).toBe(3);
+  });
+
+  it("lets a backoff run instead of reconnecting on the next tick", async () => {
+    await goLive();
+    for (let i = 0; i < 4; i++) {
+      socket.hangUp(1006);
+      await settle();
+      socket = new FakeSocket();
+      open.mockImplementation(async () => socket);
+      await link.alarm();
+    }
+    socket.hangUp(1006);
+    await settle();
+    expect(state().phase).toBe("reconnecting");
+    const opens = open.mock.calls.length;
+    clock += 5_000;
+    await link.tick(true);
+    expect(open.mock.calls.length).toBe(opens);
+    clock += 60_000 + 10 * 60_000;
+    await link.tick(true);
+    expect(open.mock.calls.length).toBe(opens + 1);
+  });
+
   it("reconnects rather than heartbeating into a socket that is gone", async () => {
     await goLive();
     socket.throwOnSend = true;
@@ -319,7 +358,12 @@ describe("discordGateway", () => {
     expect(state().session).toBe("sess_1");
     expect(socket.closed?.code).toBe(4900);
 
-    await goLive();
+    // The backoff's alarm reconnects; a tick would leave it to run.
+    await link.alarm();
+    socket.deliver(hello());
+    await settle();
+    socket.deliver(ready());
+    await settle();
     socket.deliver({ op: 9, d: false });
     await settle();
     expect(state().session).toBeNull();
@@ -520,6 +564,18 @@ describe("discordGateway", () => {
     await settle();
     expect(quick.lastOp(2)).toBeTruthy();
     expect(slow.lastOp(2)).toBeUndefined();
+  });
+
+  it("parks as failed when Discord refuses the bot token", async () => {
+    build({
+      discover: undefined,
+      fetch: async () => new Response("401: Unauthorized", { status: 401 }),
+    });
+    await link.tick(true);
+    expect(state().phase).toBe("failed");
+    expect(state().why).toBe("bot token refused (401)");
+    expect(open).not.toHaveBeenCalled();
+    expect(storage.alarm).toBeNull();
   });
 
   it("discovers with Discord's user agent and upgrades over https, by default", async () => {

@@ -179,6 +179,131 @@ describe("withEdgeCache options", () => {
     expect([...store.keys()]).toEqual(["https://e.test/p"]);
   });
 
+  it("keeps a route at the edge for edgeTtl seconds, and the visitor gets its own Cache-Control", async () => {
+    const { cache, store } = memoryCache();
+    const pending: Promise<unknown>[] = [];
+    const IMAGE = "public, max-age=86400, immutable";
+    let renders = 0;
+    const options = {
+      cache,
+      waitUntil: (p: Promise<unknown>) => pending.push(p),
+      edgeTtl: (r: Response) =>
+        r.headers.get("cache-control") === IMAGE ? 86400 : 0,
+    };
+    const render = async () => {
+      renders++;
+      return page(IMAGE);
+    };
+    const miss = await withEdgeCache(
+      new Request("https://e.test/i.jpg"),
+      render,
+      options,
+    );
+    expect(miss.headers.get("cache-control")).toBe(IMAGE);
+    await settle(pending);
+    expect(
+      store.get("https://e.test/i.jpg")?.headers.get("cache-control"),
+    ).toBe(`${IMAGE}, s-maxage=86400`);
+    const hit = await withEdgeCache(
+      new Request("https://e.test/i.jpg"),
+      render,
+      options,
+    );
+    expect(renders).toBe(1);
+    expect(hit.headers.get("cache-control")).toBe(IMAGE);
+    expect(
+      [...hit.headers.keys()].some((k) => k.startsWith("x-workers-start")),
+    ).toBe(false);
+
+    // An s-maxage the route already sent is replaced, not doubled.
+    await withEdgeCache(
+      new Request("https://e.test/k"),
+      async () => page("public, s-maxage=5, max-age=60"),
+      { ...options, edgeTtl: 600 },
+    );
+    await settle(pending);
+    expect(store.get("https://e.test/k")?.headers.get("cache-control")).toBe(
+      "public, max-age=60, s-maxage=600",
+    );
+
+    // A fallback with a shorter lifetime is not kept.
+    await withEdgeCache(
+      new Request("https://e.test/j.jpg"),
+      async () => page("public, max-age=60"),
+      options,
+    );
+    await settle(pending);
+    expect(store.has("https://e.test/j.jpg")).toBe(false);
+  });
+
+  it("stores the statuses it is given, such as a redirect", async () => {
+    const { cache, store } = memoryCache();
+    const pending: Promise<unknown>[] = [];
+    const redirect = () =>
+      new Response(null, {
+        status: 302,
+        headers: {
+          location: "/og/fallback.jpg",
+          "cache-control": "public, max-age=3600",
+        },
+      });
+    const base = {
+      cache,
+      waitUntil: (p: Promise<unknown>) => pending.push(p),
+      edgeTtl: 3600,
+    };
+    await withEdgeCache(
+      new Request("https://e.test/a"),
+      async () => redirect(),
+      base,
+    );
+    await settle(pending);
+    expect(store.has("https://e.test/a")).toBe(false);
+    await withEdgeCache(
+      new Request("https://e.test/a"),
+      async () => redirect(),
+      {
+        ...base,
+        statuses: [200, 302],
+      },
+    );
+    await settle(pending);
+    const hit = await withEdgeCache(
+      new Request("https://e.test/a"),
+      async () => new Response("rendered"),
+      { ...base, statuses: [200, 302] },
+    );
+    expect(hit.status).toBe(302);
+    expect(hit.headers.get("location")).toBe("/og/fallback.jpg");
+    expect(hit.headers.get("cache-control")).toBe("public, max-age=3600");
+  });
+
+  it("releases the copies when shouldStore throws, and reports it", async () => {
+    const { cache, store } = memoryCache();
+    const pending: Promise<unknown>[] = [];
+    const errors: string[] = [];
+    let probe: Response | undefined;
+    const response = await withEdgeCache(
+      new Request("https://e.test/boom"),
+      async () => page("s-maxage=60"),
+      {
+        cache,
+        waitUntil: (p) => pending.push(p),
+        onError: (_e, during) => errors.push(during),
+        shouldStore: (r) => {
+          probe = r;
+          throw new Error("check failed");
+        },
+      },
+    );
+    await settle(pending);
+    expect(errors).toEqual(["put"]);
+    expect(store.size).toBe(0);
+    expect(await response.text()).not.toBe("");
+    const read = await probe?.body?.getReader().read();
+    expect(read?.done).toBe(true);
+  });
+
   it("renders past a cache that throws, and reports both failures", async () => {
     const errors: string[] = [];
     const pending: Promise<unknown>[] = [];

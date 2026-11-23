@@ -12,7 +12,7 @@
  * WebCrypto only, so it runs in workerd, the browser and Node 22.
  */
 
-import { readText } from "./body.js";
+import { readBytes } from "./body.js";
 import { fromBase64, fromHex, timingSafeEqual, utf8 } from "./bytes.js";
 
 export interface WebhookErrorOptions {
@@ -123,9 +123,9 @@ export async function verifyDiscord(
       "Ed25519",
       key,
       signature,
-      utf8(timestamp + body),
+      join(utf8(timestamp), body.raw),
     );
-    return ok ? body : null;
+    return ok ? body.text : null;
   } catch {
     return null;
   }
@@ -180,10 +180,10 @@ export async function verifyHmac(
   }
   try {
     const signed = options.signedPayload
-      ? options.signedPayload(body, timestamp)
-      : body;
-    const mac = await crypto.subtle.sign("HMAC", key, utf8(signed));
-    return timingSafeEqual(new Uint8Array(mac), given) ? body : null;
+      ? utf8(options.signedPayload(body.text, timestamp))
+      : join(body.raw);
+    const mac = await crypto.subtle.sign("HMAC", key, signed);
+    return timingSafeEqual(new Uint8Array(mac), given) ? body.text : null;
   } catch {
     return null;
   }
@@ -252,12 +252,12 @@ export async function verifySvix(
       await crypto.subtle.sign(
         "HMAC",
         key,
-        utf8(`${id}.${Number(timestamp)}.${body}`),
+        join(utf8(`${id}.${timestamp}.`), body.raw),
       ),
     );
     let ok = false;
     for (const sig of candidates) ok = timingSafeEqual(mac, sig) || ok;
-    return ok ? body : null;
+    return ok ? body.text : null;
   } catch {
     return null;
   }
@@ -271,16 +271,29 @@ function withinWindow(timestamp: string, options: TimestampOptions): boolean {
   return Math.abs(nowSeconds - Number(timestamp)) <= tolerance;
 }
 
+/** The body as sent and as text. Signatures are checked over the bytes, so a BOM or a byte that is not UTF-8 cannot break a valid one. */
 async function readBody(
   request: Request,
   maxBytes: number,
-): Promise<string | null> {
+): Promise<{ raw: Uint8Array; text: string } | null> {
   try {
-    const read = await readText(request, { maxBytes });
-    return read.ok ? read.value : null;
+    const read = await readBytes(request, { maxBytes });
+    return read.ok
+      ? { raw: read.value, text: new TextDecoder().decode(read.value) }
+      : null;
   } catch {
     return null;
   }
+}
+
+function join(...parts: Uint8Array[]): Uint8Array<ArrayBuffer> {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.byteLength, 0));
+  let at = 0;
+  for (const part of parts) {
+    out.set(part, at);
+    at += part.byteLength;
+  }
+  return out;
 }
 
 function report(

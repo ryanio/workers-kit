@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type BodySchema,
   bodyProblem,
+  readBytes,
   readJson,
   readText,
 } from "../src/body.js";
@@ -169,5 +170,30 @@ describe("reading a fetched response", () => {
     expect(small).toEqual({ ok: true, value: "hello" });
     const big = await readText(new Response("x".repeat(50)), { maxBytes: 10 });
     expect(big.ok).toBe(false);
+  });
+});
+
+describe("readBytes", () => {
+  it("returns the bytes as sent and caps a chunked body as it reads", async () => {
+    const sent = new Uint8Array([0xef, 0xbb, 0xbf, 0xff, 1, 2]);
+    const ok = await readBytes(
+      new Request("https://e.test/", { method: "POST", body: sent }),
+    );
+    expect(ok).toEqual({ ok: true, value: sent });
+
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (let i = 0; i < 4; i++) controller.enqueue(new Uint8Array(10));
+        controller.close();
+      },
+    });
+    const big = new Request("https://e.test/", {
+      method: "POST",
+      body: stream,
+      // @ts-expect-error duplex is required for a streamed body in Node
+      duplex: "half",
+    });
+    const refused = await readBytes(big, { maxBytes: 25 });
+    expect(refused.ok).toBe(false);
   });
 });

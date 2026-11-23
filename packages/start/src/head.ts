@@ -65,8 +65,6 @@ export interface PageSeo {
   twitterDescription?: string;
   /** A path or URL, or an object with size, alt and type. Defaults to the site's image. */
   image?: string | PageImage;
-  /** @deprecated Use `image: { url, width, height, alt }`. */
-  imageSize?: { width: number; height: number; alt?: string };
   /** ISO date, for articles. */
   published?: string;
   /** ISO date, for articles. */
@@ -182,9 +180,7 @@ export function createPageHead(site: SiteHead): {
     const socialDescription = seo.socialDescription ?? seo.description;
     const imageInput = seo.image ?? site.defaultImage;
     const image: PageImage | undefined =
-      typeof imageInput === "string"
-        ? { url: imageInput, ...seo.imageSize }
-        : imageInput;
+      typeof imageInput === "string" ? { url: imageInput } : imageInput;
     const imageUrl = image ? absoluteUrl(image.url) : undefined;
 
     const meta: MetaTag[] = [

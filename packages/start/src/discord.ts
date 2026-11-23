@@ -295,6 +295,31 @@ export function discordTime(
   return `<t:${Math.floor(ms / 1000)}:${style}>`;
 }
 
+/**
+ * Third-party text (a username, a bio, a title) made safe for a message or an
+ * embed: the characters that would format it are escaped, as is a heading's
+ * `#` at the start of a line, the `<` that opens a mention, and the `:` of a
+ * bare link, which Discord would make clickable. Discord hides the escapes.
+ */
+export function escapeMarkdown(text: string): string {
+  return text
+    .replace(/[\\*_~`|[\]>]/g, "\\$&")
+    .replace(/^(\s*)(-?#)/gm, "$1\\$2")
+    .replace(/<(?=[@#:a-z])/gi, "\\<")
+    .replace(/:\/\//g, "\\://");
+}
+
+/** The integer an embed's `color` takes, from "#5865f2", "5865f2" or "#fff". */
+export function embedColor(hex: string): number {
+  const digits = hex.trim().replace(/^#/, "");
+  const full =
+    digits.length === 3 ? [...digits].map((d) => d + d).join("") : digits;
+  if (!/^[0-9a-f]{6}$/i.test(full)) {
+    throw new RangeError(`"${hex}" is not a #rrggbb or #rgb colour`);
+  }
+  return Number.parseInt(full, 16);
+}
+
 export const InteractionResponseType = {
   Pong: 1,
   ChannelMessageWithSource: 4,
