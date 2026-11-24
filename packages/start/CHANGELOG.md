@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.36.1 (2026-11-23)
+
+- `workerSentryOptions` drops `Aborting engine: Grace period complete`, which a Workflow engine throws into every instance it evicts during a long sleep. The instance resumes on its own, so it was never a failure.
+
 ## 0.36.0 (2026-11-23)
 
 `workers-start/mail` is Cloudflare Email Service only.

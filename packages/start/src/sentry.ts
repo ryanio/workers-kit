@@ -7,9 +7,11 @@
  * from a local server (`wrangler dev`, `vite preview`) never reach the
  * production project, and in the browser the noise that is not the app's to
  * fix (requests that never left the device, extension and injected wallet
- * scripts, users declining a wallet prompt) is dropped. The Worker side gets
- * no message filters: browser wording describes nothing workerd says, so a
- * filter there could only hide a real failure.
+ * scripts, users declining a wallet prompt) is dropped. The Worker side drops
+ * one workerd message only: the abort a Workflow engine raises when it evicts
+ * an instance that is sleeping, which resumes on its own. Browser wording
+ * describes nothing workerd says, so a broader filter could only hide a real
+ * failure.
  *
  * Release and environment are left unset unless given, so
  * `@sentry/cloudflare` reads `SENTRY_RELEASE` (or `CF_VERSION_METADATA`) and
@@ -100,6 +102,22 @@ export const SENTRY_DATA_COLLECTION: DataCollection = {
   graphQL: { document: false, variables: false },
   stackFrameVariables: false,
 };
+
+/**
+ * What a Workflow engine throws into a run it evicts after the grace period,
+ * which it does to every instance that sleeps (`step.sleep`,
+ * `step.sleepUntil`, `step.waitForEvent`) for longer than that. The instance
+ * stays waiting and resumes when the sleep ends, so the error is not a
+ * failure, but `instrumentWorkflowWithSentry` reports it as unhandled.
+ */
+const WORKFLOW_EVICTION = /^Aborting engine: Grace period complete$/;
+
+/** A Worker `beforeSend`: drops local events and Workflow evictions, keeps the rest. */
+function dropWorkerNoise<T extends SentryEventLike>(event: T): T | null {
+  const value = event.exception?.values?.[0]?.value;
+  if (value !== undefined && WORKFLOW_EVICTION.test(value)) return null;
+  return dropLocalEvents(event);
+}
 
 /** A `beforeSend` that drops local events and keeps the rest. */
 export function dropLocalEvents<T extends SentryEventLike>(event: T): T | null {
@@ -282,7 +300,7 @@ export function workerSentryOptions(
   const out: WorkerSentryOptions = {
     dsn,
     enabled: dsn !== undefined,
-    beforeSend: chain(dropLocalEvents, options.beforeSend),
+    beforeSend: chain(dropWorkerNoise, options.beforeSend),
     ignoreSpans: [LOCAL_SPANS, ...(options.ignoreSpans ?? [])],
     dataCollection: { ...SENTRY_DATA_COLLECTION, ...options.dataCollection },
   };
