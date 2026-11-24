@@ -329,6 +329,7 @@ export {
   withSecurityHeaders,
 } from "./security.js";
 export type {
+  ContentSignal,
   LlmsBlock,
   LlmsItem,
   LlmsLink,

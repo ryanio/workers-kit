@@ -18,10 +18,38 @@ export interface SitemapEntry {
 }
 
 /** One group of rules in robots.txt. */
+/**
+ * What the site allows its content to be used for (contentsignals.org): `search`
+ * for search indexes and results, `aiInput` for answers an AI builds from a
+ * fetched page, `aiTrain` for training a model. A signal left out is unstated.
+ */
+export interface ContentSignal {
+  search?: boolean;
+  aiInput?: boolean;
+  aiTrain?: boolean;
+}
+
 export interface RobotsRule {
   userAgent: string | readonly string[];
   allow?: string | readonly string[];
   disallow?: string | readonly string[];
+  /** Written as a `Content-Signal:` line under the group's user agents. */
+  contentSignal?: ContentSignal;
+}
+
+const SIGNAL_NAMES = [
+  ["search", "search"],
+  ["aiInput", "ai-input"],
+  ["aiTrain", "ai-train"],
+] as const;
+
+function contentSignalLine(signal: ContentSignal | undefined): string[] {
+  if (!signal) return [];
+  const parts = SIGNAL_NAMES.flatMap(([key, name]) => {
+    const value = signal[key];
+    return value === undefined ? [] : [`${name}=${value ? "yes" : "no"}`];
+  });
+  return parts.length > 0 ? [`Content-Signal: ${parts.join(", ")}`] : [];
 }
 
 export interface RobotsOptions {
@@ -91,8 +119,9 @@ export function sitemapXml(entries: readonly SitemapEntry[]): string {
 }
 
 /**
- * A robots.txt body: each rule group as `User-Agent`, `Allow` and `Disallow`
- * lines, groups separated by a blank line, then `Host` and `Sitemap`.
+ * A robots.txt body: each rule group as `User-Agent`, `Content-Signal`, `Allow`
+ * and `Disallow` lines, groups separated by a blank line, then `Host` and
+ * `Sitemap`.
  */
 export function robotsTxt(options: RobotsOptions = {}): string {
   const rules = list(options.rules);
@@ -100,6 +129,7 @@ export function robotsTxt(options: RobotsOptions = {}): string {
     .map((rule) =>
       [
         ...list(rule.userAgent).map((agent) => `User-Agent: ${agent}`),
+        ...contentSignalLine(rule.contentSignal),
         ...list(rule.allow).map((path) => `Allow: ${path}`),
         ...list(rule.disallow).map((path) => `Disallow: ${path}`),
       ].join("\n"),

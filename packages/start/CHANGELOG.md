@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.37.0 (2026-11-24)
+
+- `robotsTxt` rules take `contentSignal` (`{ search, aiInput, aiTrain }`), written as a `Content-Signal:` line under the group's user agents. `ContentSignal` is exported.
+
 ## 0.36.2 (2026-11-23)
 
 - `workerSentryOptions` drops every Workflow engine abort (a message starting `Aborting engine`), the rule `isEngineAbort` in workers-jobs already follows. 0.36.1 dropped only the sleep eviction, so the abort a deploy raises in a running instance still reached Sentry.

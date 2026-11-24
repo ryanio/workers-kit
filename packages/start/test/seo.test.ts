@@ -78,6 +78,23 @@ describe("robotsTxt", () => {
     expect(robotsTxt()).toBe("User-Agent: *\nAllow: /\n");
   });
 
+  it("writes a group's content signals under its user agents", () => {
+    expect(
+      robotsTxt({
+        rules: {
+          userAgent: "*",
+          allow: "/",
+          contentSignal: { search: true, aiInput: true, aiTrain: false },
+        },
+      }),
+    ).toBe(
+      "User-Agent: *\nContent-Signal: search=yes, ai-input=yes, ai-train=no\nAllow: /\n",
+    );
+    expect(
+      robotsTxt({ rules: { userAgent: "*", allow: "/", contentSignal: {} } }),
+    ).toBe("User-Agent: *\nAllow: /\n");
+  });
+
   it("writes groups, then Host and Sitemap", () => {
     expect(
       robotsTxt({
