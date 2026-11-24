@@ -84,14 +84,17 @@ describe("workerSentryOptions", () => {
     expect(options).not.toHaveProperty("beforeSendTransaction");
   });
 
-  it("drops the eviction of a sleeping Workflow and keeps other engine errors", () => {
+  it("drops a Workflow engine abort and keeps errors that only mention one", () => {
     const { beforeSend } = workerSentryOptions({ SENTRY_DSN: DSN });
-    expect(
-      beforeSend(error("Aborting engine: Grace period complete"), {}),
-    ).toBeNull();
     for (const value of [
-      "Aborting engine: step timed out",
-      "Error: Aborting engine: Grace period complete in send-email",
+      "Aborting engine: Grace period complete",
+      "Aborting engine: new version deployed",
+    ]) {
+      expect(beforeSend(error(value), {}), value).toBeNull();
+    }
+    for (const value of [
+      "send-email failed after Aborting engine: Grace period complete",
+      "Aborting engineering review",
     ]) {
       expect(beforeSend(error(value), {}), value).not.toBeNull();
     }

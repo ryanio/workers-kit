@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.36.2 (2026-11-23)
+
+- `workerSentryOptions` drops every Workflow engine abort (a message starting `Aborting engine`), the rule `isEngineAbort` in workers-jobs already follows. 0.36.1 dropped only the sleep eviction, so the abort a deploy raises in a running instance still reached Sentry.
+
 ## 0.36.1 (2026-11-23)
 
 - `workerSentryOptions` drops `Aborting engine: Grace period complete`, which a Workflow engine throws into every instance it evicts during a long sleep. The instance resumes on its own, so it was never a failure.

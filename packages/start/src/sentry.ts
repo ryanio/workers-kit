@@ -8,8 +8,8 @@
  * production project, and in the browser the noise that is not the app's to
  * fix (requests that never left the device, extension and injected wallet
  * scripts, users declining a wallet prompt) is dropped. The Worker side drops
- * one workerd message only: the abort a Workflow engine raises when it evicts
- * an instance that is sleeping, which resumes on its own. Browser wording
+ * one workerd message only: the abort a Workflow engine raises when it stops
+ * an instance that then replays on its own. Browser wording
  * describes nothing workerd says, so a broader filter could only hide a real
  * failure.
  *
@@ -104,18 +104,19 @@ export const SENTRY_DATA_COLLECTION: DataCollection = {
 };
 
 /**
- * What a Workflow engine throws into a run it evicts after the grace period,
- * which it does to every instance that sleeps (`step.sleep`,
- * `step.sleepUntil`, `step.waitForEvent`) for longer than that. The instance
- * stays waiting and resumes when the sleep ends, so the error is not a
- * failure, but `instrumentWorkflowWithSentry` reports it as unhandled.
+ * What a Workflow engine throws into a run it stops: an instance it evicts
+ * while it sleeps (`step.sleep`, `step.sleepUntil`, `step.waitForEvent`), or
+ * one it moves to a new version on a deploy. The instance stays alive and
+ * replays from its last step, so this is not a failure, but
+ * `instrumentWorkflowWithSentry` reports it as unhandled. The same rule as
+ * `isEngineAbort` in workers-jobs, which keeps it out of the run ledger.
  */
-const WORKFLOW_EVICTION = /^Aborting engine: Grace period complete$/;
+const WORKFLOW_ENGINE_ABORT = /^Aborting engine\b/;
 
-/** A Worker `beforeSend`: drops local events and Workflow evictions, keeps the rest. */
+/** A Worker `beforeSend`: drops local events and Workflow engine aborts, keeps the rest. */
 function dropWorkerNoise<T extends SentryEventLike>(event: T): T | null {
   const value = event.exception?.values?.[0]?.value;
-  if (value !== undefined && WORKFLOW_EVICTION.test(value)) return null;
+  if (value !== undefined && WORKFLOW_ENGINE_ABORT.test(value)) return null;
   return dropLocalEvents(event);
 }
 
