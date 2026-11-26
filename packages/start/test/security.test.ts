@@ -238,6 +238,14 @@ describe("contentSecurityPolicy", () => {
         "https://verify.walletconnect.org",
       ]),
     );
+    expect(wallet.get("style-src")).toEqual([
+      "'self'",
+      "https://fonts.googleapis.com",
+    ]);
+    expect(wallet.get("font-src")).toEqual([
+      "'self'",
+      "https://fonts.gstatic.com",
+    ]);
   });
 
   it("merges presets with each other and with directives", () => {

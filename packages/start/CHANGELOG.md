@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.37.1 (2026-11-26)
+
+- The `walletConnect` CSP preset allows `https://fonts.googleapis.com` in `style-src` and `https://fonts.gstatic.com` in `font-src`, where the AppKit modal loads its Inter font.
+
 ## 0.37.0 (2026-11-24)
 
 - `robotsTxt` rules take `contentSignal` (`{ search, aiInput, aiTrain }`), written as a `Content-Signal:` line under the group's user agents. `ContentSignal` is exported.

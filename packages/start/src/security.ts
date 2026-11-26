@@ -77,6 +77,10 @@ export const CSP_PRESETS: Readonly<Record<CspPreset, CspDirectives>> =
         "https://secure.walletconnect.com",
         "https://secure.walletconnect.org",
       ],
+      // The modal loads the Inter font from Google Fonts: the stylesheet, then
+      // the font files it names.
+      "style-src": ["https://fonts.googleapis.com"],
+      "font-src": ["https://fonts.gstatic.com"],
     },
   });
 
