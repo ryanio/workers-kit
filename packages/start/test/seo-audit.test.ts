@@ -229,4 +229,25 @@ describe("auditSite", () => {
     expect(result.challenged).toHaveLength(3);
     expect(result.challenged).toContain(`${ORIGIN}/a`);
   });
+
+  it("retries a 5xx once before reporting it", async () => {
+    let calls = 0;
+    const flaky = async (input: string) => {
+      if (input.endsWith("/sitemap.xml")) return sitemap("/a", "/b")();
+      if (input.endsWith("/a")) {
+        calls++;
+        if (calls === 1) return new Response("busy", { status: 503 });
+        return html(page(`<link rel="canonical" href="${ORIGIN}/a">`))();
+      }
+      if (input.endsWith("/b")) return new Response("down", { status: 500 });
+      return new Response("no", { status: 404 });
+    };
+    const { findings } = await auditSite({
+      origin: ORIGIN,
+      retryDelayMs: 0,
+      fetch: flaky,
+    });
+    expect(calls).toBe(2);
+    expect(rules(findings)).toEqual([`sitemap-status ${ORIGIN}/b`]);
+  });
 });

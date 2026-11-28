@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.38.2 (2026-11-28)
+
+- `auditSite` retries a 5xx or failed request once after `retryDelayMs` (2 seconds) before reporting it, and sends 4 requests at a time instead of 8. A full run against a busy site reported pages as broken that answered 200 a moment later.
+
 ## 0.38.1 (2026-11-28)
 
 - `auditSite` sets aside a URL a Cloudflare challenge answers, in a new `challenged` list, instead of reporting it as a `sitemap-status` or `soft-404` finding. A site that challenges unverified clients failed every page from a CI runner while Google crawled it fine.

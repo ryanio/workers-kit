@@ -52,8 +52,10 @@ export interface SeoAuditOptions {
    * host. Each robots.txt must disallow `/` for every crawler.
    */
   privateHosts?: string[];
-  /** Requests in flight at once. Default 8. */
+  /** Requests in flight at once. Default 4. */
   concurrency?: number;
+  /** Pause before the one retry of a 5xx or failed request. Default 2 seconds. */
+  retryDelayMs?: number;
   /** The crawler whose robots.txt group applies. Default `Googlebot`. */
   userAgent?: string;
   fetch?: Fetch;
@@ -309,7 +311,8 @@ export async function auditSite(
   const origin = new URL(options.origin).origin;
   const userAgent = options.userAgent ?? "Googlebot";
   const limit = options.limit ?? 500;
-  const concurrency = options.concurrency ?? 8;
+  const concurrency = options.concurrency ?? 4;
+  const retryDelayMs = options.retryDelayMs ?? 2_000;
   const timeoutMs = options.timeoutMs ?? 15_000;
   const fetcher: Fetch = options.fetch ?? ((u, i) => fetch(u, i));
   const findings: SeoFinding[] = [];
@@ -325,6 +328,16 @@ export async function auditSite(
       },
       signal: AbortSignal.timeout(timeoutMs),
     });
+  // One more try after a pause for a 5xx or a failed request, so a moment of
+  // load (often the audit's own) is not reported as a broken page.
+  const page = async (url: string, redirect: RequestRedirect = "manual") => {
+    try {
+      const res = await get(url, redirect);
+      if (res.status < 500) return res;
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+    return get(url, redirect);
+  };
 
   let robots: ParsedRobots = { groups: [], sitemaps: [] };
   try {
@@ -385,7 +398,7 @@ export async function auditSite(
     }
     let res: Response;
     try {
-      res = await get(url);
+      res = await page(url);
     } catch (error) {
       findings.push({
         rule: "sitemap-status",
@@ -453,7 +466,7 @@ export async function auditSite(
   ]);
   await mapLimit(probeUrls, concurrency, async (url) => {
     try {
-      const res = await get(url, "follow");
+      const res = await page(url, "follow");
       if (res.status === 404 || res.status === 410) return;
       if (challenged(res)) {
         unchecked.push(url);
