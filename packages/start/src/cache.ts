@@ -449,7 +449,9 @@ interface Envelope<T> {
   value: T;
 }
 
-const refreshing = new Map<string, Promise<unknown>>();
+// Keys with a refresh running in this isolate. Only a flag: workerd settles a
+// promise only in the request that made it, so no request awaits another's.
+const refreshing = new Set<string>();
 
 /**
  * A value computed at most once per `freshSeconds`, kept in the Cache API
@@ -458,7 +460,8 @@ const refreshing = new Map<string, Promise<unknown>>();
  * - fresh: returned as is;
  * - within `staleSeconds` after that: returned, and recomputed after the
  *   response (one refresh per key per isolate at a time);
- * - older, or missing: recomputed before answering. If that fails and any
+ * - older, or missing: recomputed before answering, by this request itself,
+ *   never by waiting on another request's refresh. If that fails and any
  *   earlier value is still stored, the earlier value is returned (with
  *   `stale: true`) and the error goes to `onError`; with nothing stored, the
  *   error is thrown.
@@ -519,16 +522,15 @@ export async function cachedEntry<T>(
     ]);
   };
 
-  const refresh = (): Promise<Envelope<T>> => {
-    const running = refreshing.get(fullKey) as Promise<Envelope<T>> | undefined;
-    if (running) return running;
-    const next = (async () => {
+  const refresh = async (): Promise<Envelope<T>> => {
+    refreshing.add(fullKey);
+    try {
       const envelope = { at: now(), value: await compute() };
       later(store(envelope));
       return envelope;
-    })().finally(() => refreshing.delete(fullKey));
-    refreshing.set(fullKey, next);
-    return next;
+    } finally {
+      refreshing.delete(fullKey);
+    }
   };
 
   let current: Envelope<T> | null = null;
@@ -542,7 +544,7 @@ export async function cachedEntry<T>(
     return { value: current.value, at: current.at, stale: false };
   }
   if (current && age <= freshMs + staleMs) {
-    later(refresh());
+    if (!refreshing.has(fullKey)) later(refresh());
     return { value: current.value, at: current.at, stale: true };
   }
   try {

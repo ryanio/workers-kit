@@ -242,6 +242,19 @@ describe("cachedEntry", () => {
     });
   });
 
+  it("computes its own value rather than waiting on another request's refresh", async () => {
+    // workerd never settles a promise for a request other than the one that
+    // made it, so a request that waited on another's refresh would hang.
+    const s = setup();
+    const never = new Promise<{ n: number }>(() => {});
+    void cachedEntry("gas", () => never, s.options);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(await cachedEntry("gas", s.compute, s.options)).toMatchObject({
+      value: { n: 1 },
+      stale: false,
+    });
+  });
+
   it("computes every time without a cache or KV", async () => {
     const s = setup();
     const { cache: _cache, ...options } = s.options;

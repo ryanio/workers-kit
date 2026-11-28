@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.37.2 (2026-11-28)
+
+- `cachedEntry` no longer has a request wait on a refresh another request started. A request that found the value missing or past stale joined the running refresh, and once the request that started it had ended, workerd threw "This promise was created by a request that has since ended" (with `handle_cross_request_promise_resolution`) or the promise never settled. Such a request now computes its own value; background refreshes are still one per key per isolate.
+
 ## 0.37.1 (2026-11-26)
 
 - The `walletConnect` CSP preset allows `https://fonts.googleapis.com` in `style-src` and `https://fonts.gstatic.com` in `font-src`, where the AppKit modal loads its Inter font.
