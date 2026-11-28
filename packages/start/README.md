@@ -941,6 +941,7 @@ npx workers-start-seo-audit https://www.example.com --probe '/blog/$slug' --priv
 - Robots.txt is matched as Google does: the most specific user-agent group, else `*`, then the longest rule, with Allow winning a tie. `userAgent` picks the group (`Googlebot` by default). Requests themselves go out as `workers-start-seo-audit`, since Cloudflare blocks a request that claims to be Googlebot from an address Google does not own.
 - Sitemaps come from robots.txt's `Sitemap:` lines, or `/sitemap.xml`, and indexes are followed. `limit` caps the URLs checked (500), `concurrency` the requests in flight (8). `sitemaps: []` skips them.
 - A canonical matches when the URLs are equal, or both are the origin with or without a trailing `/`.
+- A URL that a Cloudflare challenge answers (`cf-mitigated: challenge`) is not a finding. It goes in `challenged`, and the bin prints how many there were. Google's verified crawlers usually pass a challenge that a script on a CI runner does not, so the audit cannot tell what Google sees there.
 - `pageSignals(html, headers, url)`, `parseRobotsTxt`, `robotsAllows` and `parseSitemap` are the pieces, for a page's own head test.
 - What Google decided, as opposed to what the site says, is `searchConsoleInspect` in `workers-start/google`.
 

@@ -70,15 +70,20 @@ async function main(): Promise<number> {
     return 2;
   }
   const { json, ...options } = args;
-  const { findings, checked } = await auditSite(options);
+  const { findings, checked, challenged } = await auditSite(options);
   if (json) {
-    console.log(JSON.stringify({ checked, findings }, null, 2));
+    console.log(JSON.stringify({ checked, findings, challenged }, null, 2));
   } else {
     for (const f of findings)
       console.log(`${f.rule}  ${f.url}\n  ${f.message}`);
     console.log(
       `${checked} sitemap URLs checked, ${findings.length} finding${findings.length === 1 ? "" : "s"}`,
     );
+    if (challenged.length > 0) {
+      console.log(
+        `${challenged.length} URL${challenged.length === 1 ? " was" : "s were"} answered by a Cloudflare challenge and not checked`,
+      );
+    }
   }
   return findings.length > 0 ? 1 : 0;
 }

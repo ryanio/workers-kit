@@ -113,7 +113,7 @@ describe("auditSite", () => {
         ),
       }),
     });
-    expect(result).toEqual({ findings: [], checked: 2 });
+    expect(result).toEqual({ findings: [], checked: 2, challenged: [] });
   });
 
   it("finds a page whose canonical names the homepage", async () => {
@@ -211,5 +211,22 @@ describe("auditSite", () => {
       }),
     });
     expect(closed.findings).toEqual([]);
+  });
+
+  it("sets aside a URL a Cloudflare challenge answers instead of failing it", async () => {
+    const result = await auditSite({
+      origin: ORIGIN,
+      probes: ["/item/$id"],
+      fetch: async (input) => {
+        if (input.endsWith("/sitemap.xml")) return sitemap("/a")();
+        return new Response("<html>Just a moment</html>", {
+          status: 403,
+          headers: { "cf-mitigated": "challenge" },
+        });
+      },
+    });
+    expect(result.findings).toEqual([]);
+    expect(result.challenged).toHaveLength(3);
+    expect(result.challenged).toContain(`${ORIGIN}/a`);
   });
 });

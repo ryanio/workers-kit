@@ -65,7 +65,16 @@ export interface SeoAuditResult {
   findings: SeoFinding[];
   /** Sitemap URLs that were checked. */
   checked: number;
+  /**
+   * URLs a Cloudflare challenge answered (`cf-mitigated: challenge`), so
+   * nothing is known about them. Google's verified crawlers usually pass a
+   * challenge that a script from a CI runner does not.
+   */
+  challenged: string[];
 }
+
+const challenged = (res: Response) =>
+  res.headers.get("cf-mitigated")?.toLowerCase() === "challenge";
 
 // Robots.txt
 
@@ -304,6 +313,7 @@ export async function auditSite(
   const timeoutMs = options.timeoutMs ?? 15_000;
   const fetcher: Fetch = options.fetch ?? ((u, i) => fetch(u, i));
   const findings: SeoFinding[] = [];
+  const unchecked: string[] = [];
   const get = (url: string, redirect: RequestRedirect = "manual") =>
     fetcher(url, {
       redirect,
@@ -384,6 +394,10 @@ export async function auditSite(
       });
       return;
     }
+    if (challenged(res)) {
+      unchecked.push(url);
+      return;
+    }
     if (res.status >= 300 && res.status < 400) {
       findings.push({
         rule: "sitemap-redirect",
@@ -441,6 +455,10 @@ export async function auditSite(
     try {
       const res = await get(url, "follow");
       if (res.status === 404 || res.status === 410) return;
+      if (challenged(res)) {
+        unchecked.push(url);
+        return;
+      }
       const signals = pageSignals(
         res.ok ? await res.text() : "",
         res.headers,
@@ -488,5 +506,6 @@ export async function auditSite(
   findings.sort((a, b) =>
     a.rule === b.rule ? a.url.localeCompare(b.url) : a.rule < b.rule ? -1 : 1,
   );
-  return { findings, checked: pages.length };
+  unchecked.sort();
+  return { findings, checked: pages.length, challenged: unchecked };
 }

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.38.1 (2026-11-28)
+
+- `auditSite` sets aside a URL a Cloudflare challenge answers, in a new `challenged` list, instead of reporting it as a `sitemap-status` or `soft-404` finding. A site that challenges unverified clients failed every page from a CI runner while Google crawled it fine.
+
 ## 0.38.0 (2026-11-28)
 
 - `workers-start/seo-audit`: `auditSite` checks a deployed site's indexing signals and reports sitemap URLs that redirect, fail, carry noindex, are blocked by robots.txt or name another canonical; share images robots.txt blocks; route patterns and unknown ids that answer an indexable page instead of 404; and hosts that are not for search but let crawlers in. The `workers-start-seo-audit` bin runs it and exits 1 on a finding.
