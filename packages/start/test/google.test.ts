@@ -10,6 +10,7 @@ import {
   inListFilter,
   parseServiceAccount,
   type ServiceAccount,
+  searchConsoleInspect,
   searchConsoleQuery,
 } from "../src/google.js";
 
@@ -377,5 +378,37 @@ describe("Search Console", () => {
       ctr: 0,
       position: 0,
     });
+  });
+});
+
+describe("searchConsoleInspect", () => {
+  it("returns the canonical Google chose next to the page's own", async () => {
+    const api = apiServer(() => ({
+      inspectionResult: {
+        indexStatusResult: {
+          coverageState: "Alternate page with proper canonical tag",
+          googleCanonical: "https://example.com/",
+          userCanonical: "https://example.com/",
+        },
+      },
+    }));
+    const result = await searchConsoleInspect(
+      "tok",
+      "sc-domain:example.com",
+      "https://example.com/tools",
+      { fetch: api.fetch },
+    );
+    expect(api.seen[0]).toMatchObject({
+      url: "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect",
+      body: {
+        inspectionUrl: "https://example.com/tools",
+        siteUrl: "sc-domain:example.com",
+      },
+      auth: "Bearer tok",
+    });
+    expect(result.coverageState).toBe(
+      "Alternate page with proper canonical tag",
+    );
+    expect(result.googleCanonical).toBe("https://example.com/");
   });
 });

@@ -425,3 +425,43 @@ export async function searchConsoleQuery(
     startRow += page.length;
   }
 }
+
+export interface UrlInspectionResult {
+  /** "PASS", "PARTIAL", "FAIL" or "NEUTRAL". */
+  verdict?: string;
+  /** Search Console's reason, such as "Submitted and indexed". */
+  coverageState?: string;
+  robotsTxtState?: string;
+  indexingState?: string;
+  pageFetchState?: string;
+  lastCrawlTime?: string;
+  googleCanonical?: string;
+  userCanonical?: string;
+  sitemap?: string[];
+  referringUrls?: string[];
+}
+
+/**
+ * What Google last recorded for one URL: its coverage state and the
+ * canonical it chose against the one the page declares. It reads Google's
+ * index, not the live page. The quota is 2,000 calls a day and 600 a minute
+ * per property, so inspect a sample.
+ */
+export async function searchConsoleInspect(
+  token: string,
+  siteUrl: string,
+  inspectionUrl: string,
+  options: GoogleCallOptions & { languageCode?: string } = {},
+): Promise<UrlInspectionResult> {
+  const { languageCode, ...call } = options;
+  const res = await googleJson<{
+    inspectionResult?: { indexStatusResult?: UrlInspectionResult };
+  }>(
+    "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect",
+    token,
+    { inspectionUrl, siteUrl, ...(languageCode ? { languageCode } : {}) },
+    call,
+    "URL inspection",
+  );
+  return res.inspectionResult?.indexStatusResult ?? {};
+}

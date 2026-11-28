@@ -11,6 +11,7 @@
 - `src/scripts.ts`: inline theme and analytics bootstraps, and `gaEvent`.
 - `src/cache.ts`: `withEdgeCache`, the edge page cache on the Workers Cache API.
 - `src/seo.ts`: sitemap and robots.txt bodies.
+- `src/seo-audit.ts`, `src/seo-audit-cli.ts`: the live indexing check and its `workers-start-seo-audit` bin.
 - `src/google.ts`: Google service account tokens, GA4 Data API and Search Console calls.
 - `src/sentry.ts`: Sentry options and filters, with no SDK import. `src/mail.ts`: the mailers over Email Sending and Resend.
 - `src/rate-limit.ts`: the rate limiting binding with hashed keys and the 429 answer.

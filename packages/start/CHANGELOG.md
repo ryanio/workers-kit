@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.38.0 (2026-11-28)
+
+- `workers-start/seo-audit`: `auditSite` checks a deployed site's indexing signals and reports sitemap URLs that redirect, fail, carry noindex, are blocked by robots.txt or name another canonical; share images robots.txt blocks; route patterns and unknown ids that answer an indexable page instead of 404; and hosts that are not for search but let crawlers in. The `workers-start-seo-audit` bin runs it and exits 1 on a finding.
+- `searchConsoleInspect` in `workers-start/google` calls the URL Inspection API for a URL's coverage state and the canonical Google chose.
+
 ## 0.37.2 (2026-11-28)
 
 - `cachedEntry` no longer has a request wait on a refresh another request started. A request that found the value missing or past stale joined the running refresh, and once the request that started it had ended, workerd threw "This promise was created by a request that has since ended" (with `handle_cross_request_promise_resolution`) or the promise never settled. Such a request now computes its own value; background refreshes are still one per key per isolate.

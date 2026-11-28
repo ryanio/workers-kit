@@ -1,6 +1,6 @@
 {
   "name": "workers-start",
-  "version": "0.37.2",
+  "version": "0.38.0",
   "description": "The parts every app on Cloudflare Workers ends up writing: the TanStack Start entry, edge and value caches, Cloudflare Access, Google service accounts, Sentry options, mail, rate limiting, outbound HTTP with retries, security headers, CORS, capped bodies, webhook signatures, structured logs, and Discord and X clients. No dependencies.",
   "license": "MIT",
   "author": "Ryan Ghods",
@@ -83,6 +83,11 @@
       "types": "./dist/seo.d.ts",
       "import": "./dist/seo.js",
       "default": "./dist/seo.js"
+    },
+    "./seo-audit": {
+      "types": "./dist/seo-audit.d.ts",
+      "import": "./dist/seo-audit.js",
+      "default": "./dist/seo-audit.js"
     },
     "./accept": {
       "types": "./dist/accept.d.ts",
@@ -202,7 +207,8 @@
     "./package.json": "./package.json"
   },
   "bin": {
-    "workers-start-check-bundle": "dist/check-bundle-cli.js"
+    "workers-start-check-bundle": "dist/check-bundle-cli.js",
+    "workers-start-seo-audit": "dist/seo-audit-cli.js"
   },
   "files": [
     "dist",
@@ -215,7 +221,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/check-bundle-cli.js",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/check-bundle-cli.js dist/seo-audit-cli.js",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && vitest run",
     "check": "npm run typecheck && npm run build && vitest run",
